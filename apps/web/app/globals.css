@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fff8fb;
+  --foreground: #2d2730;
+  --panel: #fff;
+  --line: #eadfe5;
+  --accent: #ee749d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, "Segoe UI", sans-serif;
+}

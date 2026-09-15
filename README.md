@@ -4,7 +4,8 @@
 
 ## 현재 상태
 
-모노레포 골격만 구성되어 있습니다. 앱 화면, API, DB, 비즈니스 로직은 아직 없습니다.
+모노레포와 Web skeleton이 구성되어 있습니다. Web의 /에는 실행 확인 화면만 있으며,
+제품 기능, API, DB, 인증 연결은 아직 없습니다.
 
 ## 문서 기준
 
@@ -17,7 +18,7 @@
 
 | 경로 | 목적 |
 | --- | --- |
-| apps/web | Next.js 웹 앱 예정 위치 (.gitkeep만 있음) |
+| apps/web | Next.js App Router Web skeleton |
 | apps/mobile | Expo 모바일 앱 예정 위치 |
 | services/api | Java/Spring Boot API 예정 위치 |
 | packages/domain | 공통 도메인 타입과 규칙 |
@@ -28,7 +29,7 @@
 | infra | 개발·배포 인프라 |
 | docs | 요구사항과 프로토타입 |
 
-apps/web, services/api, infra는 .gitkeep으로 빈 디렉터리를 보존합니다.
+services/api와 infra는 .gitkeep으로 빈 디렉터리를 보존합니다.
 services/api와 infra는 pnpm 패키지가 아닙니다.
 
 ## 개발 도구
@@ -47,9 +48,10 @@ pnpm typecheck
 pnpm test
 ```
 
-위 명령은 각 패키지에 정의된 스크립트를 실행합니다. 현재 하위 패키지는
-manifest만 있으므로 실행할 작업이 0개입니다. 앱 빌드나 기능 테스트가
-구현된 상태를 뜻하지 않습니다. pnpm dev도 앱 초기화 후 사용할 수 있습니다.
+위 명령은 각 패키지에 정의된 스크립트를 실행합니다. Web에는 dev/build/lint/typecheck가
+구성되어 있으며, 기능 테스트는 아직 없습니다. Web만 실행하려면
+pnpm --filter @dayflow/web dev를 사용합니다.
+자세한 구조와 직접 실행 검증 명령은 [Web README](apps/web/README.md)를 참고하세요.
 
 ### 설치 검증 상태
 
