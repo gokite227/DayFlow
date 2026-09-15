@@ -15,6 +15,18 @@ export type UpdateDayRequest = Schemas["UpdateDayRequest"];
 export type DayScheduleResponse = Schemas["DayScheduleResponse"];
 export type SetDayScheduleRequest = Schemas["SetDayScheduleRequest"];
 
+export type ReviewResponse = Schemas["ReviewResponse"];
+export type ReviewItemResponse = Schemas["ReviewItemResponse"];
+export type SaveReviewRequest = Schemas["SaveReviewRequest"];
+export type ReviewItemRequest = Schemas["ReviewItemRequest"];
+export type ConvertReviewItemResponse = Schemas["ConvertReviewItemResponse"];
+
+export type ApplyRecoveryRequest = Schemas["ApplyRecoveryRequest"];
+export type RecoveryDecisionRequest = Schemas["RecoveryDecisionRequest"];
+export type ApplyRecoveryResponse = Schemas["ApplyRecoveryResponse"];
+export type RecoveryDayResponse = Schemas["RecoveryDayResponse"];
+export type SaveRecoveryDayRequest = Schemas["SaveRecoveryDayRequest"];
+
 /** Problem Details body of every 4xx error (application/problem+json). */
 export type ProblemResponse = Schemas["ProblemResponse"];
 export type FieldViolation = Schemas["FieldViolation"];

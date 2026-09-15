@@ -16,4 +16,12 @@ export const queryKeys = {
     all: ["days"] as const,
     list: (filters: DayListFilters = {}) => ["days", "list", filters] as const,
   },
+  reviews: {
+    all: ["reviews"] as const,
+    period: (type: string, periodStart: string) => ["reviews", type, periodStart] as const,
+  },
+  recoveryDays: {
+    all: ["recovery-days"] as const,
+    range: (from: string, to: string) => ["recovery-days", from, to] as const,
+  },
 };

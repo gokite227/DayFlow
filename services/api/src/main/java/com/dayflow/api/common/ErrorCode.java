@@ -14,10 +14,17 @@ public enum ErrorCode {
     DAY_REQUIRES_WEEK_GOAL(HttpStatus.BAD_REQUEST, "Day requires a WEEK Goal"),
     DATE_OUTSIDE_WEEK_GOAL_PERIOD(HttpStatus.BAD_REQUEST, "Date outside WEEK Goal period"),
     INVALID_SCHEDULE_RANGE(HttpStatus.BAD_REQUEST, "Invalid schedule range"),
+    INVALID_REVIEW_PERIOD(HttpStatus.BAD_REQUEST, "Invalid review period"),
+    REVIEW_ITEM_NOT_TRY(HttpStatus.BAD_REQUEST, "Only Try items can become a Day"),
+    INVALID_RECOVERY_DECISION(HttpStatus.BAD_REQUEST, "Invalid recovery decision"),
+    INVALID_RECOVERY_RETURN_DATE(HttpStatus.BAD_REQUEST, "Invalid recovery return date"),
 
     GOAL_NOT_FOUND(HttpStatus.NOT_FOUND, "Goal not found"),
     DAY_NOT_FOUND(HttpStatus.NOT_FOUND, "Day not found"),
     SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "Schedule not found"),
+    REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "Review not found"),
+    REVIEW_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "Review item not found"),
+    RECOVERY_DAY_NOT_FOUND(HttpStatus.NOT_FOUND, "Recovery day not found"),
 
     VERSION_CONFLICT(HttpStatus.CONFLICT, "Version conflict"),
     SCHEDULE_VERSION_CONFLICT(HttpStatus.CONFLICT, "Schedule version conflict"),

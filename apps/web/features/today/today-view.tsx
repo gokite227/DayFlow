@@ -5,13 +5,16 @@ import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
-import { formatKoreanDate } from "@/features/calendar/calendar-time";
+import { addDays, formatKoreanDate } from "@/features/calendar/calendar-time";
 import { DayFormModal } from "@/features/days/day-form-modal";
 import { DayItem } from "@/features/days/day-item";
 import { useDays, useUpdateDay } from "@/features/days/day-queries";
 import { doneToggleRequest } from "@/features/days/day-values";
 import { useGoals } from "@/features/goals/goal-queries";
 import { GOAL_TYPE_LABEL, goalPath, sortGoals } from "@/features/goals/goal-tree";
+import { shortDate } from "@/features/recovery/recovery-plan";
+import { useRecoveryDays } from "@/features/recovery/recovery-queries";
+import { isOpen } from "@/features/review/review-summary";
 import { useToday } from "@/lib/use-today";
 
 export function TodayView() {
@@ -50,6 +53,8 @@ function TodayContent({ today }: { today: string }) {
 
   return (
     <div className="stack">
+      <RecoveryEntry today={today} />
+
       <section className="card">
         <h3 className="card-title">Current Goal Path</h3>
         {goalsQuery.isPending ? (
@@ -113,6 +118,41 @@ function TodayContent({ today }: { today: string }) {
         />
       )}
     </div>
+  );
+}
+
+/** Recovery entry: shown only when a past Day is still open, or when today is a Recovery Day. */
+function RecoveryEntry({ today }: { today: string }) {
+  const pastDaysQuery = useDays({ to: addDays(today, -1) });
+  const recoveryQuery = useRecoveryDays(today, today);
+  const hasMissed = (pastDaysQuery.data ?? []).some(isOpen);
+  const recoveryDay = recoveryQuery.data?.[0];
+
+  if (!hasMissed && !recoveryDay) return null;
+  return (
+    <>
+      {recoveryDay && (
+        <div className="recovery-banner" role="status">
+          <span>
+            <strong>오늘은 Recovery Day예요.</strong>
+            {recoveryDay.returnDate ? ` ${shortDate(recoveryDay.returnDate)}에 다시 평소 계획으로 돌아와요.` : " 천천히 회복해요."}
+          </span>
+          <Link href="/recovery" className="btn ghost small">
+            Recovery Day 보기
+          </Link>
+        </div>
+      )}
+      {hasMissed && (
+        <div className="recovery-banner">
+          <span>
+            <strong>놓친 계획이 있어요</strong> · 오늘 기준으로 다시 정리할 수 있어요.
+          </span>
+          <Link href="/recovery" className="btn ghost small">
+            다시 정리하기
+          </Link>
+        </div>
+      )}
+    </>
   );
 }
 

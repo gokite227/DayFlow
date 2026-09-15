@@ -84,10 +84,108 @@ export interface paths {
         patch: operations["updateGoal"];
         trace?: never;
     };
+    "/api/v1/recovery-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listRecoveryDays"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recovery-days/{date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["saveRecoveryDay"];
+        post?: never;
+        delete: operations["deleteRecoveryDay"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recovery/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["applyRecovery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/review-items/{itemId}/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["convertReviewItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/{type}/{periodStart}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getReview"];
+        put: operations["saveReview"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ApplyRecoveryRequest: {
+            decisions: components["schemas"]["RecoveryDecisionRequest"][];
+            /** Format: date */
+            localDate: string;
+        };
+        ApplyRecoveryResponse: {
+            /** Format: date-time */
+            appliedAt: string;
+            days: components["schemas"]["DayResponse"][];
+            /** Format: uuid */
+            eventId: string;
+            /** Format: date */
+            localDate: string;
+        };
+        ConvertReviewItemResponse: {
+            day: components["schemas"]["DayResponse"];
+            review: components["schemas"]["ReviewResponse"];
+        };
         CreateDayRequest: {
             coreDay: boolean;
             /** Format: int32 */
@@ -218,6 +316,113 @@ export interface components {
             status: number;
             title: string;
             traceId: string;
+        };
+        RecoveryDayResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date */
+            date: string;
+            /** Format: uuid */
+            id: string;
+            note: string;
+            /** Format: date */
+            returnDate: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            version: number;
+        };
+        RecoveryDecisionRequest: {
+            /** @enum {string} */
+            action: "KEEP" | "REDUCE" | "MOVE" | "DROP";
+            /** Format: uuid */
+            dayId: string;
+            /**
+             * Format: int32
+             * @description REDUCE: the new, smaller estimate
+             */
+            estimatedMinutes?: number | null;
+            /**
+             * Format: date
+             * @description MOVE: the new date inside the Day's WEEK Goal
+             */
+            plannedDate?: string | null;
+            /** @description REDUCE: optional new title */
+            title?: string | null;
+            /**
+             * Format: int64
+             * @description The Day version the user saw in the preview
+             */
+            version: number;
+        };
+        ReviewItemRequest: {
+            content: string;
+            /**
+             * Format: uuid
+             * @description null for a new item
+             */
+            id?: string | null;
+            /** @enum {string} */
+            kind: "KEEP" | "PROBLEM" | "TRY";
+        };
+        ReviewItemResponse: {
+            content: string;
+            /**
+             * Format: uuid
+             * @description The Day created from this Try item, or null
+             */
+            convertedDayId: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "KEEP" | "PROBLEM" | "TRY";
+        };
+        ReviewResponse: {
+            completed: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            items: components["schemas"]["ReviewItemResponse"][];
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            periodStart: string;
+            /** Format: int32 */
+            rating: number | null;
+            /** @enum {string} */
+            type: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            version: number;
+        };
+        SaveRecoveryDayRequest: {
+            /**
+             * Format: int64
+             * @description null to create; the current version to replace
+             */
+            expectedVersion: number | null;
+            note: string;
+            /**
+             * Format: date
+             * @description The date to come back, after the recovery day
+             */
+            returnDate?: string | null;
+        };
+        SaveReviewRequest: {
+            completed: boolean;
+            /**
+             * Format: int64
+             * @description null to create the review; the current review version to replace it
+             */
+            expectedVersion: number | null;
+            items: components["schemas"]["ReviewItemRequest"][];
+            /**
+             * Format: int32
+             * @description Satisfaction 1..5, or null when not rated
+             */
+            rating?: number | null;
         };
         SetDayScheduleRequest: {
             /** Format: date-time */
@@ -765,6 +970,301 @@ export interface operations {
                 };
             };
             /** @description Stale version (VERSION_CONFLICT) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    listRecoveryDays: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryDayResponse"][];
+                };
+            };
+            /** @description Invalid request or recovery decision */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    saveRecoveryDay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                date: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveRecoveryDayRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryDayResponse"];
+                };
+            };
+            /** @description Invalid request or recovery decision */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description expectedVersion does not match (VERSION_CONFLICT) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    deleteRecoveryDay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                date: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request or recovery decision */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Not a recovery day */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    applyRecovery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyRecoveryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyRecoveryResponse"];
+                };
+            };
+            /** @description Invalid request or recovery decision */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description A Day was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description A Day version is stale (VERSION_CONFLICT); nothing was applied */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    convertReviewItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                itemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDayRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConvertReviewItemResponse"];
+                };
+            };
+            /** @description Invalid request or period */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Review item not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    getReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+                periodStart: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewResponse"];
+                };
+            };
+            /** @description Invalid request or period */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description No review saved for this period (REVIEW_NOT_FOUND) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    saveReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+                periodStart: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewResponse"];
+                };
+            };
+            /** @description Invalid request or period */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description expectedVersion does not match (VERSION_CONFLICT) */
             409: {
                 headers: {
                     [name: string]: unknown;

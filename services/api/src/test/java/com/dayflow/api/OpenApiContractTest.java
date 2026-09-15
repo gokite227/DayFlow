@@ -60,6 +60,12 @@ class OpenApiContractTest {
         expectOnlySuccessStatus(docs, "/api/v1/goals/{goalId}", "delete", "204");
         expectOnlySuccessStatus(docs, "/api/v1/days/{dayId}", "delete", "204");
         expectOnlySuccessStatus(docs, "/api/v1/days/{dayId}/schedule", "delete", "204");
+        expectOnlySuccessStatus(docs, "/api/v1/reviews/{type}/{periodStart}", "get", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/reviews/{type}/{periodStart}", "put", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/review-items/{itemId}/convert", "post", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/recovery/apply", "post", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/recovery-days/{date}", "put", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/recovery-days/{date}", "delete", "204");
     }
 
     @Test
@@ -83,7 +89,8 @@ class OpenApiContractTest {
     @Test
     void documentsResponseFieldsAsRequiredWithExplicitNulls() throws Exception {
         for (String schema : List.of("GoalResponse", "DayResponse", "DayScheduleResponse", "ProblemResponse",
-                "FieldViolation")) {
+                "FieldViolation", "ReviewResponse", "ReviewItemResponse", "ConvertReviewItemResponse",
+                "RecoveryDayResponse", "ApplyRecoveryResponse")) {
             assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(
                     propertiesOf(schema));
         }

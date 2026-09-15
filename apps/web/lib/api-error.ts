@@ -56,6 +56,11 @@ const ERROR_HINTS: Partial<Record<string, string>> = {
   INVALID_SCHEDULE_RANGE: "종료 시간은 시작 시간보다 뒤여야 합니다.",
   VERSION_CONFLICT: "다른 곳에서 먼저 변경되었습니다. 최신 상태를 불러온 뒤 다시 시도해주세요.",
   SCHEDULE_VERSION_CONFLICT: "다른 곳에서 일정이 변경되었습니다. 최신 상태를 불러왔어요.",
+  INVALID_REVIEW_PERIOD: "회고 기간의 시작일이 올바르지 않습니다.",
+  REVIEW_ITEM_NOT_TRY: "Try 항목만 다음 계획으로 옮길 수 있어요.",
+  REVIEW_ITEM_NOT_FOUND: "회고 항목을 찾을 수 없습니다. 최신 회고를 불러와 주세요.",
+  INVALID_RECOVERY_DECISION: "정리 방법을 다시 확인해주세요.",
+  INVALID_RECOVERY_RETURN_DATE: "다시 시작할 날짜는 회복일 다음 날 이후여야 합니다.",
   GOAL_NOT_FOUND: "목표를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
   DAY_NOT_FOUND: "Day를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
 };
