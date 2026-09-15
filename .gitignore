@@ -1,0 +1,34 @@
+# Dependencies and package manager cache
+node_modules/
+.pnpm-store/
+
+# Build and tool outputs
+.turbo/
+.next/
+.expo/
+dist/
+build/
+target/
+.gradle/
+coverage/
+*.tsbuildinfo
+*.log
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.p8
+*.mobileprovision
+*.jks
+*.keystore
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
