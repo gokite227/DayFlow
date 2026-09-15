@@ -66,6 +66,56 @@ class OpenApiContractTest {
         expectOnlySuccessStatus(docs, "/api/v1/recovery/apply", "post", "200");
         expectOnlySuccessStatus(docs, "/api/v1/recovery-days/{date}", "put", "200");
         expectOnlySuccessStatus(docs, "/api/v1/recovery-days/{date}", "delete", "204");
+        expectOnlySuccessStatus(docs, "/api/v1/events", "post", "201");
+        expectOnlySuccessStatus(docs, "/api/v1/events", "get", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/events/{eventId}", "get", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/events/{eventId}", "patch", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/events/{eventId}", "delete", "204");
+        expectOnlySuccessStatus(docs, "/api/v1/event-occurrences", "get", "200");
+    }
+
+    @Test
+    void documentsTimedAndAllDayEventFieldsAsRequiredNullables() throws Exception {
+        for (String schema : List.of("EventResponse", "EventOccurrenceResponse")) {
+            assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(
+                    propertiesOf(schema));
+            for (String field : List.of("startAt", "endAt", "startDate", "endDateExclusive", "location",
+                    "linkedGoalId")) {
+                List<String> types = JsonPath.read(spec, SCHEMAS + schema + ".properties." + field + ".type");
+                assertThat(types).as(schema + "." + field).containsExactlyInAnyOrder("string", "null");
+            }
+        }
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(problemResponse("/api/v1/events/{eventId}", "patch", "409"))
+                .andExpect(problemResponse("/api/v1/events/{eventId}", "delete", "409"))
+                .andExpect(jsonPath(SCHEMAS + "EventResponse.properties.reminders.type").value("array"))
+                .andExpect(jsonPath(SCHEMAS + "CreateEventRequest.properties.reminders.maxItems").value(5))
+                .andExpect(jsonPath(SCHEMAS + "UpdateEventRequest.required", not(hasItem("linkedGoalId"))));
+    }
+
+    /** A timed and an all-day Event carry every documented field, with the other kind's pair as null. */
+    @Test
+    void runtimeEventBodiesMatchDocumentedFields() throws Exception {
+        for (String json : List.of("""
+                {"title": "Contract timed", "type": "OTHER", "allDay": false, "startAt": "2050-01-01T09:00:00Z",
+                 "endAt": "2050-01-01T10:00:00Z", "timezone": "UTC", "recurrence": "NONE", "reminders": []}
+                """, """
+                {"title": "Contract all-day", "type": "OTHER", "allDay": true, "startDate": "2050-01-01",
+                 "endDateExclusive": "2050-01-02", "timezone": "UTC", "recurrence": "NONE", "reminders": []}
+                """)) {
+            String event = mvc.perform(post("/api/v1/events").contentType(MediaType.APPLICATION_JSON).content(json))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(keysOf(event)).containsExactlyInAnyOrderElementsOf(propertiesOf("EventResponse"));
+        }
+        String occurrences = mvc.perform(get("/api/v1/event-occurrences").param("from", "2050-01-01")
+                        .param("to", "2050-01-01"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        List<Map<String, Object>> list = JsonPath.read(occurrences, "$");
+        assertThat(list).hasSizeGreaterThanOrEqualTo(2)
+                .allSatisfy(occurrence -> assertThat(occurrence.keySet())
+                        .containsExactlyInAnyOrderElementsOf(propertiesOf("EventOccurrenceResponse")));
     }
 
     @Test

@@ -1,7 +1,9 @@
+/** Desktop order (EVT-002). `mobile: "more"` items move behind the mobile More menu. */
 export const NAV_ITEMS = [
-  { href: "/today", label: "Today" },
-  { href: "/goals", label: "Goals" },
-  { href: "/calendar", label: "Calendar" },
-  { href: "/days", label: "Days" },
-  { href: "/review", label: "Review" },
+  { href: "/today", label: "Today", mobile: "tab" },
+  { href: "/goals", label: "Goals", mobile: "more" },
+  { href: "/calendar", label: "Calendar", mobile: "tab" },
+  { href: "/events", label: "Events", mobile: "tab" },
+  { href: "/days", label: "Days", mobile: "more" },
+  { href: "/review", label: "Review", mobile: "tab" },
 ] as const;

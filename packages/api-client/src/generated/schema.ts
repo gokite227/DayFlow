@@ -52,6 +52,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/event-occurrences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listEventOccurrences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listEvents"];
+        put?: never;
+        post: operations["createEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getEvent"];
+        put?: never;
+        post?: never;
+        delete: operations["deleteEvent"];
+        options?: never;
+        head?: never;
+        patch: operations["updateEvent"];
+        trace?: never;
+    };
     "/api/v1/goals": {
         parameters: {
             query?: never;
@@ -205,6 +253,41 @@ export interface components {
             status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "DEFERRED" | "SKIPPED";
             title: string;
         };
+        CreateEventRequest: {
+            allDay: boolean;
+            /**
+             * Format: date-time
+             * @description Timed Events only; >= startAt
+             */
+            endAt?: string | null;
+            /**
+             * Format: date
+             * @description All-day Events only; the day after the last day
+             */
+            endDateExclusive?: string | null;
+            /** Format: uuid */
+            linkedGoalId?: string | null;
+            location?: string | null;
+            notes?: string | null;
+            /** @enum {string} */
+            recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+            /** @description Minutes before each occurrence start; at most 5, no duplicates */
+            reminders: number[];
+            /**
+             * Format: date-time
+             * @description Timed Events only
+             */
+            startAt?: string | null;
+            /**
+             * Format: date
+             * @description All-day Events only
+             */
+            startDate?: string | null;
+            timezone: string;
+            title: string;
+            /** @enum {string} */
+            type: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
+        };
         CreateGoalRequest: {
             /** Format: date */
             endDate: string;
@@ -265,6 +348,85 @@ export interface components {
             /** Format: date-time */
             startAt: string;
             timezone: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            version: number;
+        };
+        EventOccurrenceResponse: {
+            allDay: boolean;
+            /**
+             * Format: date-time
+             * @description Timed occurrence end with the Event timezone offset; null for all-day
+             */
+            endAt: string | null;
+            /**
+             * Format: date
+             * @description All-day occurrence end (exclusive); null for timed
+             */
+            endDateExclusive: string | null;
+            /** Format: uuid */
+            eventId: string;
+            /** Format: int64 */
+            eventVersion: number;
+            /** Format: uuid */
+            linkedGoalId: string | null;
+            location: string | null;
+            /** @enum {string} */
+            recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+            /**
+             * Format: date-time
+             * @description Timed occurrence start with the Event timezone offset; null for all-day
+             */
+            startAt: string | null;
+            /**
+             * Format: date
+             * @description All-day occurrence first date; null for timed
+             */
+            startDate: string | null;
+            timezone: string;
+            title: string;
+            /** @enum {string} */
+            type: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
+        };
+        EventResponse: {
+            allDay: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Timed Events: end with the Event timezone offset; null for all-day
+             */
+            endAt: string | null;
+            /**
+             * Format: date
+             * @description All-day Events: the day after the last date; null for timed
+             */
+            endDateExclusive: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            linkedGoalId: string | null;
+            location: string | null;
+            notes: string | null;
+            /** @enum {string} */
+            recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+            /** @description Reminder offsets in minutes, ascending */
+            reminders: number[];
+            /**
+             * Format: date-time
+             * @description Timed Events: start with the Event timezone offset; null for all-day
+             */
+            startAt: string | null;
+            /**
+             * Format: date
+             * @description All-day Events: first date; null for timed
+             */
+            startDate: string | null;
+            timezone: string;
+            title: string;
+            /** @enum {string} */
+            type: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
             /** Format: date-time */
             updatedAt: string;
             /** Format: int64 */
@@ -454,6 +616,48 @@ export interface components {
             /** @enum {string} */
             status?: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "DEFERRED" | "SKIPPED";
             title?: string;
+            /** Format: int64 */
+            version: number;
+        };
+        UpdateEventRequest: {
+            allDay?: boolean;
+            /**
+             * Format: date-time
+             * @description Timed only; null is the same as omitted
+             */
+            endAt?: string | null;
+            /**
+             * Format: date
+             * @description All-day only; null is the same as omitted
+             */
+            endDateExclusive?: string | null;
+            /**
+             * Format: uuid
+             * @description Omit to keep; null unlinks the Goal
+             */
+            linkedGoalId?: string | null;
+            /** @description Omit to keep; null clears it */
+            location?: string | null;
+            /** @description Omit to keep; null clears it */
+            notes?: string | null;
+            /** @enum {string} */
+            recurrence?: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+            /** @description Omit to keep; a list replaces all reminders */
+            reminders?: number[];
+            /**
+             * Format: date-time
+             * @description Timed only; null is the same as omitted
+             */
+            startAt?: string | null;
+            /**
+             * Format: date
+             * @description All-day only; null is the same as omitted
+             */
+            startDate?: string | null;
+            timezone?: string;
+            title?: string;
+            /** @enum {string} */
+            type?: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
             /** Format: int64 */
             version: number;
         };
@@ -765,6 +969,247 @@ export interface operations {
             };
             /** @description Day or schedule not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    listEventOccurrences: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                type?: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventOccurrenceResponse"][];
+                };
+            };
+            /** @description Invalid request or Event rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    listEvents: {
+        parameters: {
+            query?: {
+                type?: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
+                linkedGoalId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventResponse"][];
+                };
+            };
+            /** @description Invalid request or Event rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    createEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventResponse"];
+                };
+            };
+            /** @description Invalid request or Event rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    getEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventResponse"];
+                };
+            };
+            /** @description Invalid request or Event rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    deleteEvent: {
+        parameters: {
+            query: {
+                /** @description The Event version the user saw */
+                version: number;
+            };
+            header?: never;
+            path: {
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request or Event rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Stale version (VERSION_CONFLICT) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    updateEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEventRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventResponse"];
+                };
+            };
+            /** @description Invalid request or Event rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Stale version (VERSION_CONFLICT) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

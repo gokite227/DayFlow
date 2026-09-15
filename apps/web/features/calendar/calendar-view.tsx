@@ -1,6 +1,6 @@
 "use client";
 
-import type { DayResponse } from "@dayflow/api-client";
+import type { DayResponse, EventOccurrenceResponse } from "@dayflow/api-client";
 import {
   DndContext,
   DragOverlay,
@@ -17,6 +17,9 @@ import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state"
 import { DayFormModal } from "@/features/days/day-form-modal";
 import { useDays, useDeleteDaySchedule, useSetDaySchedule, useUpdateDay } from "@/features/days/day-queries";
 import { DAY_STATUS_LABEL, describeDaySchedule } from "@/features/days/day-values";
+import { EventFormModal } from "@/features/events/event-form-modal";
+import { useEventOccurrences } from "@/features/events/event-queries";
+import { EVENT_TYPE_LABEL, describeOccurrenceTime } from "@/features/events/event-values";
 import { useGoals } from "@/features/goals/goal-queries";
 import { sortGoals } from "@/features/goals/goal-tree";
 import { useNowMinutes, useToday } from "@/lib/use-today";
@@ -55,6 +58,7 @@ function CalendarContent({ today }: { today: string }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today));
   const [mode, setMode] = useState<"week" | "list">("week");
   const [editingDay, setEditingDay] = useState<DayResponse | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [draggingDay, setDraggingDay] = useState<DayResponse | null>(null);
   const lastDragEndedAt = useRef(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -62,6 +66,8 @@ function CalendarContent({ today }: { today: string }) {
 
   const dates = weekDates(weekStart);
   const weekDaysQuery = useDays({ from: dates[0], to: dates[6] });
+  // Events are a separate domain and query; they are drawn with the Days but never dragged.
+  const occurrencesQuery = useEventOccurrences(dates[0], dates[6]);
   // The API has no "no date" filter, so Unscheduled is derived from the full list.
   const allDaysQuery = useDays();
   const weekGoalsQuery = useGoals({ type: "WEEK" });
@@ -102,6 +108,11 @@ function CalendarContent({ today }: { today: string }) {
     if (Date.now() - lastDragEndedAt.current < 300) return;
     resetMutations();
     setEditingDay(day);
+  };
+
+  const openEvent = (eventId: string) => {
+    if (Date.now() - lastDragEndedAt.current < 300) return;
+    setEditingEventId(eventId);
   };
 
   const onDragStart = ({ active }: DragStartEvent) => {
@@ -226,13 +237,24 @@ function CalendarContent({ today }: { today: string }) {
             </div>
           )}
 
+          {occurrencesQuery.isError && (
+            <div className="tc-notice">
+              <ErrorNotice error={occurrencesQuery.error} onRetry={() => void occurrencesQuery.refetch()} />
+            </div>
+          )}
+
           {weekDaysQuery.isError ? (
             <ErrorNotice error={weekDaysQuery.error} onRetry={() => void weekDaysQuery.refetch()} />
           ) : mode === "list" ? (
             weekDaysQuery.isPending ? (
               <LoadingState />
             ) : (
-              <CalendarList days={weekDaysQuery.data} onOpen={openDay} />
+              <CalendarList
+                days={weekDaysQuery.data}
+                occurrences={occurrencesQuery.data ?? []}
+                onOpen={openDay}
+                onOpenEvent={openEvent}
+              />
             )
           ) : (
             <div className="tc-scroll-x" aria-busy={weekDaysQuery.isPending}>
@@ -241,9 +263,11 @@ function CalendarContent({ today }: { today: string }) {
                 today={today}
                 nowMinutes={nowMinutes}
                 days={weekDaysQuery.data ?? []}
+                occurrences={occurrencesQuery.data ?? []}
                 disabled={pending || weekDaysQuery.isPending}
                 scrollRef={scrollRef}
                 onOpen={openDay}
+                onOpenEvent={openEvent}
                 onResize={resize}
               />
             </div>
@@ -262,14 +286,48 @@ function CalendarContent({ today }: { today: string }) {
           onClose={() => setEditingDay(null)}
         />
       )}
+
+      {editingEventId && (
+        <EventFormModal target={{ mode: "edit", eventId: editingEventId }} onClose={() => setEditingEventId(null)} />
+      )}
     </DndContext>
   );
 }
 
-/** Prototype list view: the week's dated Days in date/time order. */
-function CalendarList({ days, onOpen }: { days: DayResponse[]; onOpen: (day: DayResponse) => void }) {
+/** Prototype list view: the week's Events, then the dated Days in date/time order. */
+function CalendarList({
+  days,
+  occurrences,
+  onOpen,
+  onOpenEvent,
+}: {
+  days: DayResponse[];
+  occurrences: EventOccurrenceResponse[];
+  onOpen: (day: DayResponse) => void;
+  onOpenEvent: (eventId: string) => void;
+}) {
+  const eventRows = occurrences.map((occurrence, index) => (
+    <button
+      key={`${occurrence.eventId}:${index}`}
+      type="button"
+      className={`day-list-row event type-${occurrence.type.toLowerCase()}`}
+      onClick={() => onOpenEvent(occurrence.eventId)}
+    >
+      <span className="day-list-date">{EVENT_TYPE_LABEL[occurrence.type]}</span>
+      <span>
+        <strong>{occurrence.title}</strong>
+      </span>
+      <span className="day-list-schedule">{describeOccurrenceTime(occurrence)}</span>
+      <span className="day-list-status">일정 수정 →</span>
+    </button>
+  ));
   if (days.length === 0) {
-    return <EmptyState>이 주에 날짜가 정해진 Day가 없습니다.</EmptyState>;
+    return (
+      <div className="day-list-view">
+        {eventRows}
+        <EmptyState>이 주에 날짜가 정해진 Day가 없습니다.</EmptyState>
+      </div>
+    );
   }
   const sorted = [...days].sort(
     (a, b) =>
@@ -278,6 +336,7 @@ function CalendarList({ days, onOpen }: { days: DayResponse[]; onOpen: (day: Day
   );
   return (
     <div className="day-list-view">
+      {eventRows}
       {sorted.map((day) => (
         <button
           key={day.id}

@@ -27,6 +27,21 @@ export type ApplyRecoveryResponse = Schemas["ApplyRecoveryResponse"];
 export type RecoveryDayResponse = Schemas["RecoveryDayResponse"];
 export type SaveRecoveryDayRequest = Schemas["SaveRecoveryDayRequest"];
 
+export type EventResponse = Schemas["EventResponse"];
+export type EventOccurrenceResponse = Schemas["EventOccurrenceResponse"];
+export type CreateEventRequest = Schemas["CreateEventRequest"];
+export type UpdateEventRequest = Schemas["UpdateEventRequest"];
+export type EventType = EventResponse["type"];
+export type EventRecurrence = EventResponse["recurrence"];
+
+/**
+ * The generated schemas list the timed and all-day fields as independent nullables. The server
+ * always sends exactly one pair (requirements §8.4); these types express that correlation.
+ */
+export type TimedEventTime = { allDay: false; startAt: string; endAt: string; startDate: null; endDateExclusive: null };
+export type AllDayEventTime = { allDay: true; startAt: null; endAt: null; startDate: string; endDateExclusive: string };
+export type EventTime = TimedEventTime | AllDayEventTime;
+
 /** Problem Details body of every 4xx error (application/problem+json). */
 export type ProblemResponse = Schemas["ProblemResponse"];
 export type FieldViolation = Schemas["FieldViolation"];

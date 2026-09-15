@@ -1,16 +1,19 @@
 "use client";
 
-import type { DayResponse, DayScheduleResponse } from "@dayflow/api-client";
+import type { DayResponse, DayScheduleResponse, EventOccurrenceResponse } from "@dayflow/api-client";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import {
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
 } from "react";
+import { EVENT_TYPE_LABEL, eventTime } from "../events/event-values";
 import type { DropTarget } from "./calendar-drop";
+import { layoutOverlaps, type LayoutSlot } from "./calendar-layout";
 import {
   CALENDAR_SNAP_MINUTES,
   MINUTES_PER_DAY,
@@ -33,23 +36,69 @@ export interface DayDragData {
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
+/** A timed Event occurrence placed in one day column (Event timezone wall clock, like Day schedules). */
+interface TimedEventPlacement {
+  key: string;
+  occurrence: EventOccurrenceResponse;
+  start: number;
+  end: number;
+  point: boolean;
+}
+
+/** Visual minimum for layout, so short blocks and point Events (e.g. 23:59 deadlines) stay visible. */
+const MIN_LAYOUT_MINUTES = CALENDAR_SNAP_MINUTES;
+
+function timedEventsOn(date: string, occurrences: readonly EventOccurrenceResponse[]): TimedEventPlacement[] {
+  return occurrences.flatMap((occurrence, index) => {
+    const time = eventTime(occurrence);
+    if (time.allDay) return [];
+    const start = wallClock(time.startAt);
+    if (start.date !== date) return [];
+    const end = wallClock(time.endAt);
+    return [
+      {
+        key: `event:${occurrence.eventId}:${index}`,
+        occurrence,
+        start: start.minutes,
+        end: end.date === date ? end.minutes : MINUTES_PER_DAY,
+        point: time.startAt === time.endAt,
+      },
+    ];
+  });
+}
+
+/** Lane position inside a column; blocks in the same overlap group share the width. */
+function laneStyle(slot: LayoutSlot | undefined): CSSProperties {
+  const lanes = slot?.lanes ?? 1;
+  const lane = slot?.lane ?? 0;
+  return {
+    left: `calc(${(lane / lanes) * 100}% + 2px)`,
+    width: `calc(${100 / lanes}% - 5px)`,
+    right: "auto",
+  };
+}
+
 export function WeekGrid({
   dates,
   today,
   nowMinutes,
   days,
+  occurrences,
   disabled,
   scrollRef,
   onOpen,
+  onOpenEvent,
   onResize,
 }: {
   dates: string[];
   today: string;
   nowMinutes: number | null;
   days: DayResponse[];
+  occurrences: EventOccurrenceResponse[];
   disabled: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   onOpen: (day: DayResponse) => void;
+  onOpenEvent: (eventId: string) => void;
   onResize: (day: DayResponse, lengthMinutes: number) => void;
 }) {
   // A: date + schedule → time grid. B: date only → date-only area. (C: no date → Unscheduled panel.)
@@ -58,6 +107,31 @@ export function WeekGrid({
       day.schedule !== null && wallClock(day.schedule.startAt).date === date ? [{ day, schedule: day.schedule }] : [],
     );
   const dateOnlyOn = (date: string) => days.filter((day) => day.schedule === null && day.plannedDate === date);
+  // All-day Events show on every date they cover, above the time grid.
+  const allDayEventsOn = (date: string) =>
+    occurrences.filter((occurrence) => {
+      const time = eventTime(occurrence);
+      return time.allDay && time.startDate <= date && date < time.endDateExclusive;
+    });
+
+  const columnOn = (date: string) => {
+    const scheduled = scheduledOn(date);
+    const events = timedEventsOn(date, occurrences);
+    // Day blocks and Event blocks share one overlap layout (CAL-004).
+    const slots = layoutOverlaps([
+      ...scheduled.map(({ day, schedule }) => {
+        const start = wallClock(schedule.startAt).minutes;
+        const end = Math.min(start + Math.max(durationMinutes(schedule), MIN_LAYOUT_MINUTES), MINUTES_PER_DAY);
+        return { key: `day:${day.id}`, start, end };
+      }),
+      ...events.map((placement) => ({
+        key: placement.key,
+        start: placement.start,
+        end: Math.max(placement.end, placement.start + MIN_LAYOUT_MINUTES),
+      })),
+    ]);
+    return { scheduled, events, slots };
+  };
 
   return (
     <div className="tc-week">
@@ -79,8 +153,10 @@ export function WeekGrid({
             date={date}
             today={date === today}
             days={dateOnlyOn(date)}
+            events={allDayEventsOn(date)}
             disabled={disabled}
             onOpen={onOpen}
+            onOpenEvent={onOpenEvent}
           />
         ))}
       </div>
@@ -94,21 +170,33 @@ export function WeekGrid({
               </div>
             ))}
           </div>
-          {dates.map((date) => (
-            <TimeColumn key={date} date={date} today={date === today}>
-              {date === today && nowMinutes !== null && <NowLine minutes={nowMinutes} />}
-              {scheduledOn(date).map(({ day, schedule }) => (
-                <ScheduledBlock
-                  key={day.id}
-                  day={day}
-                  schedule={schedule}
-                  disabled={disabled}
-                  onOpen={onOpen}
-                  onResize={onResize}
-                />
-              ))}
-            </TimeColumn>
-          ))}
+          {dates.map((date) => {
+            const { scheduled, events, slots } = columnOn(date);
+            return (
+              <TimeColumn key={date} date={date} today={date === today}>
+                {date === today && nowMinutes !== null && <NowLine minutes={nowMinutes} />}
+                {events.map((placement) => (
+                  <EventBlock
+                    key={placement.key}
+                    placement={placement}
+                    slot={slots.get(placement.key)}
+                    onOpenEvent={onOpenEvent}
+                  />
+                ))}
+                {scheduled.map(({ day, schedule }) => (
+                  <ScheduledBlock
+                    key={day.id}
+                    day={day}
+                    schedule={schedule}
+                    slot={slots.get(`day:${day.id}`)}
+                    disabled={disabled}
+                    onOpen={onOpen}
+                    onResize={onResize}
+                  />
+                ))}
+              </TimeColumn>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -128,14 +216,18 @@ function DateOnlyCell({
   date,
   today,
   days,
+  events,
   disabled,
   onOpen,
+  onOpenEvent,
 }: {
   date: string;
   today: boolean;
   days: DayResponse[];
+  events: EventOccurrenceResponse[];
   disabled: boolean;
   onOpen: (day: DayResponse) => void;
+  onOpenEvent: (eventId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `date:${date}`, data: { kind: "date", date } satisfies DropTarget });
   return (
@@ -144,6 +236,18 @@ function DateOnlyCell({
       className={`tc-dateonly${today ? " today" : ""}${isOver ? " dragover" : ""}`}
       data-date={date}
     >
+      {events.map((occurrence) => (
+        <button
+          key={`${occurrence.eventId}:${occurrence.startDate}`}
+          type="button"
+          className={`tc-event-chip type-${occurrence.type.toLowerCase()}`}
+          data-event-id={occurrence.eventId}
+          onClick={() => onOpenEvent(occurrence.eventId)}
+        >
+          <span className="tc-event-type">{EVENT_TYPE_LABEL[occurrence.type]}</span>
+          {occurrence.title}
+        </button>
+      ))}
       {days.map((day) => (
         <DayChip key={day.id} day={day} disabled={disabled} onOpen={onOpen} />
       ))}
@@ -195,15 +299,63 @@ export function DayChip({
   );
 }
 
+/**
+ * A timed Event: not a dnd-kit draggable and without a resize handle (CAL-005). Clicking opens the
+ * Event form, where time changes are saved explicitly.
+ */
+function EventBlock({
+  placement,
+  slot,
+  onOpenEvent,
+}: {
+  placement: TimedEventPlacement;
+  slot: LayoutSlot | undefined;
+  onOpenEvent: (eventId: string) => void;
+}) {
+  const { occurrence, start, end, point } = placement;
+  const visibleLength = Math.max(end - start, 0);
+  const compact = point || visibleLength <= CALENDAR_SNAP_MINUTES * 2;
+  const open = () => onOpenEvent(occurrence.eventId);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      className={`tc-event type-${occurrence.type.toLowerCase()}${compact ? " compact" : ""}${point ? " point" : ""}`}
+      data-event-id={occurrence.eventId}
+      style={{
+        top: (start / 60) * HOUR_HEIGHT,
+        height: point
+          ? (CALENDAR_SNAP_MINUTES / 60) * HOUR_HEIGHT - 1
+          : Math.max((visibleLength / 60) * HOUR_HEIGHT - 1, (CALENDAR_SNAP_MINUTES / 60) * HOUR_HEIGHT - 1),
+        ...laneStyle(slot),
+      }}
+      onClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+    >
+      <div className="tc-block-title">
+        <span className="tc-event-type">{EVENT_TYPE_LABEL[occurrence.type]}</span>
+        {occurrence.title}
+      </div>
+      <div className="tc-block-time">
+        {point ? formatMinutes(start) : `${formatMinutes(start)}–${formatMinutes(Math.min(end, MINUTES_PER_DAY))}`}
+      </div>
+    </div>
+  );
+}
+
 function ScheduledBlock({
   day,
   schedule,
+  slot,
   disabled,
   onOpen,
   onResize,
 }: {
   day: DayResponse;
   schedule: DayScheduleResponse;
+  slot: LayoutSlot | undefined;
   disabled: boolean;
   onOpen: (day: DayResponse) => void;
   onResize: (day: DayResponse, lengthMinutes: number) => void;
@@ -260,6 +412,7 @@ function ScheduledBlock({
         top: (start / 60) * HOUR_HEIGHT,
         height: Math.max((visibleLength / 60) * HOUR_HEIGHT - 1, (CALENDAR_SNAP_MINUTES / 60) * HOUR_HEIGHT - 1),
         opacity: isDragging ? 0.35 : undefined,
+        ...laneStyle(slot),
       }}
       onClick={() => onOpen(day)}
       onKeyDown={(event) => {

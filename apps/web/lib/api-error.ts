@@ -63,6 +63,11 @@ const ERROR_HINTS: Partial<Record<string, string>> = {
   INVALID_RECOVERY_RETURN_DATE: "다시 시작할 날짜는 회복일 다음 날 이후여야 합니다.",
   GOAL_NOT_FOUND: "목표를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
   DAY_NOT_FOUND: "Day를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
+  INVALID_EVENT_TIME: "일정 시간을 확인해주세요. 종료는 시작보다 빠를 수 없습니다.",
+  INVALID_EVENT_REMINDERS: "알림은 서로 다른 시간으로 최대 5개까지 설정할 수 있어요.",
+  INVALID_EVENT_GOAL: "연결할 목표를 찾을 수 없습니다. 목표를 다시 선택해주세요.",
+  INVALID_OCCURRENCE_RANGE: "조회 기간이 너무 깁니다.",
+  EVENT_NOT_FOUND: "일정을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
 };
 
 export interface ErrorDescription {

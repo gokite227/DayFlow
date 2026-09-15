@@ -4,7 +4,11 @@ import type {
   DayFlowApiClient,
   DayResponse,
   DayScheduleResponse,
+  EventOccurrenceResponse,
+  EventResponse,
+  EventTime,
   GoalResponse,
+  UpdateEventRequest,
   ProblemResponse,
   SetDayScheduleRequest,
   UpdateDayRequest,
@@ -66,6 +70,25 @@ export type PatchNullability = [
   Expect<Equal<UpdateGoalRequest["parentGoalId"], string | null | undefined>>,
   // Other PATCH fields are omit-only.
   Expect<Equal<UpdateDayRequest["title"], string | undefined>>,
+];
+
+// Events: both time pairs are always present and nullable; EventTime narrows them by allDay.
+export type EventNullability = [
+  Expect<Equal<SuccessStatus<paths["/api/v1/events"]["post"]["responses"]>, 201>>,
+  Expect<Equal<SuccessStatus<paths["/api/v1/events/{eventId}"]["delete"]["responses"]>, 204>>,
+  Expect<Equal<ErrorStatus<paths["/api/v1/events/{eventId}"]["patch"]["responses"]>, 400 | 404 | 409>>,
+  Expect<Equal<EventResponse["startAt"], string | null>>,
+  Expect<Equal<EventResponse["endDateExclusive"], string | null>>,
+  Expect<Equal<IsRequired<EventResponse, "startAt" | "endAt" | "startDate" | "endDateExclusive">, true>>,
+  Expect<Equal<EventOccurrenceResponse["startDate"], string | null>>,
+  Expect<Equal<IsRequired<EventOccurrenceResponse, "startAt" | "startDate" | "linkedGoalId">, true>>,
+  Expect<Equal<EventResponse["reminders"], number[]>>,
+  Expect<Equal<IsRequired<UpdateEventRequest, "linkedGoalId">, false>>,
+  Expect<Equal<UpdateEventRequest["linkedGoalId"], string | null | undefined>>,
+  Expect<Equal<paths["/api/v1/events/{eventId}"]["delete"]["parameters"]["query"], { version: number }>>,
+  Expect<Equal<keyof NonNullable<paths["/api/v1/event-occurrences"]["get"]["parameters"]["query"]>, "from" | "to" | "type">>,
+  // Every EventTime variant fits the generated response fields.
+  Expect<EventTime extends Pick<EventResponse, keyof EventTime> ? true : false>,
 ];
 
 // expectedVersion is required (the key must be present) and nullable.

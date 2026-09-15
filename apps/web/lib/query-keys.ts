@@ -16,6 +16,12 @@ export const queryKeys = {
     all: ["days"] as const,
     list: (filters: DayListFilters = {}) => ["days", "list", filters] as const,
   },
+  events: {
+    all: ["events"] as const,
+    list: () => ["events", "list"] as const,
+    detail: (eventId: string) => ["events", "detail", eventId] as const,
+    occurrences: (from: string, to: string) => ["events", "occurrences", from, to] as const,
+  },
   reviews: {
     all: ["reviews"] as const,
     period: (type: string, periodStart: string) => ["reviews", type, periodStart] as const,
