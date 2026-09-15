@@ -27,41 +27,9 @@ export function childTypeOf(type: GoalType): GoalType | null {
   return GOAL_TYPE_ORDER.find((candidate) => getExpectedParentGoalType(candidate) === type) ?? null;
 }
 
-/** Goals that can be the parent of a Goal of `type`; `excludeId` skips the Goal being edited. */
-export function parentCandidates(goals: readonly GoalResponse[], type: GoalType, excludeId?: string) {
-  const parentType = parentTypeOf(type);
-  if (parentType === null) return [];
-  return sortGoals(goals.filter((goal) => goal.type === parentType && goal.id !== excludeId));
-}
-
-export interface GoalNode {
-  goal: GoalResponse;
-  children: GoalNode[];
-}
-
-/**
- * Builds the YEAR → WEEK hierarchy. Goals whose parent is not in the list are shown as
- * roots so no data is hidden.
- */
-export function buildGoalTree(goals: readonly GoalResponse[]): GoalNode[] {
-  const ids = new Set(goals.map((goal) => goal.id));
-  const childrenByParent = new Map<string, GoalResponse[]>();
-  for (const goal of goals) {
-    if (goal.parentGoalId !== null && ids.has(goal.parentGoalId)) {
-      const siblings = childrenByParent.get(goal.parentGoalId) ?? [];
-      siblings.push(goal);
-      childrenByParent.set(goal.parentGoalId, siblings);
-    }
-  }
-
-  const toNode = (goal: GoalResponse): GoalNode => ({
-    goal,
-    children: sortGoals(childrenByParent.get(goal.id) ?? []).map(toNode),
-  });
-
-  return sortGoals(goals.filter((goal) => goal.parentGoalId === null || !ids.has(goal.parentGoalId))).map(
-    toNode,
-  );
+/** Direct children only: the Goals screen drills down one level at a time instead of rendering a tree. */
+export function childrenOf(goals: readonly GoalResponse[], parentId: string): GoalResponse[] {
+  return sortGoals(goals.filter((goal) => goal.parentGoalId === parentId));
 }
 
 /** Ancestors from the root down to (and including) the goal. */

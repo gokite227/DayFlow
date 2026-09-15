@@ -8,6 +8,7 @@ import type {
   GoalType,
   LocalDate,
 } from "./types";
+import { isCanonicalGoalPeriod } from "./goal-period";
 import {
   formatLocalDate,
   formatOffsetDateTime,
@@ -76,6 +77,22 @@ export function validateGoalPeriod(
           path: ["endDate"],
         },
       ];
+}
+
+/** GOAL-004: startDate/endDate must be exactly one calendar period of the Goal type. */
+export function validateGoalCanonicalPeriod(
+  goal: Pick<Goal, "type" | "startDate" | "endDate">,
+): DomainIssue[] {
+  if (!isGoalPeriodOrdered(goal) || isCanonicalGoalPeriod(goal.type, goal)) {
+    return [];
+  }
+  return [
+    {
+      code: "INVALID_GOAL_PERIOD",
+      message: `A ${goal.type} Goal must cover exactly one calendar ${goal.type.toLowerCase()} period.`,
+      path: ["startDate"],
+    },
+  ];
 }
 
 /**

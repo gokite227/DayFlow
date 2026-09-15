@@ -34,6 +34,7 @@ public class GoalService {
     public GoalResponse create(CreateGoalRequest request) {
         validatePeriod(request.startDate(), request.endDate());
         validateParent(request.type(), request.parentGoalId(), request.startDate(), request.endDate());
+        validateCanonicalPeriod(request.type(), request.startDate(), request.endDate());
 
         Goal goal = new Goal(request.parentGoalId(), request.type(), request.title().strip(), request.why().strip(),
                 request.startDate(), request.endDate(), request.priority(), request.progressPolicy());
@@ -83,6 +84,7 @@ public class GoalService {
 
         validatePeriod(startDate, endDate);
         validateParent(goal.getType(), parentGoalId, startDate, endDate);
+        validateCanonicalPeriod(goal.getType(), startDate, endDate);
         validateContentsStayInside(goal, startDate, endDate);
 
         goal.setParentGoalId(parentGoalId);
@@ -121,6 +123,21 @@ public class GoalService {
         if (startDate.isAfter(endDate)) {
             throw new ApiException(ErrorCode.INVALID_GOAL_PERIOD, "Goal endDate must be on or after startDate.",
                     "endDate");
+        }
+    }
+
+    /**
+     * GOAL-004: the range must be exactly one calendar period of the type. Checked after the parent
+     * rules, so a WEEK is also known to lie inside its parent MONTH.
+     */
+    private static void validateCanonicalPeriod(GoalType type, LocalDate startDate, LocalDate endDate) {
+        if (!GoalPeriods.isCanonical(type, startDate, endDate)) {
+            LocalDate[] expected = GoalPeriods.containing(type, startDate);
+            throw new ApiException(ErrorCode.INVALID_GOAL_PERIOD,
+                    "A " + type + " Goal must cover exactly one calendar period (for this startDate: "
+                            + expected[0] + " ~ " + expected[1] + ").",
+                    List.of(new FieldViolation("startDate", "must start a calendar " + type + " period"),
+                            new FieldViolation("endDate", "must end the same calendar " + type + " period")));
         }
     }
 

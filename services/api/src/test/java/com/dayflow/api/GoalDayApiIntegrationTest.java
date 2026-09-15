@@ -1,5 +1,6 @@
 package com.dayflow.api;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -58,6 +59,61 @@ class GoalDayApiIntegrationTest {
                 .andExpect(jsonPath("$.code").value("INVALID_GOAL_PARENT"))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("parentGoalId"))
                 .andExpect(jsonPath("$.traceId").isNotEmpty());
+    }
+
+    @Test
+    void goal004RejectsRangesThatAreNotOneCalendarPeriod() throws Exception {
+        send(post("/api/v1/goals"), goalJson(null, "YEAR", "2026-01-02", "2026-12-31"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_GOAL_PERIOD"));
+
+        String yearId = createYear();
+        // A QUARTER that spans the whole year is inside its parent but is not a quarter.
+        send(post("/api/v1/goals"), goalJson(yearId, "QUARTER", "2026-01-01", "2026-12-31"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_GOAL_PERIOD"))
+                .andExpect(jsonPath("$.fieldErrors[*].field", containsInAnyOrder("startDate", "endDate")));
+
+        String quarterId = createGoal(yearId, "QUARTER", "2026-07-01", "2026-09-30");
+        send(post("/api/v1/goals"), goalJson(quarterId, "MONTH", "2026-09-01", "2026-09-29"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_GOAL_PERIOD"));
+
+        String monthId = createGoal(quarterId, "MONTH", "2026-09-01", "2026-09-30");
+        // Monday-start weeks are cut at the month: Sep 1 (Tue) ~ Sep 6 (Sun) is week 1.
+        send(post("/api/v1/goals"), goalJson(monthId, "WEEK", "2026-08-31", "2026-09-06"))
+                .andExpect(status().isBadRequest());
+        send(post("/api/v1/goals"), goalJson(monthId, "WEEK", "2026-09-01", "2026-09-07"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_GOAL_PERIOD"));
+        createGoal(monthId, "WEEK", "2026-09-01", "2026-09-06");
+        createGoal(monthId, "WEEK", "2026-09-28", "2026-09-30");
+    }
+
+    @Test
+    void goal004PeriodChangeKeepsCanonicalRangesAndProtectsChildren() throws Exception {
+        String yearId = createYear();
+        String quarterId = createGoal(yearId, "QUARTER", "2026-01-01", "2026-03-31");
+
+        send(patch("/api/v1/goals/" + quarterId), """
+                {"startDate": "2026-04-01", "version": 0}
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_GOAL_PERIOD"));
+
+        send(patch("/api/v1/goals/" + quarterId), """
+                {"startDate": "2026-04-01", "endDate": "2026-06-30", "version": 0}
+                """)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.startDate").value("2026-04-01"))
+                .andExpect(jsonPath("$.version").value(1));
+
+        createGoal(quarterId, "MONTH", "2026-05-01", "2026-05-31");
+        send(patch("/api/v1/goals/" + quarterId), """
+                {"startDate": "2026-07-01", "endDate": "2026-09-30", "version": 1}
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("GOAL_OUTSIDE_PARENT_PERIOD"));
     }
 
     @Test

@@ -1,6 +1,7 @@
 import {
   GOAL_TYPES,
   PROGRESS_POLICIES,
+  validateGoalCanonicalPeriod,
   validateGoalParent,
   validateGoalParentReference,
   validateGoalPeriod,
@@ -30,12 +31,13 @@ const goalFields = {
   progressPolicy: z.enum(PROGRESS_POLICIES),
 };
 
-/** Checks the rules that need no parent entity: period order and parent reference. */
+/** Checks the rules that need no parent entity: period order, calendar period and parent reference. */
 export const createGoalSchema = z
   .strictObject(goalFields)
   .superRefine((goal, context) => {
     addDomainIssues(context, [
       ...validateGoalPeriod(goal),
+      ...validateGoalCanonicalPeriod(goal),
       ...validateGoalParentReference(goal),
     ]);
   }) satisfies z.ZodType<CreateGoalInput>;
@@ -78,6 +80,7 @@ export function updateGoalSchemaForCurrentGoal(
     const candidate: Goal = { ...currentGoal, ...definedUpdate };
     addDomainIssues(context, [
       ...validateGoalPeriod(candidate),
+      ...validateGoalCanonicalPeriod(candidate),
       ...validateGoalParentReference(candidate),
       ...validateGoalParent(candidate, parent, options),
     ]);

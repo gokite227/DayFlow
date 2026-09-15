@@ -115,9 +115,10 @@ describe("GOAL-001 Goal create schemas", () => {
     expect(domainCodes(result.error?.issues)).toEqual(["INVALID_GOAL_PARENT"]);
   });
 
+  // Canonical quarters of the neighbouring years, so only the parent period rule fails.
   it.each([
-    { startDate: "2025-12-01", endDate: "2026-02-28", path: ["startDate"] },
-    { startDate: "2026-10-01", endDate: "2027-01-10", path: ["endDate"] },
+    { startDate: "2025-10-01", endDate: "2025-12-31", path: ["startDate"] },
+    { startDate: "2027-01-01", endDate: "2027-03-31", path: ["endDate"] },
   ])(
     "GOAL-001 reports a Goal outside its parent period on $path",
     ({ startDate, endDate, path }) => {
@@ -135,9 +136,19 @@ describe("GOAL-001 Goal create schemas", () => {
   it("GOAL-001 accepts a Goal outside its parent period after explicit confirmation", () => {
     const result = createGoalSchemaForParent(yearGoal, {
       allowOutsideParentPeriod: true,
-    }).safeParse({ ...validQuarterInput, startDate: "2026-10-01", endDate: "2027-01-10" });
+    }).safeParse({ ...validQuarterInput, startDate: "2027-01-01", endDate: "2027-03-31" });
 
     expect(result.success).toBe(true);
+  });
+
+  it("GOAL-004 rejects a free date range that is not one calendar period", () => {
+    const result = createGoalSchemaForParent(yearGoal).safeParse({
+      ...validQuarterInput,
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+    });
+
+    expect(domainCodes(result.error?.issues)).toEqual(["INVALID_GOAL_PERIOD"]);
   });
 
   it("GOAL-001 reports a missing parent reference once", () => {
@@ -193,7 +204,7 @@ describe("GOAL-001 Goal update schemas", () => {
   });
 
   it("GOAL-001 rejects moving a Goal outside its parent period", () => {
-    const result = schema.safeParse({ endDate: "2027-01-31", version: 1 });
+    const result = schema.safeParse({ startDate: "2027-01-01", endDate: "2027-03-31", version: 1 });
 
     expect(domainCodes(result.error?.issues)).toEqual(["GOAL_OUTSIDE_PARENT_PERIOD"]);
   });

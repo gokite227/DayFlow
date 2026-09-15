@@ -134,9 +134,11 @@
 |-----------|---------|------------|------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
 | AUTH-001  | P0      | 인증       | 사용자는 Apple/Google/이메일 중 지원 방식으로 로그인할 수 있다.        | 재로그인 시 데이터가 복구되고 다른 계정 데이터가 섞이지 않는다.                          |
 | SET-001   | P0      | 개인설정   | timezone, 주 시작 요일, 코치 강도, 기본 알림을 저장한다.               | 기기 변경 후 서버에서 복구된다.                                                          |
-| GOAL-001  | P0      | Goal       | YEAR→QUARTER→MONTH→WEEK 계층을 생성/수정/삭제한다.                     | parent 기간 밖의 하위 Goal 생성 시 validation 오류 또는 사용자 확인을 요구한다.          |
-| GOAL-002  | P0      | Goal       | Goal에 title, why, 기간, 우선순위/가중치를 저장한다.                   | Today/Review에서 상위 path와 why를 조회할 수 있다.                                       |
+| GOAL-001  | P0      | Goal       | YEAR→QUARTER→MONTH→WEEK 계층을 생성/수정/삭제한다. 직접 parent는 바로 위 단계만 허용하고 단계를 건너뛰지 않는다(YEAR만 parent 없음, Day의 직접 parent는 WEEK). | parent 기간 밖의 하위 Goal 생성 시 validation 오류 또는 사용자 확인을 요구한다. 계층 규칙은 UI와 무관하게 서버 validation이 최종 보장한다. |
+| GOAL-002  | P0      | Goal       | Goal에 title, why, 기간(calendar period), 우선순위/가중치를 저장한다.   | Today/Review에서 상위 path와 why를 조회할 수 있다. period label(`2026`, `3분기`, `9월 3주`)과 사용자가 입력한 title은 섞지 않는다. |
 | GOAL-003  | P1      | Goal       | 진행률은 Day 완료 기반 자동 계산 + 선택적 수동 보정 정책을 지원한다.   | 자동/수동 방식이 UI에서 구분된다.                                                        |
+| GOAL-004  | P0      | Goal       | Goal 기간은 자유 날짜 범위가 아니라 type별 calendar period를 선택해 정한다. startDate/endDate는 선택한 period에서 파생된 canonical range다(§4.5). | YEAR=1/1~12/31, QUARTER=분기 경계, MONTH=해당 월 1일~말일(윤년 포함), WEEK=parent MONTH 안의 월요일 시작 주를 월 경계에서 자른 구간. 이와 다른 범위는 API에서 `INVALID_GOAL_PERIOD`(400)로 거부된다. 기간 변경은 period 재선택으로만 하며, child Goal/Day가 범위를 벗어나면 저장이 거부되고 child를 자동 이동하지 않는다. |
+| GOAL-005  | P0      | Goal       | Goals 화면은 전체/연간/분기/월간/주간 View 탭과, recursive tree가 아닌 한 단계씩 들어가는 drill-down을 함께 제공한다(§4.5). | View는 URL(`/goals?view=all|year|quarter|month|week`)로 유지되고 각 View는 해당 type만 보여준다(전체는 YEAR→QUARTER→MONTH→WEEK 흐름). 주간 View와 WEEK 상세는 주간 뷰/리스트 뷰 두 표시 방식을 가진다(`layout=week|list`). 어떤 View에서든 Goal을 누르면 `/goals/{goalId}` 상세로 들어가고 바로 아래 단계 child만 보인다(WEEK는 Day). breadcrumb와 브라우저 back으로 상위 단계나 원래 View로 돌아간다. Goal 안에서 만든 child는 parent가 자동 선택되고, View에서 만들 때는 그 View의 type이 기본값이다. |
 | DAY-001   | P0      | Day        | 주간 Goal 아래 Day를 날짜 없이 생성 가능하다.                          | planned_date=NULL 상태가 Calendar/Review에서 정상 처리된다.                              |
 | DAY-002   | P0      | Day        | 날짜/시간/예상시간/우선순위를 수정하고 일정 취소할 수 있다.            | 시간을 제거해도 Day 자체는 삭제되지 않는다.                                              |
 | DAY-003   | P0      | Day        | 상태는 NOT_STARTED/IN_PROGRESS/DONE/DEFERRED/SKIPPED를 갖는다.         | 상태 변경 시 ActivityEvent가 기록된다.                                                   |
@@ -264,6 +266,31 @@
 - 결과는 배치 “후보”다. Day를 자동 이동하지 않으며, 적용은 사용자 확인 후에만 한다.
 
 - 향후 AI Coach(AI-004)는 Event를 근거로 배치를 추천한다. 예: “수요일 14시에 면접이 있어서 긴 집중 작업은 오전에 배치하는 게 좋아 보여요.”
+
+## 4.5 Goal period와 drill-down 탐색 (GOAL-004, GOAL-005)
+| **Calendar period 단위 목표** 장기 목표를 YEAR → QUARTER → MONTH → WEEK의 calendar period로 구체화한다. 사용자는 날짜 범위를 직접 만들지 않고 period를 고르며, Goal 제목은 period와 별도로 입력한다. |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+| **type**  | **선택**                         | **canonical range**                                              | **period label**             |
+|-----------|----------------------------------|------------------------------------------------------------------|------------------------------|
+| YEAR      | 연도                             | `YYYY-01-01 ~ YYYY-12-31`                                        | `2026`                       |
+| QUARTER   | parent YEAR의 1~4분기            | 1분기 1/1~3/31, 2분기 4/1~6/30, 3분기 7/1~9/30, 4분기 10/1~12/31 | `3분기` / `2026 3분기`       |
+| MONTH     | parent QUARTER에 속한 3개 월     | 해당 월 1일 ~ 말일(윤년 2/29 포함)                               | `9월` / `2026년 9월`         |
+| WEEK      | parent MONTH의 주차              | 월요일 시작 주를 월 경계에서 자른 구간                           | `9월 3주`                    |
+
+- WEEK 예시(2026년 9월): 1주 9/1~9/6, 2주 9/7~9/13, 3주 9/14~9/20, 4주 9/21~9/27, 5주 9/28~9/30. WEEK Goal은 항상 parent MONTH 안에 있다.
+
+- period label은 `type + startDate + endDate`로 계산하는 파생값이며 DB에 저장하지 않는다. DB/API의 `startDate/endDate`는 유지하고, 서버는 canonical range가 아니면 `INVALID_GOAL_PERIOD`로 거부한다. 기존 parent 계층·parent 기간 포함·child 영향 검증은 그대로 유지한다.
+
+- 주 시작 요일은 사용자 설정(SET-001)이 생기기 전까지 월요일로 고정한다.
+
+- **parent 선택:** Goal 상세 안에서 `+ 분기/월간/주간`으로 만들면 현재 Goal이 parent로 자동 선택되고, 선택 가능한 period도 그 parent 안의 것만 보여준다. 전역 `새 목표`에서는 type/period를 먼저 고른 뒤 그 period를 담는 바로 위 단계 Goal을 찾는다: 1개면 자동 선택, 여러 개면 유효한 후보만 선택지로, 없으면 상위 목표를 먼저 만들도록 안내한다.
+
+- **수정:** start/end 날짜를 직접 입력하지 않고 period를 다시 선택한다(예: 1분기 → 2분기 = 4/1~6/30). 기존 child Goal이나 Day가 새 범위를 벗어나면 저장을 거부하고 안내한다.
+
+- **View 탭:** `전체`(YEAR별 YEAR→QUARTER→MONTH→WEEK 흐름, 현재 기간 강조) / `연간`(YEAR 카드) / `분기`·`월간`(해당 type 카드, 소속 YEAR/상위 context 표시) / `주간`(주간 뷰: 월요일 시작 한 주의 WEEK Goal과 Day를 요일별로, 리스트 뷰: WEEK Goal을 기간 순으로). View 탭은 빠른 탐색 수단이며 drill-down을 대체하지 않는다.
+
+- **drill-down 탐색:** `Goals(View) → YEAR 상세 + 분기 목표 → QUARTER 상세 + 월간 목표 → MONTH 상세 + 주간 목표 → WEEK 상세 + 이번 주 Days`. 전체 계층을 한 화면에 들여쓰기로 펼치는 recursive tree는 사용하지 않는다. 상세는 URL로 표현하고 breadcrumb(`Goals › 2026 일본계 회사 취업 › 3분기 취업 준비 › 9월 … › 9월 3주 …`)와 브라우저 back으로 이동한다. UI/interaction 기준은 `docs/prototype.html`의 Goal 화면(root card, breadcrumb, detail, subgoal card)이다.
 
 # 5. 크로스플랫폼 아키텍처
 DayFlow는 웹/모바일 기능을 같은 제품으로 제공하되 OS 통제 기능은 플랫폼 능력에 맞게 차등 제공한다. 서버는 플랫폼 중립적인 Goal/Day/Review/Coach 데이터를 관리하고, Lock 실행은 모바일 기기가 책임진다.
@@ -442,7 +469,7 @@ erDiagram
 | **테이블**           | **역할**                                             | **설계 포인트**                                      |
 |----------------------|------------------------------------------------------|------------------------------------------------------|
 | users                | 사용자, timezone, coach_intensity, week_start_day    | timezone은 IANA ID(Asia/Seoul 등)                    |
-| goals                | Goal hierarchy, 기간, why, priority, progress policy | parent_goal_id self FK                               |
+| goals                | Goal hierarchy, 기간, why, priority, progress policy | parent_goal_id self FK. start/end는 type별 canonical calendar period(GOAL-004), period label은 비저장 파생값 |
 | days                 | 실행 단위, 상태, planned_date, estimate, priority    | task 대신 제품 용어 Day 유지                         |
 | day_schedules        | 선택적 시간 블록                                     | 시간 미정 Day를 위해 Day와 분리                      |
 | events               | 일정: title, type, all_day, start_at, end_at(timed), start_date, end_date_exclusive(all-day), timezone, location, notes, recurrence, linked_goal_id | Day와 별도 테이블. timed/all-day 필드 정합성 CHECK(§8.4). linked_goal_id nullable FK(ON DELETE SET NULL), version |
