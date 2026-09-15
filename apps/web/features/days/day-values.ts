@@ -74,6 +74,11 @@ export function toUpdateDayRequest(values: DayFormValues, version: number): Upda
   return { ...toCreateDayRequest(values), version };
 }
 
+/** Toggles DONE ↔ NOT_STARTED; only status and version are sent so the date and schedule stay as they are. */
+export function doneToggleRequest(day: Pick<DayResponse, "status" | "version">): UpdateDayRequest {
+  return { status: day.status === "DONE" ? "NOT_STARTED" : "DONE", version: day.version };
+}
+
 /** "2026-09-15 · 19:00 ~ 20:30", "2026-09-15 · 시간 미정" or "날짜 미정". */
 export function describeDaySchedule(day: Pick<DayResponse, "plannedDate" | "schedule">): string {
   if (day.plannedDate === null) return "날짜 미정";

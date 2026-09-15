@@ -8,16 +8,9 @@ import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state"
 import { formatPeriod, sortGoals } from "@/features/goals/goal-tree";
 import { useGoals } from "@/features/goals/goal-queries";
 import { DayFormModal, type DayFormTarget } from "./day-form-modal";
+import { DayItem } from "./day-item";
 import { useCreateDay, useDays, useUpdateDay } from "./day-queries";
-import {
-  DAY_STATUS_LABEL,
-  PLANNING_MODE_LABEL,
-  describeDaySchedule,
-  newDayValues,
-  toCreateDayRequest,
-  toUpdateDayRequest,
-  dayToValues,
-} from "./day-values";
+import { doneToggleRequest, newDayValues, toCreateDayRequest } from "./day-values";
 
 export function DaysView() {
   const [goalFilter, setGoalFilter] = useState("");
@@ -29,11 +22,7 @@ export function DaysView() {
   const weekGoals = sortGoals(weekGoalsQuery.data ?? []);
   const goalsById = new Map(weekGoals.map((goal) => [goal.id, goal]));
 
-  const toggleDone = (day: DayResponse) =>
-    updateDay.mutate({
-      dayId: day.id,
-      body: toUpdateDayRequest({ ...dayToValues(day), status: day.status === "DONE" ? "NOT_STARTED" : "DONE" }, day.version),
-    });
+  const toggleDone = (day: DayResponse) => updateDay.mutate({ dayId: day.id, body: doneToggleRequest(day) });
 
   return (
     <>
@@ -73,7 +62,7 @@ export function DaysView() {
               <DayItem
                 key={day.id}
                 day={day}
-                goal={goalsById.get(day.goalId)}
+                goalTitle={goalsById.get(day.goalId)?.title}
                 toggling={updateDay.isPending && updateDay.variables?.dayId === day.id}
                 onToggle={() => toggleDone(day)}
                 onOpen={() => {
@@ -106,43 +95,6 @@ export function DaysView() {
         <DayFormModal target={formTarget} weekGoals={weekGoals} onClose={() => setFormTarget(null)} />
       )}
     </>
-  );
-}
-
-function DayItem({
-  day,
-  goal,
-  toggling,
-  onToggle,
-  onOpen,
-}: {
-  day: DayResponse;
-  goal: GoalResponse | undefined;
-  toggling: boolean;
-  onToggle: () => void;
-  onOpen: () => void;
-}) {
-  const done = day.status === "DONE";
-  return (
-    <div className={`day-item${done ? " done" : ""}`}>
-      <input
-        type="checkbox"
-        checked={done}
-        disabled={toggling}
-        onChange={onToggle}
-        aria-label={`${day.title} 완료`}
-      />
-      <button type="button" className="day-title" onClick={onOpen}>
-        <div>
-          <span className="day-title-text">{day.title}</span>
-          {day.coreDay && <span className="core-badge">핵심</span>}
-        </div>
-        <div className="mini">
-          {goal?.title ?? "주간 목표"} · {describeDaySchedule(day)} · {DAY_STATUS_LABEL[day.status]} ·{" "}
-          {PLANNING_MODE_LABEL[day.planningMode]} · {day.estimatedMinutes}분
-        </div>
-      </button>
-    </div>
   );
 }
 

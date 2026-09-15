@@ -39,6 +39,11 @@ export async function expectNoContent(call: Promise<ApiResult<unknown>>): Promis
   }
 }
 
+/** 409 (version conflict) or 404 (already removed): the cached data is stale and must be refetched. */
+export function isStaleDataError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 409 || error.status === 404);
+}
+
 /** User-facing hints for error codes a user can fix; the server detail is always kept. */
 const ERROR_HINTS: Partial<Record<string, string>> = {
   VALIDATION_ERROR: "입력값을 확인해주세요.",
@@ -49,8 +54,8 @@ const ERROR_HINTS: Partial<Record<string, string>> = {
   DAY_REQUIRES_WEEK_GOAL: "Day는 주간 목표에만 연결할 수 있습니다.",
   DATE_OUTSIDE_WEEK_GOAL_PERIOD: "실행 날짜는 연결된 주간 목표 기간 안이어야 합니다.",
   INVALID_SCHEDULE_RANGE: "종료 시간은 시작 시간보다 뒤여야 합니다.",
-  VERSION_CONFLICT: "다른 곳에서 먼저 수정되었습니다. 최신 내용을 불러온 뒤 다시 시도해주세요.",
-  SCHEDULE_VERSION_CONFLICT: "일정이 다른 곳에서 먼저 수정되었습니다. 최신 내용을 불러온 뒤 다시 시도해주세요.",
+  VERSION_CONFLICT: "다른 곳에서 먼저 변경되었습니다. 최신 상태를 불러온 뒤 다시 시도해주세요.",
+  SCHEDULE_VERSION_CONFLICT: "다른 곳에서 일정이 변경되었습니다. 최신 상태를 불러왔어요.",
   GOAL_NOT_FOUND: "목표를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
   DAY_NOT_FOUND: "Day를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
 };
@@ -67,6 +72,10 @@ export function describeApiError(error: unknown): ErrorDescription {
       return { message: `요청이 실패했습니다. (HTTP ${error.status})`, fieldErrors: [] };
     }
     const hint = ERROR_HINTS[problem.code];
+    // Conflicts are not input mistakes: show only the reload hint, without field errors.
+    if (error.status === 409 && hint) {
+      return { message: hint, fieldErrors: [] };
+    }
     return {
       message: hint ? `${hint} (${problem.detail})` : problem.detail,
       fieldErrors: problem.fieldErrors,

@@ -53,6 +53,20 @@ describe("describeApiError", () => {
     expect(description.fieldErrors).toEqual(problem.fieldErrors);
   });
 
+  it("shows only the reload hint for a schedule conflict", () => {
+    const conflict = new ApiError(409, {
+      ...problem,
+      status: 409,
+      code: "SCHEDULE_VERSION_CONFLICT",
+      fieldErrors: [{ field: "expectedVersion", message: "stale" }],
+    });
+
+    expect(describeApiError(conflict)).toEqual({
+      message: "다른 곳에서 일정이 변경되었습니다. 최신 상태를 불러왔어요.",
+      fieldErrors: [],
+    });
+  });
+
   it("explains an unreachable API", () => {
     expect(describeApiError(new TypeError("Failed to fetch")).message).toContain("API 서버에 연결할 수 없습니다");
   });

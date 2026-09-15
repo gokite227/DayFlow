@@ -1,6 +1,13 @@
 import type { DayResponse } from "@dayflow/api-client";
 import { describe, expect, it } from "vitest";
-import { dayToValues, describeDaySchedule, newDayValues, toCreateDayRequest, toUpdateDayRequest } from "./day-values";
+import {
+  dayToValues,
+  describeDaySchedule,
+  doneToggleRequest,
+  newDayValues,
+  toCreateDayRequest,
+  toUpdateDayRequest,
+} from "./day-values";
 
 const day: DayResponse = {
   id: "day",
@@ -56,6 +63,11 @@ describe("DAY-001 / DAY-002 form values", () => {
       coreDay: true,
       version: 3,
     });
+  });
+
+  it("toggles done with only status and version so the date and schedule stay", () => {
+    expect(doneToggleRequest(day)).toEqual({ status: "DONE", version: 3 });
+    expect(doneToggleRequest({ status: "DONE", version: 4 })).toEqual({ status: "NOT_STARTED", version: 4 });
   });
 
   it("describes date and schedule", () => {

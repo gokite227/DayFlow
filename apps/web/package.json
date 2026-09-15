@@ -13,6 +13,7 @@
   "dependencies": {
     "@dayflow/api-client": "workspace:*",
     "@dayflow/domain": "workspace:*",
+    "@dnd-kit/core": "6.3.1",
     "@tanstack/react-query": "5.102.8",
     "next": "16.3.5",
     "react": "19.2.8",

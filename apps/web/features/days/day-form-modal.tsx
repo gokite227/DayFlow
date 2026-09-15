@@ -6,6 +6,7 @@ import { Modal } from "@/components/modal";
 import { ErrorNotice } from "@/components/query-state";
 import { formatPeriod } from "@/features/goals/goal-tree";
 import { useCreateDay, useDeleteDay, useUpdateDay } from "./day-queries";
+import { DayScheduleSection } from "./day-schedule-section";
 import {
   DAY_STATUS_LABEL,
   PLANNING_MODE_LABEL,
@@ -128,6 +129,8 @@ export function DayFormModal({
                 : "날짜 없이 두고 나중에 정해도 됩니다."}
             </span>
           </div>
+
+          {editing && <DayScheduleSection day={editing} plannedDate={values.plannedDate} onSaved={onClose} />}
 
           <label className="field">
             <span className="field-label">상태</span>
