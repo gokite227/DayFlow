@@ -29,7 +29,8 @@
 | infra | 개발·배포 인프라 |
 | docs | 요구사항과 프로토타입 |
 
-services/api와 infra는 .gitkeep으로 빈 디렉터리를 보존합니다.
+infra는 .gitkeep으로 빈 디렉터리를 보존합니다.
+services/api는 Maven Wrapper(mvnw)로 빌드하는 최소 Spring Boot 프로젝트입니다.
 services/api와 infra는 pnpm 패키지가 아닙니다.
 
 ## 개발 도구

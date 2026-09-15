@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: dayflow-api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Spring Boot 기본값과 같다. 웹으로는 health만 공개한다는 의도를 명시한다.
+        include: health
