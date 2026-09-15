@@ -152,7 +152,7 @@ Version 0.1 · 2026-09-14
 
 - Day를 클릭해 날짜/시간을 배치·수정·취소할 수 있다.
 
-- 캘린더에서 드래그해 시간 블록을 생성하거나 길이를 조절한다.
+- 캘린더에서 드래그해 Day의 시간 블록을 생성하거나 길이를 조절한다.
 
 - 주간 뷰와 리스트 뷰를 모두 제공한다.
 
@@ -165,12 +165,100 @@ Version 0.1 · 2026-09-14
 <thead>
 <tr class="header">
 <th><p><strong>계획 타입 3개</strong></p>
-<p>① 고정 일정: 면접·출근·약속처럼 실제 시간이 정해진 것 / ② 시간대 목표: “오후에 Java 2시간” / ③ 오늘 안에: 정확한 시간 없이 Day만 지정</p></th>
+<p>① 고정 일정(FIXED): “19:00 Java 공부”, “14:00 지원서 작성”처럼 특정 시각에 하기로 정한 작업 / ② 시간대 목표: “오후에 Java 2시간” / ③ 오늘 안에: 정확한 시간 없이 Day만 지정</p></th>
 </tr>
 </thead>
 <tbody>
 </tbody>
 </table>
+
+> 세 계획 타입은 모두 **Day**(사용자가 해야 하는 일)다. 면접·시험·약속·생일·마감 **자체**는 계획 타입이 아니라 4.2.1의 **Event**다. 예: “14:00 면접” → Event, “14:00 지원서 작성” → FIXED Day.
+
+### 4.2.1 Day와 Event — 해야 하는 일과 일어나는 일정
+
+<table>
+<colgroup>
+<col style="width: 100%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><p><strong>개념 구분</strong></p>
+<p>Day = 사용자가 해야 하는 일. Event = 이미 시간이 정해져 있거나 사용자에게 일어나는 일정. 둘은 서로 다른 도메인이다.</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+| **항목**      | **Day**                                        | **Event**                                         |
+|---------------|------------------------------------------------|---------------------------------------------------|
+| 본질          | 내가 실행하고 완료하는 일                      | 시간이 정해져 있거나 나에게 일어나는 일정         |
+| 예시          | 코테 3문제 풀기, 지원서 작성, 19:00 Java 공부(FIXED) | 14:00 면접, 시험, 생일, 제출 마감, 약속     |
+| 날짜/시간     | 없어도 됨. 필요할 때만 시간 배치               | 시간(또는 all-day 날짜)이 정해져 있음             |
+| 상태          | 진행 전/진행 중/완료/미룸/건너뜀               | 완료 개념 없음 — 일어나는 일                      |
+| Recovery      | 유지/축소/이동/내려놓기로 다시 정리            | 대상 아님. 일정은 사용자가 직접 수정              |
+| Goal          | 주간 Goal 아래에 생성                          | 필요할 때만 Goal에 연결(선택)                     |
+| 알림          | 시작 재촉(Nudge)과 Focus Lock으로 실행을 도움  | 정각/10분 전/1일 전 등 reminder로 잊지 않게 도움  |
+
+- **마감은 Event, 준비 작업은 Day.** 마감 자체는 “해야 할 일”이 아니라 “정해진 시점”이다. 실행은 그 앞에 놓인 Day들로 쪼갠다.
+
+  - Event: 9/30 23:59 포트폴리오 제출 마감
+  - Day: 9/25 문구 수정 · 9/27 이미지 정리 · 9/29 최종 검수
+
+- Event는 필요하면 Goal에 연결한다. 나중에 “이 면접을 위해 어떤 Day를 했는지”를 Goal 기준으로 함께 볼 수 있게 하기 위해서다.
+
+- Event 유형: 생일 / 면접 / 시험 / 마감 / 약속 / 기타. 생일처럼 반복되는 일정은 매일/매주/매월/매년 반복으로 둔다. 31일·2/29처럼 대상 월에 없는 날짜는 그 달 마지막 날로 맞추고, 매번 원래 날짜를 기준으로 다시 계산한다. 반복 중 한 번만 바꾸는 기능은 MVP 이후다.
+
+- 하루 종일 일정은 시각 없이 날짜로 저장한다(시각이 있는 일정과 저장 방식을 분리).
+
+- Event reminder는 일정마다 최대 5개 둘 수 있다(정각, 10분 전, 30분 전, 1시간 전, 1일 전, 사용자 지정). 하루 종일 일정은 그날 오전 9시를 기준으로 알린다. 모바일에서는 기기 로컬 알림을 쓰며, 이것은 실행을 재촉하는 Focus Lock/Nudge와 다른 기능이다.
+
+- Navigation: desktop은 `Today / Goals / Calendar / Events / Days / Review`. Events 화면에서는 일정만 따로 본다(필터: 전체/생일/면접/시험/마감/약속/기타). 모바일 Web은 6개 하단 탭으로 고정하지 않고, 추후 `More` 또는 별도 정보구조를 쓸 수 있다.
+
+- Apple/Google Calendar 연동은 MVP 필수가 아니다. 이후 EventKit 또는 외부 Calendar API로 확장한다.
+
+### 4.2.2 일정 기반 시간 분배
+
+<table>
+<colgroup>
+<col style="width: 100%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><p><strong>철학</strong></p>
+<p>하루의 시간은 비어 있지 않다. 이미 정해진 일정이 먼저 시간을 차지하고, 해야 할 일은 남은 시간 안에서 현실적으로 배치해야 한다.</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+| **Event 먼저 확인** | **→** | **고정 시간 제외** | **→** | **남은 가용 시간** | **→** | **Core Day 배치** | **→** | **나머지 Day 배치** |
+|---------------------|-------|--------------------|-------|--------------------|-------|-------------------|-------|---------------------|
+
+- 여기서 “고정 시간”은 Event가 차지한 시간이다. 이미 시간을 정한 Day(FIXED 포함)는 앱이 옮기지 않는다.
+
+- 면접이 있는 날에 90분짜리 집중 작업 세 개를 넣지 않도록, 계획 단계에서 일정이 차지한 시간을 먼저 보여준다.
+
+- 핵심 Day를 먼저 살리고 나머지는 남은 시간에 맞춰 둔다. 시간이 부족하면 줄이거나 다른 날로 옮기는 선택을 돕는다.
+
+- 이 흐름은 제안이다. 앱은 Day를 자동으로 옮기지 않고, 사용자가 확인한 뒤에만 적용한다. “Direction > Schedule Accuracy” 원칙은 그대로다.
+
+- 향후 AI Coach는 Event를 근거로 배치를 추천할 수 있다. 예: “수요일 14시에 면접이 있어서 긴 집중 작업은 오전에 배치하는 게 좋아 보여요.”
+
+### 4.2.3 Calendar 통합 UX
+
+- 데이터는 Day와 Event로 분리하지만 Calendar에서는 함께 보여준다. Event가 점유한 시간을 먼저 보고, 남은 시간에 Day를 배치할 수 있어야 하기 때문이다.
+
+- Day는 기존 pink/lavender 스타일을 유지한다.
+
+- Event는 별도 시각 스타일로, 시간이 확정된 일정임이 드러나도록 더 명확하게 표시한다(선명한 테두리나 바, 유형 라벨). 색만으로 구분하지 않는다.
+
+- 하루 종일 일정(생일, 시험 기간 등)은 날짜 행에, 시각이 정해진 마감은 해당 시각의 표시선으로 보여준다.
+
+- Day와 Event는 같은 시간대에 겹칠 수 있다. 겹침을 오류나 실패로 표현하지 않고, 두 블록이 모두 보이도록 나란히 둔다.
+
+- Calendar에서 Day는 지금처럼 드래그로 옮긴다. MVP에서 Event는 드래그·길이 조절을 하지 않고, 클릭하면 Event 편집 화면/modal이 열린다. 일정 이동은 편집 후 저장으로만 한다. 실수로 Event 시간이 바뀌지 않게 하기 위해서다.
 
 ## 4.3 Focus Lock — 실행을 돕는 강제 장치
 
@@ -345,8 +433,10 @@ Version 0.1 · 2026-09-14
 | **엔티티**        | **핵심 필드**                                                                                 | **역할**                      |
 |-------------------|-----------------------------------------------------------------------------------------------|-------------------------------|
 | Goal              | id, parentGoalId, type(year/quarter/month/week), title, why, status, targetDate, progressMode | 목표 계층의 뼈대              |
-| Day               | id, goalId, title, priority, estimatedMinutes, preferredTimeBand, dueDate?, status            | 사용자가 실제로 실행하는 단위 |
-| CalendarBlock     | id, dayId?, startAt, endAt, type(fixed/flexible), actualStartAt?, actualEndAt?                | 계획과 실제 연결              |
+| Day               | id, goalId(WEEK), title, status, priority, estimatedMinutes, plannedDate?, planningMode(FIXED/WINDOW/ANYTIME), coreDay, version | 사용자가 실제로 실행하는 단위 |
+| DaySchedule       | id, dayId, startAt, endAt, timezone, version                                                  | Day의 선택적 시간 배치(Day당 0..1). 실제 시작/종료는 FocusSession |
+| Event             | id, title, type, allDay, startAt?/endAt?(시각 일정), startDate?/endDateExclusive?(하루 종일 일정), timezone, location?, notes?, recurrence, reminders(최대 5), linkedGoalId?, createdAt, updatedAt, version | 사용자에게 일어나는 일정(Day와 별도) |
+| EventOccurrence   | eventId, occurrence 시각(startAt/endAt 또는 startDate/endDateExclusive)                        | 반복 규칙으로 계산한 표시 단위(저장하지 않음) |
 | FocusRule         | id, dayId?, mode(blockSelected/allowOnly), selectedTokens, schedule, strictness               | 잠금 정책                     |
 | FocusSession      | id, dayId, plannedStart, startedAt, endedAt, interruptionCount, result                        | 실행 로그                     |
 | InterventionEvent | id, dayId, type(reminder/reduce/reason/recover), createdAt, response                          | AI 개입 학습 데이터           |
@@ -361,13 +451,23 @@ Version 0.1 · 2026-09-14
 
 - Goal 1:N Day
 
-- Day 1:N CalendarBlock
+- Day 1:0..1 DaySchedule
 
 - Day 1:N FocusSession
 
 - Day 1:N InterventionEvent
 
 - Review 1:N CoachSuggestion
+
+- Goal 0..1:N Event (Event는 Goal 연결이 선택)
+
+- Event 1:N Reminder
+
+- Event 1:N EventOccurrence (계산값)
+
+- Calendar는 Day + DaySchedule과 EventOccurrence를 함께 그린다. Day와 Event는 직접 연결하지 않고 Goal 연결로 함께 본다.
+
+- type: BIRTHDAY / INTERVIEW / EXAM / DEADLINE / APPOINTMENT / OTHER, recurrence: NONE / DAILY / WEEKLY / MONTHLY / YEARLY
 
 # 8. 상태 설계
 
@@ -493,11 +593,11 @@ Version 0.1 · 2026-09-14
 
 | **구분**         | **내용**                                                                                                        |
 |------------------|-----------------------------------------------------------------------------------------------------------------|
-| MVP 필수         | Goal 계층, Day, 주간/리스트 Calendar, Focus Lock, 허용 앱, 시작 재촉, Recovery Mode, 주간/일간 KPT, 로컬 데이터 |
-| MVP+             | 월/분기/연 회고, Morning Lock 루틴, 기본 통계, 코치 강도                                                        |
-| AI 1차           | 주간 AI Review Coach + 근거 + 추천 적용                                                                         |
+| MVP 필수         | Goal 계층, Day, 주간/리스트 Calendar, Focus Lock, 허용 앱, 시작 재촉, Recovery Mode, 주간/일간 KPT, 로컬 데이터, Event(일정) + Events 화면 + Calendar 통합 표시 + 최소 반복 + Goal 연결 + Event reminder(기기 알림 실행은 Mobile 단계) |
+| MVP+             | 월/분기/연 회고, Morning Lock 루틴, 기본 통계, 코치 강도, 일정 기반 가용 시간 계산                               |
+| AI 1차           | 주간 AI Review Coach + 근거 + 추천 적용, Event를 고려한 Day 배치 추천                                            |
 | AI 2차           | 연간 Goal Breakdown, 개인화된 개입 간격/강도                                                                    |
-| 나중에           | Android, 소셜/친구 기능, PC 차단, 팀 목표, 공개 커뮤니티                                                        |
+| 나중에           | Android, 소셜/친구 기능, PC 차단, 팀 목표, 공개 커뮤니티, Apple/Google Calendar 연동                            |
 | 지금 만들지 않기 | 복잡한 습관 트래커, 분 단위 라이프로그 강제, 지나치게 많은 뱃지/스트릭, 채팅형 AI를 홈의 중심으로 두기          |
 
 # 12. 핵심 지표

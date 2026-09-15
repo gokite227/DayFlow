@@ -38,7 +38,7 @@
 
 # 1. 프로토타입 기준선과 Production Gap
 ## 1.1 현재 v0.6에서 이미 검증된 UX
-- 좌측/하단 네비게이션: Today / Goals / Calendar / Days / Review.
+- 좌측/하단 네비게이션: Today / Goals / Calendar / Days / Review (v0.6 기준). Production desktop navigation 기준은 Event 추가에 따라 Today / Goals / Calendar / Events / Days / Review로 확장한다(EVT-002).
 
 - Goal 계층: YEAR → QUARTER → MONTH → WEEK, self hierarchy 및 하위 Goal 생성.
 
@@ -85,6 +85,8 @@
 
 - 주간 Calendar + 리스트, Web drag/resize, Mobile gesture 기반 수정.
 
+- Event(일정) CRUD, Events 화면(유형 필터), Calendar에서 Day와 Event 함께 표시, 최소 반복, Goal 연결, Event reminder 설정. reminder의 native local notification 실행은 Mobile 단계에서 구현한다.
+
 - Today: 오늘 핵심 Day, Goal Path, 시작 버튼, 남은 Day.
 
 - 일/주/월/분기/연 Review와 KPT, Try를 다음 Day/Goal로 변환.
@@ -104,6 +106,8 @@
 
 - AI Recovery Planner: 남은 주간 시간과 우선순위를 보고 재배치 후보 생성.
 
+- 일정 기반 시간 분배: Event가 점유한 시간을 제외한 가용 시간을 계산하고, Core Day → 나머지 Day 순서의 배치 후보를 제안(자동 배치 금지, 사용자 승인 후 적용).
+
 - AI Goal Breakdown: 연간 Goal → 분기/월/주 목표 후보 추천.
 
 - Plan vs Actual 회고 레이어: 실제 Focus 시작/종료와 계획 차이 시각화.
@@ -115,9 +119,9 @@
 ## 2.3 Later (P2)
 - Chrome/Edge Browser Extension을 통한 웹사이트 Focus Lock.
 
-- 반복 일정/루틴 템플릿, Morning Lock 프리셋.
+- Day 반복/루틴 템플릿, Morning Lock 프리셋. (Event 최소 반복은 P0, EVT-003)
 
-- 캘린더 외부 연동(Google/Apple Calendar) — 양방향 편집은 별도 검토.
+- 캘린더 외부 연동(Google/Apple Calendar) — 양방향 편집은 별도 검토. Event 도메인 기준 확장 방향은 §5.3.
 
 - 팀/친구 accountability, 공유 Goal, 코치 프리셋 마켓 등은 초기 범위에서 제외.
 
@@ -138,6 +142,14 @@
 | DAY-003   | P0      | Day        | 상태는 NOT_STARTED/IN_PROGRESS/DONE/DEFERRED/SKIPPED를 갖는다.         | 상태 변경 시 ActivityEvent가 기록된다.                                                   |
 | CAL-001   | P0      | Calendar   | 주간 뷰에서 Day를 배치·이동·리사이즈한다.                              | Web mouse/touch, Mobile gesture 모두 동작한다.                                           |
 | CAL-002   | P0      | Calendar   | 리스트 뷰와 주간 뷰를 전환한다.                                        | 동일한 서버 데이터를 다른 presentation으로 표시한다.                                     |
+| CAL-003   | P0      | Calendar   | 주간 Calendar에 Day와 Event occurrence를 함께 표시한다.                | 데이터는 `/days`와 `/event-occurrences`로 분리 조회하고, 같은 주간 grid에서 Event가 Day와 다른 시각 스타일(타입 라벨 포함)로 보인다. all-day Event는 날짜 행에 표시된다. |
+| CAL-004   | P0      | Calendar   | Day와 Event, Event와 Event가 같은 시간대에 겹칠 수 있다.               | 겹침은 validation 오류가 아니며, 겹친 블록은 서로 가리지 않고 나란히 표시된다.            |
+| CAL-005   | P0      | Calendar   | Calendar에서 Event를 클릭하면 Event 편집 화면/modal을 연다.            | MVP에서 Event는 drag/resize로 이동하지 않는다. Event 시간 변경은 명시적인 편집 후 저장으로만 처리된다. Day drag/drop/resize 동작은 CAL-001 그대로 유지된다. |
+| EVT-001   | P0      | Event      | Event를 생성/조회/수정/삭제한다(title, type, allDay, timed 또는 all-day 시간 필드, timezone, location, notes, recurrence, reminders, linkedGoalId). | timed(`startAt`/`endAt`)와 all-day(`startDate`/`endDateExclusive`) 필드가 섞이거나 누락되면 400(§8.4). `endAt < startAt`, `endDateExclusive <= startDate`, 잘못된 timezone, 알 수 없는 type/recurrence는 400. 수정/삭제는 version 충돌 시 409. |
+| EVT-002   | P0      | Event      | Events 화면에서 Event만 조회하고 유형으로 필터한다.                    | desktop navigation은 Today / Goals / Calendar / Events / Days / Review 순서. 필터: 전체/생일/면접/시험/마감/약속/기타. Day는 이 화면에 나오지 않는다. 모바일 Web은 6개 bottom tab으로 고정하지 않고 `More` 또는 별도 정보구조를 쓸 수 있다. |
+| EVT-003   | P0      | Event      | recurrence NONE/DAILY/WEEKLY/MONTHLY/YEARLY를 지원한다.                | occurrence는 원래 recurrence anchor 기준으로 계산되고(직전 occurrence 기준 아님), 월/연 반복에서 대상 월에 없는 날짜는 그 달 마지막 날로 보정된다. 개별 occurrence 수정·예외 규칙은 MVP 제외(§8.4). |
+| EVT-004   | P0      | Event      | Event는 선택적으로 Goal에 연결한다(linkedGoalId nullable).             | Goal 없이 Event 생성 가능. 연결 Goal 삭제 시 Event는 남고 linkedGoalId만 null이 된다.     |
+| EVT-005   | P0      | Event      | Day와 Event는 별도 도메인이다. 마감은 Event, 준비 작업은 Day로 관리한다. | Event에는 Day 상태(DONE 등)·핵심 Day·Recovery 분류가 없다. Event를 Day로 자동 변환하지 않는다. |
 | TODAY-001 | P0      | Today      | 오늘 Day와 연결된 Goal Path를 보여준다.                                | Day 클릭 시 수정, 시작 시 Focus 진입 가능.                                               |
 | FOCUS-001 | P0      | Focus      | Day 또는 독립 Focus Session을 즉시 시작/종료한다.                      | 실제 시작/종료 시각과 source가 저장된다.                                                 |
 | FOCUS-002 | P0      | iOS Lock   | 선택 앱 차단 또는 허용 앱 중심 차단 규칙을 설정한다.                   | FamilyActivityPicker 선택이 기기 로컬에 저장되고 server에는 raw token이 올라가지 않는다. |
@@ -146,6 +158,8 @@
 | NUDGE-001 | P0      | 개입       | 예정 시각에 시작하지 않으면 로컬 알림을 보낸다.                        | 사용자가 시작하면 이후 예약된 동일 Day 알림이 취소된다.                                  |
 | NUDGE-002 | P0      | 개입       | 기본 개입 단계는 0분/+10분/+20분 이후 재계획 제안이다.                 | 동일 문구 반복 대신 단계별 CTA가 달라진다.                                               |
 | NUDGE-003 | P0      | 개입       | “폰/피곤함/밖/하기 싫음/기타” 이유를 빠르게 선택한다.                  | 선택 이유와 최종 action이 event로 남는다.                                                |
+| NOTI-001  | P0      | 알림       | Event는 최대 5개의 reminder(정각/10분 전/30분 전/1시간 전/1일 전/사용자 지정)를 가진다. | reminder는 occurrence 기준 상대 offset(분)으로 저장되고 6개 이상은 400. all-day Event의 기준 시각은 Event timezone 09:00. native iOS/Android local notification 예약·재예약·취소는 Mobile 단계에서 구현한다(§11.3). |
+| NOTI-002  | P0      | 알림       | Event reminder는 Focus Lock·Nudge와 별도 기능이다.                     | reminder는 escalation(+10/+20분)·앱 잠금·Intervention 상태를 만들지 않는다.              |
 | REC-001   | P0      | Recovery   | 하루 또는 며칠 이탈 시 Recovery Mode를 제안한다.                       | 미완료 Day를 유지/축소/이동/삭제로 일괄 정리 가능하다.                                   |
 | REC-002   | P0      | Recovery   | 회복일을 명시적으로 지정할 수 있다.                                    | 회복일은 실패 스트릭으로 표현하지 않으며 다음 복귀 시점을 예약한다.                      |
 | REV-001   | P0      | Review     | 일/주/월/분기/연 Review를 지원한다.                                    | 기간에 해당하는 Goal을 자동 조회한다.                                                    |
@@ -155,13 +169,16 @@
 | AI-001    | P1      | AI Coach   | Review 데이터로 observation/evidence/recommendation/action을 생성한다. | 모든 추천에 근거 기간/지표가 포함된다.                                                   |
 | AI-002    | P1      | AI Coach   | AI 제안은 자동 적용하지 않는다.                                        | 사용자가 적용/수정/무시 중 하나를 선택해야 상태가 변경된다.                              |
 | AI-003    | P1      | AI Goal    | 연간 Goal을 하위 Goal 후보로 분해한다.                                 | 현재 수준/기한/주당 가능시간을 입력으로 사용한다.                                        |
+| PLAN-001  | P1      | Plan       | Event 점유 시간을 제외한 날짜별 가용 시간을 계산해 Day 배치에 참고하게 한다. | 순서: Event 확인 → 고정 시간 제외 → 가용 시간 → Core Day → 나머지 Day. 계산 결과는 제안이며 Day를 자동 이동하지 않는다. |
+| AI-004    | P1      | AI Coach   | AI Coach는 Event를 고려해 Day 배치를 추천한다.                         | 추천 근거에 관련 Event(유형·시간)가 표시되고, 적용은 AI-002 승인 흐름을 따른다.          |
+| EXTCAL-001| P2      | 외부 연동  | Apple Calendar(EventKit)/Google Calendar 일정을 Event로 가져온다.      | MVP 필수 범위가 아니다. 가져온 Event는 출처가 구분되고 DayFlow Event 모델을 변경하지 않는다(§5.3). |
 | SYNC-001  | P0      | Sync       | Web/Mobile에서 생성한 Goal/Day/Review가 동기화된다.                    | 온라인 복귀 시 outbox가 재전송되고 중복 반영되지 않는다.                                 |
 | OFF-001   | P0      | Offline    | 모바일 Focus/Day 체크는 인터넷 없이 동작한다.                          | 서버 장애 중에도 예정 Lock과 종료가 실패하지 않는다.                                     |
 | PRIV-001  | P0      | Privacy    | 앱 선택 토큰/민감 OS 식별자는 기본적으로 서버에 저장하지 않는다.       | AI 요청 payload에 raw app token이 포함되지 않는다.                                       |
 
 # 4. UX / 코치 행동 규칙
 ## 4.1 “P형 친화” 계획 모델
-- 고정 일정(Fixed): 면접/약속처럼 시작 시간이 중요한 일정.
+- 고정 일정(Fixed): 사용자가 특정 시각에 하기로 정한 작업 Day. 예: `19:00 Java 공부`, `14:00 지원서 작성`. 면접/시험/약속/생일/마감 자체는 Day가 아니라 Event(§4.4)다. 예: `14:00 면접` → Event.
 
 - 시간대 목표(Window): “오후/저녁에 90분”처럼 범위만 있는 Day.
 
@@ -195,6 +212,59 @@
 
 - 회복일 종료 시 “다음 복귀 Day 1개”를 지정해 복귀 마찰을 줄인다.
 
+## 4.4 Event와 일정 기반 시간 분배
+| **Day ≠ Event** Day는 사용자가 **해야 하는 일**이고, Event는 이미 시간이 정해져 있거나 사용자에게 **일어나는 일정**이다. 데이터 모델은 분리하고 Calendar에서는 함께 보여준다. |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+| **예시**             | **도메인** | **이유**                               |
+|----------------------|------------|----------------------------------------|
+| 코테 3문제 풀기      | Day        | 사용자가 실행하고 완료하는 일          |
+| 지원서 작성          | Day        | 사용자가 실행하고 완료하는 일          |
+| 19:00 Java 공부      | FIXED Day  | 특정 시각에 하기로 정한 사용자의 작업  |
+| 14:00 지원서 작성    | FIXED Day  | 특정 시각에 하기로 정한 사용자의 작업  |
+| 14:00 면접           | Event      | 시간이 외부에서 정해진 일정            |
+| 시험                 | Event      | 시간이 외부에서 정해진 일정            |
+| 생일                 | Event      | 매년 일어나는 날짜                     |
+| 제출 마감            | Event      | 시점이 정해진 일정. 준비 작업은 Day    |
+
+- 원칙: 면접/시험/약속/생일/마감 **자체**는 Event, 특정 시간에 하기로 정한 **사용자의 작업**은 FIXED Day다.
+
+- Event는 완료/미룸/건너뜀 상태, 핵심 Day 표시, Recovery의 KEEP/REDUCE/MOVE/DROP 대상이 아니다.
+
+- 마감은 Event, 준비 작업은 Day로 나눈다. 예: Event `9/30 23:59 포트폴리오 제출 마감` + Day `9/25 문구 수정`, `9/27 이미지 정리`, `9/29 최종 검수`. Event와 준비 Day는 같은 Goal에 연결해 함께 분석할 수 있다(`linkedGoalId`).
+
+- Event(일정)는 ActivityEvent/InterventionEvent/RecoveryEvent 같은 행동 로그 “이벤트”와 다른 도메인이다. 문서·코드에서 일정은 `Event`, 행동 로그는 `*Event` 접미사 + log 테이블로 구분한다.
+
+**Calendar 통합 표시 규칙**
+
+- 같은 주간 grid에 Day와 Event occurrence를 함께 그린다. Event가 점유한 시간을 먼저 보고 남은 시간에 Day를 배치할 수 있어야 한다.
+
+- Day는 기존 pink/lavender 스타일을 유지한다. Event는 Day 팔레트와 구분되는 별도 토큰을 쓰고, 시간이 확정된 일정임이 드러나도록 더 명확하게(선명한 테두리/바, 유형 라벨) 표시한다. 색만으로 구분하지 않는다.
+
+- all-day Event는 날짜 행(date-only row)에 표시한다. `startAt = endAt`인 timed Event(예: 23:59 마감)는 해당 시각의 marker로 표시한다.
+
+- Day와 Event는 겹칠 수 있다. 겹침을 막거나 경고로 평가하지 않고, 겹친 블록은 나란히 배치해 둘 다 보이게 한다.
+
+- MVP에서 Event는 Calendar drag/resize 대상이 아니다. Event를 클릭하면 Event 편집 화면/modal을 열고, 일정 이동은 명시적인 편집과 저장으로만 처리한다. 미배치 Day 패널은 Day 전용이다.
+
+**Navigation**
+
+- desktop navigation: Today / Goals / Calendar / Events / Days / Review.
+
+- 모바일 Web은 6개 bottom tab으로 고정하지 않는다. 추후 `More` 또는 별도 정보구조로 Events/Days 등을 배치할 수 있다.
+
+**일정 기반 시간 분배 흐름 (PLAN-001, P1)**
+
+`Event 먼저 확인 → 고정 시간 제외 → 남은 가용 시간 계산 → Core Day 배치 → 나머지 Day 배치`
+
+- “고정 시간”은 Event가 점유한 시간이다. 이미 시간이 배치된 Day(FIXED Day 포함)는 자동으로 옮기지 않는다.
+
+- 가용 시간은 사용자의 활동 시간대 설정(SET-001 확장)에서 Event 점유 시간을 뺀 값이다. all-day Event는 기본적으로 시간을 점유하지 않는다.
+
+- 결과는 배치 “후보”다. Day를 자동 이동하지 않으며, 적용은 사용자 확인 후에만 한다.
+
+- 향후 AI Coach(AI-004)는 Event를 근거로 배치를 추천한다. 예: “수요일 14시에 면접이 있어서 긴 집중 작업은 오전에 배치하는 게 좋아 보여요.”
+
 # 5. 크로스플랫폼 아키텍처
 DayFlow는 웹/모바일 기능을 같은 제품으로 제공하되 OS 통제 기능은 플랫폼 능력에 맞게 차등 제공한다. 서버는 플랫폼 중립적인 Goal/Day/Review/Coach 데이터를 관리하고, Lock 실행은 모바일 기기가 책임진다.
 
@@ -218,6 +288,9 @@ flowchart LR
 | Goal / Day / Calendar / Review | Full                 | Full                        | Full                         | 공통 API/도메인                  |
 | AI Review Coach                | Full                 | Full                        | Full                         | Backend에서 실행                 |
 | 로컬 시작 알림                 | 브라우저 제한        | Full                        | Full                         | Mobile은 local notification 우선 |
+| Event / Events 화면            | Full                 | Full                        | Full                         | 공통 API/도메인                  |
+| Event reminder                 | 브라우저 제한        | Full (local notification)   | Full (local notification)    | Focus Lock/Nudge와 별도          |
+| 외부 Calendar 연동             | P2                   | P2 (EventKit)               | P2 (Calendar API/Provider)   | MVP 범위 밖, §5.3                |
 | 다른 앱 Hard Lock              | 불가                 | Full (Screen Time)          | 제한적/정책 검토             | OS 차이 허용                     |
 | 허용 앱 예외                   | 불가                 | 가능                        | 구현 방식 제한               | iOS FamilyActivityPicker         |
 | 오프라인 Focus                 | N/A                  | 필수                        | 필수                         | 모바일 로컬 스케줄               |
@@ -231,6 +304,17 @@ flowchart LR
 - 공통 비즈니스 규칙은 UI 컴포넌트 안이 아니라 packages/domain에 둔다.
 
 - API 계약은 Spring OpenAPI spec을 기준으로 TypeScript client를 생성해 타입 drift를 줄인다.
+
+## 5.3 외부 Calendar 연동 (P2, EXTCAL-001)
+- Apple Calendar / Google Calendar 연동은 MVP 필수 범위가 아니다.
+
+- 확장 시 iOS는 EventKit, Web/Android는 Google Calendar API 등 외부 Calendar API를 사용한다.
+
+- 첫 단계는 외부 일정을 DayFlow Event로 읽어오는 가져오기(read-only)로 검토하고, 양방향 편집은 별도 결정한다.
+
+- 가져온 Event는 출처(external source/id)를 별도 필드로 구분한다. MVP Event 필드와 Day 모델은 변경하지 않는다.
+
+- 외부 일정 원문(title/location/notes)은 개인정보로 취급하며 §10.2의 AI 데이터 기본값을 따른다.
 
 # 6. 기술 스택 상세
 ## 6.1 Web
@@ -334,8 +418,11 @@ erDiagram
   USER ||--o{ RECOVERY_EVENT : has
   USER ||--o{ DEVICE_INSTALLATION : installs
   USER ||--o{ ACTIVITY_EVENT : emits
+  USER ||--o{ EVENT : schedules
 
   GOAL ||--o{ GOAL : parent_child
+  EVENT }o--o| GOAL : links
+  EVENT ||--o{ EVENT_REMINDER : has
   GOAL ||--o{ DAY : contains
   DAY ||--o| DAY_SCHEDULE : has
   DAY ||--o{ FOCUS_RULE : configures
@@ -358,6 +445,8 @@ erDiagram
 | goals                | Goal hierarchy, 기간, why, priority, progress policy | parent_goal_id self FK                               |
 | days                 | 실행 단위, 상태, planned_date, estimate, priority    | task 대신 제품 용어 Day 유지                         |
 | day_schedules        | 선택적 시간 블록                                     | 시간 미정 Day를 위해 Day와 분리                      |
+| events               | 일정: title, type, all_day, start_at, end_at(timed), start_date, end_date_exclusive(all-day), timezone, location, notes, recurrence, linked_goal_id | Day와 별도 테이블. timed/all-day 필드 정합성 CHECK(§8.4). linked_goal_id nullable FK(ON DELETE SET NULL), version |
+| event_reminders      | Event별 reminder offset(분, occurrence 기준 상대값)  | event_id FK cascade, (event_id, offset_minutes) unique, offset_minutes ≥ 0 CHECK, Event당 최대 5개 |
 | focus_rules          | Focus 설정 metadata                                  | OS token 자체는 server 비저장                        |
 | focus_sessions       | 실제 집중 시작/종료                                  | Actual 분석의 핵심                                   |
 | intervention_events  | nudge 발송/응답/이유/선택 action                     | 개인화 학습 데이터                                   |
@@ -377,6 +466,8 @@ erDiagram
 
 - 주간 Review의 period_start/end는 사용자 주 시작 요일과 timezone에서 계산한 후 서버에 명시적으로 저장한다.
 
+- timed Event의 start_at/end_at은 UTC instant로, all-day Event는 start_date/end_date_exclusive DATE로 저장한다. all-day Event를 UTC 자정 timestamp로 저장하지 않는다. 반복 전개는 Event timezone의 wall-clock 규칙을 따른다(§8.4).
+
 ## 8.3 동기화/충돌 정책
 - 모든 주요 entity에 id(UUID), created_at, updated_at, version(optimistic lock)을 둔다.
 
@@ -385,6 +476,53 @@ erDiagram
 - 단순 title/status 충돌은 최신 version 비교 후 사용자에게 병합 선택을 보여줄 수 있다. 초기 MVP는 last accepted write + conflict toast로 단순화한다.
 
 - Focus 시작/종료 event는 append-only로 기록해 충돌 대신 중복 제거를 적용한다.
+
+## 8.4 Event 모델 규칙
+| **필드**       | **타입/값**                                                    | **규칙**                                                        |
+|----------------|----------------------------------------------------------------|-----------------------------------------------------------------|
+| id             | UUID                                                           | 공통 필드                                                       |
+| title          | string                                                         | 필수, 공백 불가                                                 |
+| type           | BIRTHDAY / INTERVIEW / EXAM / DEADLINE / APPOINTMENT / OTHER   | 필수                                                            |
+| allDay         | boolean                                                        | 필수. timed/all-day 저장 계약을 결정                            |
+| startAt        | instant, timed 전용                                            | allDay=false면 필수, allDay=true면 null                         |
+| endAt          | instant, timed 전용                                            | allDay=false면 필수, `endAt >= startAt`. 같으면 시점 일정(예: 마감). allDay=true면 null |
+| startDate      | date, all-day 전용                                             | allDay=true면 필수, allDay=false면 null                         |
+| endDateExclusive | date, all-day 전용                                           | allDay=true면 필수, `endDateExclusive > startDate`. allDay=false면 null |
+| timezone       | IANA ID                                                        | 필수(timed/all-day 공통). wall-clock·반복·reminder 계산 기준    |
+| location       | string nullable                                                | 선택                                                            |
+| notes          | string nullable                                                | 선택                                                            |
+| recurrence     | NONE / DAILY / WEEKLY / MONTHLY / YEARLY                       | 기본 NONE                                                       |
+| reminders      | occurrence 기준 상대 offset(분) 목록                           | 0~5개, offset ≥ 0 정수, 중복 불가                               |
+| linkedGoalId   | UUID nullable                                                  | 모든 Goal type에 연결 가능. Goal 삭제 시 null                   |
+| createdAt / updatedAt / version | 공통                                          | optimistic lock(§8.3)                                           |
+
+**timed / all-day 저장 계약**
+
+| **구분**              | **API 필드**                                  | **DB 컬럼**                                        |
+|-----------------------|-----------------------------------------------|----------------------------------------------------|
+| timed (`allDay=false`) | `startAt`, `endAt`(ISO-8601 instant), `timezone` | `start_at`, `end_at`(timestamptz), `timezone`; `start_date`, `end_date_exclusive`는 NULL |
+| all-day (`allDay=true`) | `startDate`, `endDateExclusive`(ISO date), `timezone` | `start_date`, `end_date_exclusive`(date), `timezone`; `start_at`, `end_at`은 NULL |
+
+- all-day Event를 UTC 자정 timestamp로 변환해 저장하지 않는다. 날짜는 Event timezone에서의 달력 날짜 그대로 저장한다. 하루짜리 생일은 `startDate=2026-10-03`, `endDateExclusive=2026-10-04`다.
+
+- **DB 정합성(CHECK):**
+  - `all_day = false` → `start_at`, `end_at` NOT NULL, `start_date`, `end_date_exclusive` NULL, `end_at >= start_at`
+  - `all_day = true` → `start_date`, `end_date_exclusive` NOT NULL, `start_at`, `end_at` NULL, `end_date_exclusive > start_date`
+  - `timezone` NOT NULL, `type`/`recurrence`는 허용 enum 값만
+  - `event_reminders.offset_minutes >= 0`, `(event_id, offset_minutes)` unique
+
+- **Application validation:** DB CHECK로 표현할 수 없는 규칙은 service validation과 테스트로 보장한다. timezone이 유효한 IANA ID인지, Event당 reminder 최대 5개, 존재하지 않는 linkedGoalId, allDay 전환 시 반대쪽 시간 필드를 비우고 새 필드를 모두 받는지.
+
+- **반복 전개:** 서버는 요청 기간(from/to)에 걸치는 occurrence를 Event timezone의 wall-clock 기준으로 계산해 반환한다.
+  - recurrence anchor는 원래 Event의 시작(timed: `startAt`의 Event timezone 현지 날짜·시각, all-day: `startDate`)이다.
+  - n번째 occurrence는 **항상 anchor 기준**으로 계산한다(anchor + n일/주/월/년). 직전 occurrence에서 이어서 계산하지 않는다.
+  - MONTHLY/YEARLY에서 anchor의 날짜가 대상 월에 없으면 그 달의 마지막 날짜로 보정한다. 예: 1/31 매월 → 2/28(윤년 2/29), 3/31, 4/30. 2/29 매년 → 평년 2/28, 윤년 2/29.
+  - timed occurrence는 anchor의 현지 시각과 원래 길이를, all-day occurrence는 원래 날짜 수를 유지한다.
+  - 개별 occurrence 수정, 반복 예외, 반복 종료일은 MVP 제외다. MVP 수정은 반복 전체에 적용된다.
+
+- **reminder 기준:** reminder는 Event에 occurrence 기준 상대 offset(분)으로 저장하고, 알림 시각은 occurrence마다 계산한다. timed Event는 occurrence 시작 시각, all-day Event는 occurrence 시작 날짜의 Event timezone 09:00에서 offset만큼 앞선다(예: all-day 1일 전 = 전날 09:00). Event당 최대 5개.
+
+- **Day와의 경계:** Event는 Day의 status/coreDay/plannedDate/DaySchedule을 갖지 않는다. Day와 Event 사이 직접 FK는 MVP에 두지 않고 Goal 연결로 함께 분석한다.
 
 # 9. API 설계
 REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며, Spring OpenAPI 문서를 기준으로 TypeScript client를 자동 생성한다. 날짜/시간은 ISO-8601 형식을 사용한다.
@@ -398,6 +536,9 @@ REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며,
 | PATCH            | /api/v1/days/{dayId}              | title/status/date/priority 수정       |
 | PUT              | /api/v1/days/{dayId}/schedule     | 시간 배치/수정                        |
 | DELETE           | /api/v1/days/{dayId}/schedule     | 시간 배치만 해제                      |
+| GET/POST         | /api/v1/events                    | type/linkedGoalId 필터 Event 목록, Event 생성 |
+| GET/PATCH/DELETE | /api/v1/events/{eventId}          | Event 상세/수정(reminders 포함)/삭제  |
+| GET              | /api/v1/event-occurrences         | from/to/type 기간 내 반복 전개 occurrence (Calendar/Events 화면) |
 | POST             | /api/v1/focus-sessions            | 실제 Focus 시작 기록                  |
 | PATCH            | /api/v1/focus-sessions/{id}/end   | Focus 종료/결과 기록                  |
 | POST             | /api/v1/interventions             | nudge response/reason/action 기록     |
@@ -414,6 +555,19 @@ REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며,
 | **Problem Details** HTTP status + code + title + detail + fieldErrors + traceId 구조를 사용한다. 클라이언트는 code를 기준으로 UX를 분기하고 사람에게 보이는 문구를 서버 detail에 의존하지 않는다. |
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
+## 9.2 Event API 요구사항
+- Event API는 Day API와 분리한다. Calendar는 `/days`와 `/event-occurrences`를 같은 기간으로 각각 조회해 합쳐 그린다.
+
+- `POST /events`는 201, `DELETE /events/{eventId}`는 204, `PATCH`는 요청 `version` 불일치 시 409를 반환한다.
+
+- `PATCH`의 reminders는 전체 목록 교체로 처리한다. 누락 필드는 유지, nullable 필드(location/notes/linkedGoalId)는 명시적 null로 비운다.
+
+- 요청/응답 시간 필드는 §8.4 저장 계약을 따른다. `allDay=false`는 `startAt`/`endAt`만, `allDay=true`는 `startDate`/`endDateExclusive`만 값이 있고 반대쪽은 null이다. `allDay`를 바꾸는 `PATCH`는 새 계약의 시간 필드를 모두 함께 보내야 한다.
+
+- `GET /event-occurrences` 응답 항목은 `eventId`, `allDay`, occurrence 시간(timed: `startAt`/`endAt`, all-day: `startDate`/`endDateExclusive`), `type`, `title`, `timezone`, `linkedGoalId`를 포함한다. from/to(date)는 필수이며 조회 범위 상한을 둔다.
+
+- validation 오류(timed/all-day 필드 혼합·누락, `endAt < startAt`, `endDateExclusive <= startDate`, 잘못된 timezone, 중복/음수 reminder offset, reminder 6개 이상, 존재하지 않는 linkedGoalId)는 fieldErrors를 포함한 400으로 반환한다.
+
 # 10. AI Review Coach 설계
 ## 10.1 AI가 보는 데이터
 - Goal path 및 why, 해당 기간의 Day와 상태.
@@ -428,6 +582,8 @@ REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며,
 
 - 사용자 설정: coach intensity, 주당 가용 시간(선택), 중요한 Goal.
 
+- Event(P1, AI-004): 기간 내 occurrence의 type, 시작/종료 시각, all-day 여부, linkedGoalId. 가용 시간 계산과 배치 추천 근거로 사용한다.
+
 ## 10.2 AI가 보면 안 되는 데이터(기본값)
 - iOS FamilyActivitySelection raw token.
 
@@ -436,6 +592,8 @@ REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며,
 - 필요 이상의 설치 앱 목록이나 민감 앱 이름.
 
 - 사용자 승인 없이 상세 행동 로그를 무기한 보관하는 것.
+
+- Event의 title/location/notes 원문과 외부 Calendar 원문. 필요한 경우 사용자 승인 후에만 포함한다.
 
 ## 10.3 Structured Output 계약
 <table>
@@ -488,6 +646,25 @@ REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며,
 
 ## 11.2 알림 payload 최소 정보
 notificationId, dayId, interventionStage, deepLink만 포함하고 민감한 앱 사용 내역은 넣지 않는다. 잠금화면 노출이 민감할 수 있으므로 사용자가 제목 상세 표시 수준을 선택할 수 있게 한다.
+
+## 11.3 Event reminder (NOTI-001, NOTI-002)
+- Event 하나에 reminder를 최대 5개 둘 수 있다. 기본 선택지: 정각(0분), 10분 전, 30분 전, 1시간 전, 1일 전, 사용자 지정.
+
+- reminder는 occurrence 기준 상대 offset(분)으로 저장한다. 알림 시각은 occurrence마다 계산한다: timed Event는 occurrence 시작 시각 − offset, all-day Event는 occurrence 시작 날짜의 Event timezone 09:00 − offset(§8.4).
+
+- 구현 단계: reminder 데이터(저장/수정/API/Web 설정 UI)는 Event CRUD와 함께 구현하고, native local notification 예약·재예약·취소는 Mobile 단계에서 구현한다. 요구사항 우선순위는 P0로 유지한다.
+
+- 모바일은 iOS/Android local notification으로 기기에서 예약한다. 서버 push에 의존하지 않고 오프라인에서도 울려야 한다.
+
+- Event 생성/수정/삭제, reminder 변경, timezone 변경, 동기화로 받은 변경 시 해당 Event의 예약 알림을 cancel 후 재예약한다.
+
+- 반복 Event는 가까운 미래 occurrence만 rolling window로 예약하고 앱 실행/동기화 시 보충한다. iOS의 앱당 대기 local notification 개수 제한을 고려해 Day nudge와 합산한 예약 수를 관리한다.
+
+- Event reminder는 Focus Lock·Nudge와 별도다. escalation(+10/+20분), 반복 재촉, 앱 잠금, InterventionEvent를 만들지 않는다.
+
+- payload는 notificationId, eventId, occurrenceStartAt, deepLink만 포함한다. 잠금화면 제목 노출 수준은 §11.2 설정을 따른다.
+
+- Web은 브라우저 알림 제약으로 MVP에서 Event reminder 발송을 보장하지 않는다(설정/표시만).
 
 # 12. 보안 · 개인정보 · 권한
 | **영역**      | **정책**                                              | **금지/주의**                                    |
