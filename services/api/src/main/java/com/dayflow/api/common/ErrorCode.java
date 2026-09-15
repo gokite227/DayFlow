@@ -1,0 +1,42 @@
+package com.dayflow.api.common;
+
+import org.springframework.http.HttpStatus;
+
+/**
+ * API error codes. Domain rule codes use the same names as DomainIssueCode in
+ * packages/domain so web and mobile clients can share handling.
+ */
+public enum ErrorCode {
+    VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Invalid request"),
+    INVALID_GOAL_PERIOD(HttpStatus.BAD_REQUEST, "Invalid Goal period"),
+    INVALID_GOAL_PARENT(HttpStatus.BAD_REQUEST, "Invalid Goal parent"),
+    GOAL_OUTSIDE_PARENT_PERIOD(HttpStatus.BAD_REQUEST, "Goal outside parent period"),
+    DAY_REQUIRES_WEEK_GOAL(HttpStatus.BAD_REQUEST, "Day requires a WEEK Goal"),
+    DATE_OUTSIDE_WEEK_GOAL_PERIOD(HttpStatus.BAD_REQUEST, "Date outside WEEK Goal period"),
+    INVALID_SCHEDULE_RANGE(HttpStatus.BAD_REQUEST, "Invalid schedule range"),
+
+    GOAL_NOT_FOUND(HttpStatus.NOT_FOUND, "Goal not found"),
+    DAY_NOT_FOUND(HttpStatus.NOT_FOUND, "Day not found"),
+    SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "Schedule not found"),
+
+    VERSION_CONFLICT(HttpStatus.CONFLICT, "Version conflict"),
+    SCHEDULE_VERSION_CONFLICT(HttpStatus.CONFLICT, "Schedule version conflict"),
+    GOAL_IN_USE(HttpStatus.CONFLICT, "Goal in use"),
+    DATA_CONFLICT(HttpStatus.CONFLICT, "Data conflict");
+
+    private final HttpStatus status;
+    private final String title;
+
+    ErrorCode(HttpStatus status, String title) {
+        this.status = status;
+        this.title = title;
+    }
+
+    public HttpStatus status() {
+        return status;
+    }
+
+    public String title() {
+        return title;
+    }
+}

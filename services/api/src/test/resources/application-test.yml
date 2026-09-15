@@ -1,0 +1,6 @@
+# The datasource is supplied by the Testcontainers PostgreSQL container
+# (@ServiceConnection in TestcontainersConfiguration), never by infra/.env.
+logging:
+  level:
+    # Shows applied Flyway migrations in the test output.
+    org.flywaydb: info

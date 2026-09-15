@@ -1,6 +1,22 @@
 spring:
   application:
     name: dayflow-api
+  profiles:
+    # Running without an explicit profile uses the local Docker database.
+    default: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks that entities match it.
+      ddl-auto: validate
+  jackson:
+    deserialization:
+      # Reject unknown request fields, like the strict TypeScript schemas.
+      fail-on-unknown-properties: true
+
+springdoc:
+  # Document the product API only, not actuator endpoints.
+  paths-to-match: /api/**
 
 management:
   endpoints:

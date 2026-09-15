@@ -1,0 +1,10 @@
+spring:
+  config:
+    # Reuses infra/.env (git-ignored) when started from services/api. Environment
+    # variables with the same names take precedence.
+    import: optional:file:../../infra/.env[.properties]
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:dayflow}
+    username: ${POSTGRES_USER:dayflow}
+    # No default: the password must come from infra/.env or the environment.
+    password: ${POSTGRES_PASSWORD}
