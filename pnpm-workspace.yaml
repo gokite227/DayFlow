@@ -4,6 +4,7 @@ packages:
 
 allowBuilds:
   # Use the platform binding installed as an optional dependency; do not run postinstall.
+  esbuild: false
   unrs-resolver: false
 
 # Do not silently add package release-age exceptions during install.
