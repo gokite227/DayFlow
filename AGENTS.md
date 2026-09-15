@@ -35,7 +35,7 @@
 
 ## 검증과 보고
 - 변경 범위에 맞는 검증을 실행한다. 존재하지 않는 테스트를 통과했다고 보고하지 않는다.
-- 실행 스크립트는 apps/web(dev/build/lint/typecheck)과 packages/domain·packages/schemas(build/typecheck/test)에만 있다. 나머지 패키지에는 스크립트가 없으므로, 해당 패키지에서 Turbo가 0개 작업을 성공한 것은 기능 테스트 성공이 아니다.
+- 실행 스크립트는 apps/web(dev/build/lint/typecheck), packages/domain·packages/schemas(build/typecheck/test), packages/api-client(openapi:export/generate/typecheck)에만 있다. 나머지 패키지에는 스크립트가 없으므로, 해당 패키지에서 Turbo가 0개 작업을 성공한 것은 기능 테스트 성공이 아니다.
 - 기능 구현 시 요구사항 ID와 Acceptance를 테스트에 연결한다.
 - API 변경 시 필요한 migration, OpenAPI, 생성 client를 함께 갱신한다.
 - Focus 변경은 simulator만으로 완료 처리하지 않고 실제 iPhone 검증 결과를 남긴다.

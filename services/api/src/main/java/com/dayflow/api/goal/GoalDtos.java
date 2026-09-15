@@ -1,5 +1,8 @@
 package com.dayflow.api.goal;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -16,6 +19,8 @@ public final class GoalDtos {
     }
 
     public record CreateGoalRequest(
+            @Schema(types = {"string", "null"}, format = "uuid",
+                    description = "null or omitted for YEAR Goals; the parent Goal id otherwise")
             UUID parentGoalId,
             @NotNull GoalType type,
             @NotBlank @Size(max = 200) String title,
@@ -32,6 +37,8 @@ public final class GoalDtos {
      */
     public static class UpdateGoalRequest {
 
+        @Schema(types = {"string", "null"}, format = "uuid",
+                description = "Omit to keep the parent. null is only valid for YEAR Goals.")
         private UUID parentGoalId;
         private boolean parentGoalIdProvided;
 
@@ -129,19 +136,22 @@ public final class GoalDtos {
         }
     }
 
+    /** Every field is always serialized; parentGoalId is null for YEAR Goals. */
     public record GoalResponse(
-            UUID id,
+            @Schema(requiredMode = REQUIRED) UUID id,
+            @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "uuid",
+                    description = "null for YEAR Goals")
             UUID parentGoalId,
-            GoalType type,
-            String title,
-            String why,
-            LocalDate startDate,
-            LocalDate endDate,
-            int priority,
-            ProgressPolicy progressPolicy,
-            Instant createdAt,
-            Instant updatedAt,
-            long version) {
+            @Schema(requiredMode = REQUIRED) GoalType type,
+            @Schema(requiredMode = REQUIRED) String title,
+            @Schema(requiredMode = REQUIRED) String why,
+            @Schema(requiredMode = REQUIRED) LocalDate startDate,
+            @Schema(requiredMode = REQUIRED) LocalDate endDate,
+            @Schema(requiredMode = REQUIRED) int priority,
+            @Schema(requiredMode = REQUIRED) ProgressPolicy progressPolicy,
+            @Schema(requiredMode = REQUIRED) Instant createdAt,
+            @Schema(requiredMode = REQUIRED) Instant updatedAt,
+            @Schema(requiredMode = REQUIRED) long version) {
 
         static GoalResponse from(Goal goal) {
             return new GoalResponse(goal.getId(), goal.getParentGoalId(), goal.getType(), goal.getTitle(),

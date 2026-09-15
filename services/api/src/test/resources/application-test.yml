@@ -4,3 +4,8 @@ logging:
   level:
     # Shows applied Flyway migrations in the test output.
     org.flywaydb: info
+
+dayflow:
+  cors:
+    allowed-origins:
+      - http://localhost:3000

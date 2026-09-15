@@ -17,6 +17,14 @@ spring:
 springdoc:
   # Document the product API only, not actuator endpoints.
   paths-to-match: /api/**
+  # Successful bodies are JSON (errors declare application/problem+json explicitly).
+  default-produces-media-type: application/json
+
+dayflow:
+  cors:
+    # Browser origins allowed to call /api/**. Empty by default; set per profile or with
+    # DAYFLOW_CORS_ALLOWED_ORIGINS (comma-separated) for other environments.
+    allowed-origins: []
 
 management:
   endpoints:

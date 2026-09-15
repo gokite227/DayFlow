@@ -1,0 +1,1021 @@
+{
+  "components" : {
+    "schemas" : {
+      "CreateDayRequest" : {
+        "properties" : {
+          "coreDay" : {
+            "type" : "boolean"
+          },
+          "estimatedMinutes" : {
+            "exclusiveMinimum" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "goalId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "plannedDate" : {
+            "description" : "null or omitted when the date is not decided yet",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "planningMode" : {
+            "enum" : [ "FIXED", "WINDOW", "ANYTIME" ],
+            "type" : "string"
+          },
+          "priority" : {
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "status" : {
+            "enum" : [ "NOT_STARTED", "IN_PROGRESS", "DONE", "DEFERRED", "SKIPPED" ],
+            "type" : "string"
+          },
+          "title" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "coreDay", "estimatedMinutes", "goalId", "planningMode", "priority", "status", "title" ],
+        "type" : "object"
+      },
+      "CreateGoalRequest" : {
+        "properties" : {
+          "endDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "parentGoalId" : {
+            "description" : "null or omitted for YEAR Goals; the parent Goal id otherwise",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "priority" : {
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "progressPolicy" : {
+            "enum" : [ "AUTO", "MANUAL" ],
+            "type" : "string"
+          },
+          "startDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "title" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "YEAR", "QUARTER", "MONTH", "WEEK" ],
+            "type" : "string"
+          },
+          "why" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "endDate", "priority", "progressPolicy", "startDate", "title", "type", "why" ],
+        "type" : "object"
+      },
+      "DayResponse" : {
+        "properties" : {
+          "coreDay" : {
+            "type" : "boolean"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "estimatedMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "goalId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "plannedDate" : {
+            "description" : "null when the date is not decided yet",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "planningMode" : {
+            "enum" : [ "FIXED", "WINDOW", "ANYTIME" ],
+            "type" : "string"
+          },
+          "priority" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "schedule" : {
+            "description" : "null when the Day has no time placement",
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/DayScheduleResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "status" : {
+            "enum" : [ "NOT_STARTED", "IN_PROGRESS", "DONE", "DEFERRED", "SKIPPED" ],
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "coreDay", "createdAt", "estimatedMinutes", "goalId", "id", "plannedDate", "planningMode", "priority", "schedule", "status", "title", "updatedAt", "version" ],
+        "type" : "object"
+      },
+      "DayScheduleResponse" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "dayId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "endAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "startAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "timezone" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "createdAt", "dayId", "endAt", "id", "startAt", "timezone", "updatedAt", "version" ],
+        "type" : "object"
+      },
+      "FieldViolation" : {
+        "properties" : {
+          "field" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "field", "message" ],
+        "type" : "object"
+      },
+      "GoalResponse" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "endDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "parentGoalId" : {
+            "description" : "null for YEAR Goals",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "priority" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "progressPolicy" : {
+            "enum" : [ "AUTO", "MANUAL" ],
+            "type" : "string"
+          },
+          "startDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "YEAR", "QUARTER", "MONTH", "WEEK" ],
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "why" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "createdAt", "endDate", "id", "parentGoalId", "priority", "progressPolicy", "startDate", "title", "type", "updatedAt", "version", "why" ],
+        "type" : "object"
+      },
+      "ProblemResponse" : {
+        "description" : "Error response for every API failure (RFC 9457 Problem Details)",
+        "properties" : {
+          "code" : {
+            "description" : "Stable code to branch on: an ErrorCode name, VALIDATION_ERROR, or HTTP_<status>",
+            "type" : "string"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "fieldErrors" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FieldViolation"
+            },
+            "type" : "array"
+          },
+          "instance" : {
+            "description" : "Request path",
+            "type" : "string"
+          },
+          "status" : {
+            "description" : "HTTP status code",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "traceId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "detail", "fieldErrors", "instance", "status", "title", "traceId" ],
+        "type" : "object"
+      },
+      "SetDayScheduleRequest" : {
+        "properties" : {
+          "endAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "expectedVersion" : {
+            "description" : "null to create a schedule; the current schedule version to replace it",
+            "format" : "int64",
+            "minimum" : 0,
+            "type" : [ "integer", "null" ]
+          },
+          "startAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "timezone" : {
+            "maxLength" : 64,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "endAt", "expectedVersion", "startAt", "timezone" ],
+        "type" : "object"
+      },
+      "UpdateDayRequest" : {
+        "properties" : {
+          "coreDay" : {
+            "type" : "boolean"
+          },
+          "estimatedMinutes" : {
+            "exclusiveMinimum" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "goalId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "plannedDate" : {
+            "description" : "Omit to keep the date; null clears it and removes the schedule.",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "planningMode" : {
+            "enum" : [ "FIXED", "WINDOW", "ANYTIME" ],
+            "type" : "string"
+          },
+          "priority" : {
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "status" : {
+            "enum" : [ "NOT_STARTED", "IN_PROGRESS", "DONE", "DEFERRED", "SKIPPED" ],
+            "type" : "string"
+          },
+          "title" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "pattern" : "(?s).*\\S.*",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        },
+        "required" : [ "version" ],
+        "type" : "object"
+      },
+      "UpdateGoalRequest" : {
+        "properties" : {
+          "endDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "parentGoalId" : {
+            "description" : "Omit to keep the parent. null is only valid for YEAR Goals.",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "priority" : {
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "progressPolicy" : {
+            "enum" : [ "AUTO", "MANUAL" ],
+            "type" : "string"
+          },
+          "startDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "title" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "pattern" : "(?s).*\\S.*",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "why" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "version" ],
+        "type" : "object"
+      }
+    }
+  },
+  "info" : {
+    "title" : "OpenAPI definition",
+    "version" : "v0"
+  },
+  "openapi" : "3.1.0",
+  "paths" : {
+    "/api/v1/days" : {
+      "get" : {
+        "operationId" : "listDays",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "goalId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "NOT_STARTED", "IN_PROGRESS", "DONE", "DEFERRED", "SKIPPED" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/DayResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Day/Schedule rule violation"
+          }
+        },
+        "tags" : [ "day-controller" ]
+      },
+      "post" : {
+        "operationId" : "createDay",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateDayRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DayResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Day/Schedule rule violation"
+          }
+        },
+        "tags" : [ "day-controller" ]
+      }
+    },
+    "/api/v1/days/{dayId}" : {
+      "delete" : {
+        "operationId" : "deleteDay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "dayId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Day/Schedule rule violation"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Day not found"
+          }
+        },
+        "tags" : [ "day-controller" ]
+      },
+      "get" : {
+        "operationId" : "getDay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "dayId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DayResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Day/Schedule rule violation"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Day not found"
+          }
+        },
+        "tags" : [ "day-controller" ]
+      },
+      "patch" : {
+        "operationId" : "updateDay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "dayId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateDayRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DayResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Day/Schedule rule violation"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Day not found"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Stale version (VERSION_CONFLICT)"
+          }
+        },
+        "tags" : [ "day-controller" ]
+      }
+    },
+    "/api/v1/days/{dayId}/schedule" : {
+      "delete" : {
+        "operationId" : "deleteDaySchedule",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "dayId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Day/Schedule rule violation"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Day or schedule not found"
+          }
+        },
+        "tags" : [ "day-controller" ]
+      },
+      "put" : {
+        "operationId" : "setDaySchedule",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "dayId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SetDayScheduleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DayResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Day/Schedule rule violation"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Day not found"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "expectedVersion does not match (SCHEDULE_VERSION_CONFLICT)"
+          }
+        },
+        "tags" : [ "day-controller" ]
+      }
+    },
+    "/api/v1/goals" : {
+      "get" : {
+        "operationId" : "listGoals",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "type",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "YEAR", "QUARTER", "MONTH", "WEEK" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/GoalResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Goal rule violation"
+          }
+        },
+        "tags" : [ "goal-controller" ]
+      },
+      "post" : {
+        "operationId" : "createGoal",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateGoalRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GoalResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Goal rule violation"
+          }
+        },
+        "tags" : [ "goal-controller" ]
+      }
+    },
+    "/api/v1/goals/{goalId}" : {
+      "delete" : {
+        "operationId" : "deleteGoal",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "goalId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Goal rule violation"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Goal not found"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Goal still has child Goals or Days (GOAL_IN_USE)"
+          }
+        },
+        "tags" : [ "goal-controller" ]
+      },
+      "get" : {
+        "operationId" : "getGoal",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "goalId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GoalResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Goal rule violation"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Goal not found"
+          }
+        },
+        "tags" : [ "goal-controller" ]
+      },
+      "patch" : {
+        "operationId" : "updateGoal",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "goalId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateGoalRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GoalResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or Goal rule violation"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Goal not found"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Stale version (VERSION_CONFLICT)"
+          }
+        },
+        "tags" : [ "goal-controller" ]
+      }
+    }
+  },
+  "servers" : [ {
+    "description" : "Generated server url",
+    "url" : "http://localhost"
+  } ]
+}

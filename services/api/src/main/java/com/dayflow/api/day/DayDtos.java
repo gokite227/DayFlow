@@ -1,5 +1,7 @@
 package com.dayflow.api.day;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -25,6 +27,8 @@ public final class DayDtos {
             @NotNull DayStatus status,
             @NotNull @PositiveOrZero Integer priority,
             @NotNull @Positive Integer estimatedMinutes,
+            @Schema(types = {"string", "null"}, format = "date",
+                    description = "null or omitted when the date is not decided yet")
             LocalDate plannedDate,
             @NotNull DayPlanningMode planningMode,
             @NotNull Boolean coreDay) {
@@ -50,6 +54,8 @@ public final class DayDtos {
         @Positive
         private Integer estimatedMinutes;
 
+        @Schema(types = {"string", "null"}, format = "date",
+                description = "Omit to keep the date; null clears it and removes the schedule.")
         private LocalDate plannedDate;
         private boolean plannedDateProvided;
 
@@ -160,14 +166,14 @@ public final class DayDtos {
 
     /** startAt/endAt are rendered with the offset of the schedule's timezone. */
     public record DayScheduleResponse(
-            UUID id,
-            UUID dayId,
-            OffsetDateTime startAt,
-            OffsetDateTime endAt,
-            String timezone,
-            Instant createdAt,
-            Instant updatedAt,
-            long version) {
+            @Schema(requiredMode = REQUIRED) UUID id,
+            @Schema(requiredMode = REQUIRED) UUID dayId,
+            @Schema(requiredMode = REQUIRED) OffsetDateTime startAt,
+            @Schema(requiredMode = REQUIRED) OffsetDateTime endAt,
+            @Schema(requiredMode = REQUIRED) String timezone,
+            @Schema(requiredMode = REQUIRED) Instant createdAt,
+            @Schema(requiredMode = REQUIRED) Instant updatedAt,
+            @Schema(requiredMode = REQUIRED) long version) {
 
         static DayScheduleResponse from(DaySchedule schedule) {
             return new DayScheduleResponse(schedule.getId(), schedule.getDayId(),
@@ -177,20 +183,27 @@ public final class DayDtos {
         }
     }
 
-    /** A Day with its optional schedule (DayWithSchedule in packages/domain). */
+    /**
+     * A Day with its optional schedule (DayWithSchedule in packages/domain). Every field
+     * is always serialized; plannedDate and schedule may be null.
+     */
     public record DayResponse(
-            UUID id,
-            UUID goalId,
-            String title,
-            DayStatus status,
-            int priority,
-            int estimatedMinutes,
+            @Schema(requiredMode = REQUIRED) UUID id,
+            @Schema(requiredMode = REQUIRED) UUID goalId,
+            @Schema(requiredMode = REQUIRED) String title,
+            @Schema(requiredMode = REQUIRED) DayStatus status,
+            @Schema(requiredMode = REQUIRED) int priority,
+            @Schema(requiredMode = REQUIRED) int estimatedMinutes,
+            @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "date",
+                    description = "null when the date is not decided yet")
             LocalDate plannedDate,
-            DayPlanningMode planningMode,
-            boolean coreDay,
-            Instant createdAt,
-            Instant updatedAt,
-            long version,
+            @Schema(requiredMode = REQUIRED) DayPlanningMode planningMode,
+            @Schema(requiredMode = REQUIRED) boolean coreDay,
+            @Schema(requiredMode = REQUIRED) Instant createdAt,
+            @Schema(requiredMode = REQUIRED) Instant updatedAt,
+            @Schema(requiredMode = REQUIRED) long version,
+            @Schema(requiredMode = REQUIRED, types = {"object", "null"},
+                    description = "null when the Day has no time placement")
             DayScheduleResponse schedule) {
 
         static DayResponse from(Day day, DaySchedule schedule) {

@@ -1,11 +1,14 @@
 package com.dayflow.api.common;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 /** A rule violation or missing resource reported to the client with an {@link ErrorCode}. */
 public class ApiException extends RuntimeException {
 
-    public record FieldViolation(String field, String message) {
+    public record FieldViolation(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String field,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String message) {
     }
 
     private final ErrorCode code;
