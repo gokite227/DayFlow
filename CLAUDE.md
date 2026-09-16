@@ -111,7 +111,9 @@ YEAR → QUARTER → MONTH → WEEK
 
 - 직접 parent는 바로 위 단계만 허용한다.
 - 하위 Goal 기간은 기본적으로 parent 기간 안에 있어야 한다.
-- WEEK Goal 아래에서 Day를 만든다.
+- Goal 기간은 자유 날짜 범위가 아니라 type별 canonical calendar period다(YEAR=연, QUARTER=분기, MONTH=월, WEEK=parent MONTH 안의 월요일 시작 주를 월 경계에서 자른 구간).
+- Day를 Goal에 연결하는 경우 WEEK Goal만 허용한다. Day가 Goal을 갖지 않는 것도 정상이다(아래 Day 규칙).
+- Goal progress는 그 Goal에 실제 연결된 Day만 계산한다.
 
 이 정책을 변경해야 할 경우 임의로 바꾸지 말고 먼저 사용자에게 알려라.
 
@@ -125,6 +127,13 @@ Day status:
 - DEFERRED
 - SKIPPED
 
+Day는 사용자가 실제로 해야 하는 모든 행동 / Task다.
+
+- Day는 Goal 없이 존재할 수 있다. `goalId = null`은 정상 상태다.
+- Goal을 연결하는 경우 반드시 WEEK Goal이다.
+- Goal-linked Day는 해당 WEEK period validation을 따른다.
+- Goal 없는 Day도 Days / Today / Calendar / Review / Recovery에서 1급으로 다룬다.
+
 Day는 날짜 없이 존재할 수 있다.
 
 `plannedDate = null`은 정상 상태다.
@@ -135,7 +144,11 @@ Day에는 계획 방식이 있다.
 - WINDOW
 - ANYTIME
 
-시간을 지웠다고 Day를 삭제하면 안 된다.
+Day priority는 저장은 기존 integer를 재사용하고 의미는 이름으로 다룬다: `0=NONE, 1=LOW, 2=MEDIUM, 3=HIGH`. priority(Task 자체의 중요도)와 coreDay(오늘 꼭 지키고 싶은 핵심 실행)는 다른 개념이다.
+
+Day에는 사용자 정의 Tag를 여러 개 붙일 수 있다(Day와 Tag는 many-to-many). Tag는 생활/업무 영역이고 Goal은 장기 방향이라 서로 다른 축이며, Event Category와도 합치지 않는다.
+
+시간을 지웠다고 Day를 삭제하면 안 된다. Goal 연결을 해제해도 Day를 삭제하지 않는다.
 
 ### Schedule
 
@@ -150,6 +163,23 @@ Schedule:
 Day 1개당 schedule은 MVP 기준 0..1개다.
 
 Calendar에서 Schedule 날짜를 변경하면 `Day.plannedDate`도 해당 날짜로 함께 맞춘다.
+
+### Event
+
+Event는 이미 시간이 정해져 있거나 사용자에게 일어나는 일정이며 Day와 별도 도메인이다.
+
+- Event 종류는 고정 enum이 아니라 사용자 정의 Category다. `categoryId`는 nullable이고, Category를 삭제해도 Event는 남아 `미분류`가 된다.
+- 삭제할 수 없는 강제 default Category는 두지 않는다.
+- Event는 Day 상태·핵심 Day·Recovery 분류를 갖지 않는다.
+
+### Recovery
+
+- 정리 대상: 과거 plannedDate의 미완료 Day, 그리고 오늘 배치된 Day 중 `endAt`이 이미 지났고 완료되지 않은 Day. 오늘의 date-only Day는 하루가 끝나기 전에는 missed로 보지 않는다. Goal 없는 Day도 대상이다.
+- action: KEEP / REDUCE / MOVE / CARRY_OVER / DROP. DROP은 삭제가 아니라 SKIPPED다.
+- Goal 없는 Day의 MOVE는 오늘 또는 미래의 원하는 날짜로 보낼 수 있고 과거로는 보내지 않는다.
+- CARRY_OVER는 과거 기록을 덮어쓰지 않고 미래 period에 새 Day/Goal을 만든다. 필요한 Goal은 자동 생성하지 않고 preview → 사용자 승인 후 만든다.
+- 승계 관계는 Day/Goal의 self-reference로 직접 조회할 수 있어야 하고, 적용 이력은 recovery event로도 남긴다.
+- 사용자가 이미 처리한 missed Day는 계획 값이 실제로 바뀌기 전까지 같은 배너로 반복 노출하지 않는다.
 
 ---
 

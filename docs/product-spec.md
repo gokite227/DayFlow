@@ -142,25 +142,41 @@ Version 0.1 · 2026-09-14
 
 - 상위 Goal에 여러 하위 Goal을 연결한다.
 
-- 진행률은 하위 Goal 또는 연결된 Day 완료를 기준으로 자동 집계하되, 사용자가 수동 조정할 수 있다.
+- 진행률은 그 목표(하위 목표 포함)에 실제로 연결된 Day 완료를 기준으로 자동 집계하되, 사용자가 수동 조정할 수 있다. 목표에 연결되지 않은 생활 Task는 진행률에 들어가지 않는다.
 
 - 각 Goal에는 “왜 중요한지(Why)”를 짧게 기록한다. 오늘의 Day 화면에서 Why를 노출해 실행 이유를 유지한다.
+
+- Today에서는 오늘 날짜가 들어 있는 주간 목표들의 진행률을 보여준다. 오늘 배치된 Day가 없어도 이번 주의 방향이므로 함께 보여주고, 진행률은 그 목표에 연결된 Day만으로 계산한다.
 
 - AI 하위 목표 추천은 MVP 이후 추가하지만, 데이터 구조는 처음부터 parentGoalId를 지원한다.
 
 ## 4.2 Day + Calendar
 
-- 기존 task 명칭 대신 Day를 사용한다.
+- 기존 task 명칭 대신 Day를 사용한다. **Day는 사용자가 실제로 해야 하는 모든 행동/Task**다.
 
-- Day는 날짜가 없어도 생성 가능하며, 주간 Goal 아래 “이번 주 안에 할 일”로 둘 수 있다.
+- Goal 연결은 선택이다. 목표와 연결하면 주간 Goal 아래 “이번 주 안에 할 일”이 되고, 연결하지 않은 생활 Task도 똑같이 1급으로 다룬다. Goal 진행률은 그 Goal에 실제로 연결된 Day만 반영한다.
+
+- Day는 날짜가 없어도 생성 가능하다.
+
+- Day에는 생활/업무 영역을 나타내는 Tag를 여러 개(최대 10개) 붙일 수 있고, Task 자체의 중요도를 나타내는 priority(없음/낮음/보통/높음)를 둔다. priority는 “오늘 꼭 지키고 싶은” 핵심 Day 표시와는 다른 개념이다. Tag 색상은 제공되는 색 중에서 고른다.
 
 - Day를 클릭해 날짜/시간을 배치·수정·취소할 수 있다.
 
 - 캘린더에서 드래그해 Day의 시간 블록을 생성하거나 길이를 조절한다.
 
-- 주간 뷰와 리스트 뷰를 모두 제공한다.
+- Calendar는 주/3일/하루 뷰와 리스트 뷰를 제공하고, 미배치 Day 패널은 접고 펼 수 있다. 시간 격자는 1시간 선을 기준으로 촘촘하지 않게 그려 한 화면에서 더 넓은 시간대를 본다(15분 배치 정밀도는 유지).
 
 - 시간이 밀렸다고 실패 처리하지 않는다. 실제 시작 시각은 분석용 데이터일 뿐, 평가는 방향/완료 중심으로 한다.
+
+**화면 역할**
+
+| **화면**  | **역할**                                           |
+|-----------|----------------------------------------------------|
+| Days      | 모든 Task를 모으고 관리하는 Inbox / Backlog         |
+| Today     | 오늘 실행하는 화면                                  |
+| Calendar  | Day를 실제 날짜와 시간에 배치하는 계획 화면         |
+| Goals     | 장기 방향과 계획 구조                               |
+| Events    | 이미 정해진 일정                                    |
 
 <table>
 <colgroup>
@@ -201,7 +217,7 @@ Version 0.1 · 2026-09-14
 | 날짜/시간     | 없어도 됨. 필요할 때만 시간 배치               | 시간(또는 all-day 날짜)이 정해져 있음             |
 | 상태          | 진행 전/진행 중/완료/미룸/건너뜀               | 완료 개념 없음 — 일어나는 일                      |
 | Recovery      | 유지/축소/이동/내려놓기로 다시 정리            | 대상 아님. 일정은 사용자가 직접 수정              |
-| Goal          | 주간 Goal 아래에 생성                          | 필요할 때만 Goal에 연결(선택)                     |
+| Goal          | 필요할 때만 주간 Goal에 연결(선택)             | 필요할 때만 Goal에 연결(선택)                     |
 | 알림          | 시작 재촉(Nudge)과 Focus Lock으로 실행을 도움  | 정각/10분 전/1일 전 등 reminder로 잊지 않게 도움  |
 
 - **마감은 Event, 준비 작업은 Day.** 마감 자체는 “해야 할 일”이 아니라 “정해진 시점”이다. 실행은 그 앞에 놓인 Day들로 쪼갠다.
@@ -211,13 +227,17 @@ Version 0.1 · 2026-09-14
 
 - Event는 필요하면 Goal에 연결한다. 나중에 “이 면접을 위해 어떤 Day를 했는지”를 Goal 기준으로 함께 볼 수 있게 하기 위해서다.
 
-- Event 유형: 생일 / 면접 / 시험 / 마감 / 약속 / 기타. 생일처럼 반복되는 일정은 매일/매주/매월/매년 반복으로 둔다. 31일·2/29처럼 대상 월에 없는 날짜는 그 달 마지막 날로 맞추고, 매번 원래 날짜를 기준으로 다시 계산한다. 반복 중 한 번만 바꾸는 기능은 MVP 이후다.
+- 기본 Event Category: 일정 / 생일 / 면접 / 시험 / 마감 / 약속(사용자가 바꾸고 추가할 수 있다). 생일처럼 반복되는 일정은 매일/매주/매월/매년 반복으로 둔다. 31일·2/29처럼 대상 월에 없는 날짜는 그 달 마지막 날로 맞추고, 매번 원래 날짜를 기준으로 다시 계산한다. 반복 중 한 번만 바꾸는 기능은 MVP 이후다.
 
 - 하루 종일 일정은 시각 없이 날짜로 저장한다(시각이 있는 일정과 저장 방식을 분리).
 
 - Event reminder는 일정마다 최대 5개 둘 수 있다(정각, 10분 전, 30분 전, 1시간 전, 1일 전, 사용자 지정). 하루 종일 일정은 그날 오전 9시를 기준으로 알린다. 모바일에서는 기기 로컬 알림을 쓰며, 이것은 실행을 재촉하는 Focus Lock/Nudge와 다른 기능이다.
 
-- Navigation: desktop은 `Today / Goals / Calendar / Events / Days / Review`. Events 화면에서는 일정만 따로 본다(필터: 전체/생일/면접/시험/마감/약속/기타). 모바일 Web은 6개 하단 탭으로 고정하지 않고, 추후 `More` 또는 별도 정보구조를 쓸 수 있다.
+- Event 종류는 사용자가 직접 관리하는 Category로 둔다(기본: 일정/생일/면접/시험/마감/약속). 기본 Category도 이름·색상을 바꾸거나 지울 수 있고, 지울 수 없는 고정 Category는 없다. Category를 지워도 일정은 남고 `미분류`로 보인다. Day의 Tag(생활/업무 영역)와 Event Category(일정의 종류)는 다른 축이라 합치지 않는다.
+
+- 같은 행동도 목적에 따라 고른다. 체크하며 관리하고 싶으면 Day(저녁 먹기·운동·출근 준비), 이미 시간이 정해져 캘린더 시간을 차지하면 Event(면접·약속·수업·근무시간 확보). 별도의 루틴/습관 기능은 지금 만들지 않는다.
+
+- Navigation: desktop은 `Today / Goals / Calendar / Events / Days / Review`. Events 화면에서는 일정만 따로 본다(Category 필터). 모바일 Web은 6개 하단 탭으로 고정하지 않고, 추후 `More` 또는 별도 정보구조를 쓸 수 있다.
 
 - Apple/Google Calendar 연동은 MVP 필수가 아니다. 이후 EventKit 또는 외부 Calendar API로 확장한다.
 
@@ -324,7 +344,17 @@ Version 0.1 · 2026-09-14
 
 - 하루 통째로 쉬었거나 2~3일 앱에 들어오지 않았을 때 자동으로 복귀 모드를 제안한다.
 
-- 밀린 Day를 그대로 다음 날로 넘기지 않는다. 삭제 / 다음 주 이동 / 이번 주 유지로 재분배한다.
+- 정리 대상은 지난 날짜의 미완료 Day와, 오늘 예정 시간이 이미 지났는데 끝내지 못한 Day다. 오늘 안에 하기로만 한 Day는 하루가 끝나기 전에 놓친 계획으로 취급하지 않는다. Goal이 없는 Day도 대상이다.
+
+- 밀린 Day를 그대로 다음 날로 넘기지 않는다. 그대로 두기 / 작게 줄이기 / 날짜 바꾸기 / 다음 달·다음 분기로 이어가기 / 이번엔 내려놓기로 재분배한다. 목표에 연결된 Day는 그 주 목표 기간 안에서 옮기고, 목표가 없는 Day는 오늘 이후의 원하는 날짜로 옮길 수 있다(과거로는 옮기지 않는다).
+
+- **이어가기(Carry Over)는 과거를 덮어쓰지 않는다.** 9월에 못한 계획을 10월로 이어가도 9월 기록은 그대로 남고, 10월에 새 계획을 만든다. 회고에서 “9월에 계획했지만 10월로 이어감”을 볼 수 있어야 한다.
+
+- 다음 기간에 필요한 월/분기 목표가 없을 수 있다. 앱이 목표를 자동으로 복제하지 않고, 새로 만들 계획 구조와 함께 넘길 Day를 미리보기로 보여준 뒤 사용자가 승인해야 적용한다. 이미 완료했거나 내려놓은 Day는 넘기지 않고, 기존 시간·진행 상태도 복사하지 않는다.
+
+- 이미 정리 결정을 내린 Day는 계획이 실제로 바뀌기 전까지 같은 “놓친 계획” 알림으로 다시 띄우지 않는다. 날짜·시간·목표 연결·상태가 바뀌면 다시 후보가 될 수 있고, 지난 정리 기록은 `/recovery`에서 다시 볼 수 있다.
+
+- `/recovery`는 놓친 계획이 있을 때만 발견되는 화면이 아니라 항상 열 수 있는 관리 화면이고, `놓친 계획 정리`와 `회복일 관리`를 나눠 보여준다. 회복일은 오늘뿐 아니라 앞으로의 날짜에도 미리 정할 수 있다.
 
 - 시험·면접·여행 다음날처럼 에너지 소모가 큰 날은 “회복일” 상태로 전환할 수 있다.
 
@@ -352,11 +382,11 @@ Version 0.1 · 2026-09-14
 
 - 완료율, Focus 시간, 계획 축소 횟수, 회복일, 복귀 시간 등을 자동 요약한다.
 
-- KPT(Keep / Problem / Try)를 기본 구조로 제공한다.
+- KPT(Keep / Problem / Try)를 기본 구조로 제공한다. Keep/Problem/Try 각 항목은 필요하면 Goal을 함께 연결할 수 있고, 연결하지 않아도 된다.
 
 - 사용자가 빈 문서에서 시작하지 않도록 AI가 KPT 초안을 제안한다.
 
-- Try 항목을 다음 Goal, Day, Focus Rule로 바로 변환할 수 있다.
+- Try 항목은 Day로 바꾸거나 다음 계획·Goal에 연결할 수 있다. 한 가지 방식을 강요하지 않는다.
 
 - 주간 회고의 결론이 다음 주 계획에 실제로 반영되어야 한다.
 
@@ -436,8 +466,9 @@ Version 0.1 · 2026-09-14
 
 | **엔티티**        | **핵심 필드**                                                                                 | **역할**                      |
 |-------------------|-----------------------------------------------------------------------------------------------|-------------------------------|
-| Goal              | id, parentGoalId, type(year/quarter/month/week), title, why, status, targetDate, progressMode | 목표 계층의 뼈대              |
-| Day               | id, goalId(WEEK), title, status, priority, estimatedMinutes, plannedDate?, planningMode(FIXED/WINDOW/ANYTIME), coreDay, version | 사용자가 실제로 실행하는 단위 |
+| Goal              | id, parentGoalId, type(year/quarter/month/week), title, why, status, period(startDate/endDate), progressMode, continuedFromGoalId? | 목표 계층의 뼈대. 기간은 calendar period에서 파생 |
+| Day               | id, goalId?(연결 시 WEEK), title, status, priority(0=NONE~3=HIGH), tagIds[], estimatedMinutes, plannedDate?, planningMode(FIXED/WINDOW/ANYTIME), coreDay, carriedFromDayId?, version | 사용자가 실제로 실행하는 모든 Task. Goal 연결은 선택 |
+| DayTag            | id, name, color, sortOrder                                                                    | 생활/업무 영역 Tag (Day와 다대다)  |
 | DaySchedule       | id, dayId, startAt, endAt, timezone, version                                                  | Day의 선택적 시간 배치(Day당 0..1). 실제 시작/종료는 FocusSession |
 | Event             | id, title, type, allDay, startAt?/endAt?(시각 일정), startDate?/endDateExclusive?(하루 종일 일정), timezone, location?, notes?, recurrence, reminders(최대 5), linkedGoalId?, createdAt, updatedAt, version | 사용자에게 일어나는 일정(Day와 별도) |
 | EventOccurrence   | eventId, occurrence 시각(startAt/endAt 또는 startDate/endDateExclusive)                        | 반복 규칙으로 계산한 표시 단위(저장하지 않음) |
@@ -453,7 +484,7 @@ Version 0.1 · 2026-09-14
 
 - Goal 1:N Goal (self hierarchy)
 
-- Goal 1:N Day
+- Goal 0..1:N Day (Day의 Goal 연결은 선택. 연결 시 WEEK Goal)
 
 - Day 1:0..1 DaySchedule
 
@@ -471,7 +502,9 @@ Version 0.1 · 2026-09-14
 
 - Calendar는 Day + DaySchedule과 EventOccurrence를 함께 그린다. Day와 Event는 직접 연결하지 않고 Goal 연결로 함께 본다.
 
-- type: BIRTHDAY / INTERVIEW / EXAM / DEADLINE / APPOINTMENT / OTHER, recurrence: NONE / DAILY / WEEKLY / MONTHLY / YEARLY
+- Event 종류는 사용자 정의 Category(기본: 일정/생일/면접/시험/마감/약속)를 참조한다. recurrence: NONE / DAILY / WEEKLY / MONTHLY / YEARLY
+
+- Day N:N DayTag (Day 하나에 Tag 여러 개, Tag 하나에 Day 여러 개)
 
 # 8. 상태 설계
 
@@ -597,11 +630,12 @@ Version 0.1 · 2026-09-14
 
 | **구분**         | **내용**                                                                                                        |
 |------------------|-----------------------------------------------------------------------------------------------------------------|
-| MVP 필수         | Goal 계층, Day, 주간/리스트 Calendar, Focus Lock, 허용 앱, 시작 재촉, Recovery Mode, 주간/일간 KPT, 로컬 데이터, Event(일정) + Events 화면 + Calendar 통합 표시 + 최소 반복 + Goal 연결 + Event reminder(기기 알림 실행은 Mobile 단계) |
+| MVP 필수         | Goal 계층(연간/분기/월간/주간 View + drill-down), Day(Goal 연결 선택 + Tag + priority), Days Inbox, 주/3일/하루·리스트 Calendar, Focus Lock, 허용 앱, 시작 재촉, Recovery Mode(그대로 두기/줄이기/날짜 변경/이어가기/내려놓기 + 회복일 관리), 주간/일간 KPT, 로컬 데이터, Event(일정) + Events 화면 + Category + Calendar 통합 표시 + 최소 반복 + Goal 연결 + Event reminder(기기 알림 실행은 Mobile 단계) |
 | MVP+             | 월/분기/연 회고, Morning Lock 루틴, 기본 통계, 코치 강도, 일정 기반 가용 시간 계산                               |
 | AI 1차           | 주간 AI Review Coach + 근거 + 추천 적용, Event를 고려한 Day 배치 추천                                            |
 | AI 2차           | 연간 Goal Breakdown, 개인화된 개입 간격/강도                                                                    |
-| 나중에           | Android, 소셜/친구 기능, PC 차단, 팀 목표, 공개 커뮤니티, Apple/Google Calendar 연동                            |
+| 나중에           | Android, 소셜/친구 기능, PC 차단, 팀 목표, 공개 커뮤니티, Apple/Google Calendar 연동, 루틴/습관 도메인과 반복 Day, 우선순위 매트릭스 |
+| 이번 사이클 제외 | 로그인/멀티유저, 루틴·습관·반복 Day, 우선순위 매트릭스, AI 자동 스케줄링, 외부 캘린더 동기화 확장, Focus/재촉 구현 확장 (Event 반복은 기존대로 유지) |
 | 지금 만들지 않기 | 복잡한 습관 트래커, 분 단위 라이프로그 강제, 지나치게 많은 뱃지/스트릭, 채팅형 AI를 홈의 중심으로 두기          |
 
 # 12. 핵심 지표
