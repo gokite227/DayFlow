@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { createWebAuthSession, LoginCallbackError, type KeyValueStorage } from "./web-auth-session";
 
 const API = "http://api.test";
+/** The Web origin: the refresh-cookie endpoints are called here and proxied to the API (next.config.ts). */
+const WEB = "http://web.test";
 const CODE = "C".repeat(43);
 const crypto = {
   randomBytes: (length: number) => globalThis.crypto.getRandomValues(new Uint8Array(length)),
@@ -18,7 +20,7 @@ function fakeApi(initial: { cookieUser?: string | null } = {}) {
   let cookie: { user: string; value: string } | null = initial.cookieUser ? { user: initial.cookieUser, value: "r0" } : null;
   let counter = 0;
   const validAccess = new Map<string, string>();
-  const calls: { method: string; path: string; authorization: string | null; credentials: RequestCredentials; body: string }[] = [];
+  const calls: { method: string; origin: string; path: string; authorization: string | null; credentials: RequestCredentials; body: string }[] = [];
 
   const issue = (userId: string) => {
     counter += 1;
@@ -30,9 +32,9 @@ function fakeApi(initial: { cookieUser?: string | null } = {}) {
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
   const fetch = vi.fn(async (request: Request) => {
-    const path = new URL(request.url).pathname;
+    const { origin, pathname: path } = new URL(request.url);
     const body = await request.text();
-    calls.push({ method: request.method, path, authorization: request.headers.get("Authorization"), credentials: request.credentials, body });
+    calls.push({ method: request.method, origin, path, authorization: request.headers.get("Authorization"), credentials: request.credentials, body });
     const bearer = request.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
     switch (`${request.method} ${path}`) {
       case "POST /api/v1/auth/refresh":
@@ -80,7 +82,7 @@ function setup(api = fakeApi()) {
   const storage = memoryStorage();
   const navigate = vi.fn();
   const onUserChanged = vi.fn();
-  const session = createWebAuthSession({ apiBaseUrl: API, fetch: api.fetch, storage, crypto, navigate, onUserChanged, retryDelayMs: 1 });
+  const session = createWebAuthSession({ apiBaseUrl: API, authBaseUrl: WEB, fetch: api.fetch, storage, crypto, navigate, onUserChanged, retryDelayMs: 1 });
   return { api, storage, navigate, onUserChanged, session };
 }
 
@@ -95,6 +97,26 @@ describe("Web auth session", () => {
     expect(refresh.credentials).toBe("include");
     expect(refresh.authorization).toBeNull();
     expect(api.calls.find((call) => call.path === "/api/v1/me")!.authorization).toMatch(/^Bearer access-user-a-/);
+  });
+
+  it("calls the refresh-cookie endpoints on the Web origin (first-party cookie) and everything else on the API", async () => {
+    const { api, session, navigate, storage } = setup(fakeApi({ cookieUser: "user-a" }));
+    await session.bootstrap();
+    await session.api.GET("/api/v1/goals");
+    await session.logout();
+    storage.setItem("dayflow.auth.pkceVerifier", "v".repeat(43));
+    await session.completeLogin(`${WEB}/auth/callback?code=${CODE}`);
+    await session.startGoogleLogin(null);
+
+    for (const call of api.calls) {
+      const cookieEndpoint = /^\/api\/v1\/auth\/(exchange|refresh|logout)$/.test(call.path);
+      expect(call.origin, call.path).toBe(cookieEndpoint ? WEB : API);
+    }
+    expect(api.calls.map((call) => call.path)).toEqual(
+      expect.arrayContaining(["/api/v1/auth/refresh", "/api/v1/me", "/api/v1/goals", "/api/v1/auth/logout", "/api/v1/auth/exchange"]),
+    );
+    // Google login starts on the API origin, where the Google callback returns.
+    expect(new URL(navigate.mock.calls[0]![0] as string).origin).toBe(API);
   });
 
   it("shows the login when there is no valid refresh cookie", async () => {

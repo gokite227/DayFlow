@@ -31,8 +31,10 @@ public record DayFlowProperties(String publicBaseUrl, Web web, Mobile mobile, Go
 
         public Web {
             url = url == null || url.isBlank() ? null : stripTrailingSlash(url.strip());
+            // Browsers send Origin without a trailing slash, so "https://dayflow.vercel.app/" is normalized.
             allowedOrigins = allowedOrigins == null ? List.of()
-                    : allowedOrigins.stream().map(String::strip).filter(origin -> !origin.isEmpty()).toList();
+                    : allowedOrigins.stream().map(String::strip).filter(origin -> !origin.isEmpty())
+                            .map(DayFlowProperties::stripTrailingSlash).toList();
         }
     }
 

@@ -7,8 +7,19 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD}
 
 server:
+  # Railway (and most platforms) inject PORT and route the public domain and health check to it.
+  port: ${PORT:8080}
   # Behind a TLS-terminating proxy / load balancer: trust X-Forwarded-* for scheme and host.
   forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        # The session only lives between /api/v1/auth/google/start and Google's callback. Production is always
+        # HTTPS at the proxy, but the container itself sees plain HTTP, so Secure is set explicitly. Lax still
+        # sends it on Google's top-level redirect back to the callback.
+        secure: true
+        http-only: true
+        same-site: lax
 
 springdoc:
   # The OpenAPI document is a development tool; the generated client is committed.

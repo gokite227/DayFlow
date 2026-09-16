@@ -12,6 +12,8 @@ export function getWebAuthSession(): WebAuthSession {
     }
     session = createWebAuthSession({
       apiBaseUrl,
+      // Same-origin cookie endpoints, proxied to the API by next.config.ts rewrites.
+      authBaseUrl: window.location.origin,
       fetch: (request) => globalThis.fetch(request),
       storage: window.sessionStorage,
       crypto: {

@@ -36,6 +36,16 @@ start는 production build 이후 사용합니다. typecheck는 Next.js route typ
   주면 로그인 화면에 `개발용 로그인`이 나온다(Google credential 없이 같은 callback/exchange 흐름 확인용). 실제
   Google 로그인 확인 절차는 `infra/README.md`에 있다.
 
+### Refresh cookie와 배포 (Vercel)
+
+- `/api/v1/auth/exchange|refresh|logout`은 Web 자신의 origin으로 호출하고 `next.config.ts` rewrite가 API로
+  proxy한다. production에서 Web(`*.vercel.app`)과 API(`*.up.railway.app`)는 서로 다른 site라 API origin의
+  cookie는 third-party cookie가 되어 Safari/Firefox 기본 설정에서 막히기 때문이다. proxy를 거치면
+  `dayflow_refresh` cookie가 Web origin의 first-party cookie(HttpOnly, Secure, SameSite=Lax)가 된다.
+- Google 로그인 시작(`/api/v1/auth/google/start`)과 나머지 API 호출(Bearer token)은 API origin으로 직접 간다.
+- rewrite 대상은 build 시점의 `NEXT_PUBLIC_DAYFLOW_API_BASE_URL`이다. 값을 바꾸면 다시 배포해야 한다.
+- Vercel 설정(Root Directory `apps/web`, Corepack으로 pnpm 11)은 `infra/README.md`의 배포 절차를 따른다.
+
 ## 구조
 
 - app/: route, layout, 전역 CSS. 이후 feature 화면을 조합합니다.

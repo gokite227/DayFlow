@@ -1,7 +1,7 @@
 # DayFlow infra
 
-Local PostgreSQL for development, the Google login setup, and the environment the API server needs.
-Nothing here is deployed automatically yet.
+Local PostgreSQL for development, the Google login setup, and the production deployment (Railway API +
+PostgreSQL, Vercel Web). Nothing is deployed automatically from this repository.
 
 ## 1. Local database
 
@@ -88,33 +88,101 @@ URL is `DAYFLOW_PUBLIC_BASE_URL` and is registered in step 4). Web on the same c
 5. Settings → avatar, name, email → **로그아웃** → login screen; reload → still signed out.
 6. Sign in with a second Google test account → none of the first account's Goals/Days/Events are visible.
 
-## 3. Server environment (next step: deploy)
+## 3. Production (Railway API + PostgreSQL, Vercel Web)
 
-The API image is built from `services/api/Dockerfile` and runs with `SPRING_PROFILES_ACTIVE=prod`.
-`ProductionConfigValidator` stops the start when an auth value is missing or unsafe.
+```
+Vercel  https://<web-host>             Next.js Web (apps/web)
+  │  Bearer API calls ─────────────────┐   refresh-cookie calls /api/v1/auth/{exchange,refresh,logout}
+  │  (browser → API directly)          │   go to the Web origin and are rewritten to the API
+  ▼                                    ▼
+Railway https://<api-host>             Spring API (services/api/Dockerfile, profile prod)
+  │  private network (postgres.railway.internal)
+  ▼
+Railway PostgreSQL                     empty database, Flyway V1 → V8 on first start
+Mobile (Android/iOS) → https://<api-host> directly
+Google OAuth: Web/Mobile → API /api/v1/auth/google/start → Google → API /login/oauth2/code/google
+              → https://<web-host>/auth/callback  or  dayflow://auth/callback
+```
 
-| Variable | Required | Example / rule |
-| --- | --- | --- |
-| `SPRING_PROFILES_ACTIVE` | yes | `prod` (set by the Dockerfile) |
-| `SPRING_DATASOURCE_URL` | yes | `jdbc:postgresql://<host>:5432/dayflow` |
-| `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` | yes | database credentials (secret) |
-| `DAYFLOW_PUBLIC_BASE_URL` | yes | `https://api.dayflow.app` — https, JWT issuer and Google callback base |
-| `DAYFLOW_WEB_URL` | yes | `https://dayflow.app` — Web login callback `<url>/auth/callback` |
-| `DAYFLOW_ALLOWED_WEB_ORIGINS` | yes | `https://dayflow.app` (comma-separated, https only) — CORS; cookie refresh checks Origin |
-| `DAYFLOW_MOBILE_REDIRECT_URI` | no | `dayflow://auth/callback` (default) |
-| `DAYFLOW_JWT_SECRET` | yes | ≥ 32 random bytes (secret), e.g. `openssl rand -base64 48`; changing it signs everyone out within 15 minutes |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | yes | OAuth Web client (secret) |
-| `DAYFLOW_REFRESH_COOKIE_SECURE` | no | `true` (default; must stay true) |
-| `DAYFLOW_REFRESH_COOKIE_SAME_SITE` | no | `Lax` (default) when Web and API share a site (`dayflow.app` / `api.dayflow.app`); `None` only if they are different sites |
-| `DAYFLOW_DEV_LOGIN_ENABLED` | no | must be unset or `false` (the prod profile refuses `true`) |
+Why the Web proxies the cookie endpoints: `*.vercel.app` and `*.up.railway.app` are different sites, so a
+cookie set by the API origin is a third-party cookie. Safari and Firefox block (or partition) those by
+default, and `SameSite=Lax` cookies are not sent on cross-site `fetch` POSTs at all. Through the rewrite in
+`apps/web/next.config.ts` the refresh cookie is first-party on the Web origin and keeps
+`HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth`. Leave `DAYFLOW_REFRESH_COOKIE_SAME_SITE` at `Lax`.
 
-Operational notes:
+### 3.1 Railway API variables
 
-- Health check: `GET /actuator/health` (public, no details). The OpenAPI document and Swagger UI are
-  disabled in `prod`.
-- TLS terminates at the platform's proxy; `server.forward-headers-strategy=framework` trusts
-  `X-Forwarded-*`. The Google login keeps a short server session between `/api/v1/auth/google/start` and
-  Google's callback, so with several instances the load balancer needs sticky sessions for those paths (or
-  run a single instance first).
-- Flyway runs on start against the production database; a fresh database migrates V1 → V8.
-- No secret is committed: `.env` files are git-ignored and `.env.example` files hold placeholders only.
+Service variables of the API service (names are exactly what the code reads). `${{Postgres.…}}` are Railway
+reference variables to the PostgreSQL service named `Postgres`; they use the private network.
+
+| Variable | Value |
+| --- | --- |
+| `SPRING_PROFILES_ACTIVE` | `prod` (also the Dockerfile default) |
+| `PORT` | `8080` (the app, the health check and the domain target port use it) |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}` |
+| `SPRING_DATASOURCE_USERNAME` | `${{Postgres.PGUSER}}` |
+| `SPRING_DATASOURCE_PASSWORD` | `${{Postgres.PGPASSWORD}}` |
+| `DAYFLOW_PUBLIC_BASE_URL` | `https://<api-host>` — the Railway domain, no trailing slash |
+| `DAYFLOW_WEB_URL` | `https://<web-host>` — the Vercel production domain |
+| `DAYFLOW_ALLOWED_WEB_ORIGINS` | `https://<web-host>` — exact origin(s), comma-separated, never `*` |
+| `DAYFLOW_JWT_SECRET` | secret, ≥ 32 random bytes (below) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | secret, from Google Cloud |
+| `JAVA_TOOL_OPTIONS` | recommended `-Xmx256m -XX:+UseSerialGC -Xss512k` (see Memory) |
+
+Leave unset (defaults are the production values): `DAYFLOW_MOBILE_REDIRECT_URI` (`dayflow://auth/callback`),
+`DAYFLOW_REFRESH_COOKIE_SECURE` (`true`), `DAYFLOW_REFRESH_COOKIE_SAME_SITE` (`Lax`),
+`DAYFLOW_DEV_LOGIN_ENABLED` (`false`; the prod profile refuses `true`).
+
+Generate the JWT secret without printing it (copies to the clipboard):
+
+```powershell
+$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b) | Set-Clipboard
+```
+
+or `openssl rand -base64 48`. Paste it only into Railway. Changing it later signs everyone out within 15 minutes.
+
+### 3.2 Vercel Web settings and variables
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `apps/web` (keep "include files outside the root directory" enabled; the app imports `packages/*`) |
+| Framework Preset | Next.js (build `next build` from `apps/web/package.json`) |
+| Install / Build Command | defaults (`pnpm install` in the workspace, `pnpm run build`) |
+| Node.js Version | 24.x |
+| `ENABLE_EXPERIMENTAL_COREPACK` | `1` — uses `packageManager: pnpm@11.19.0` of the root `package.json` (Vercel's built-in pnpm stops at 10) |
+| `NEXT_PUBLIC_DAYFLOW_API_BASE_URL` | `https://<api-host>` — public, inlined at build time; also the rewrite target, so redeploy after changing it |
+
+Never put `GOOGLE_CLIENT_SECRET`, `DAYFLOW_JWT_SECRET` or database values into Vercel. Do not set
+`NEXT_PUBLIC_DAYFLOW_DEV_LOGIN`. Preview deployments get other hostnames that are not in
+`DAYFLOW_ALLOWED_WEB_ORIGINS`, so login is only expected to work on the production domain.
+
+### 3.3 Order of the first deployment
+
+1. Railway: create the API service from GitHub, set Root Directory `/services/api` and config file
+   `/services/api/railway.json`, add PostgreSQL, generate the public domain (target port 8080).
+2. Vercel: import the repository with the settings above and `NEXT_PUBLIC_DAYFLOW_API_BASE_URL=https://<api-host>`,
+   deploy, note the production domain.
+3. Railway: fill every variable of 3.1 with both domains, deploy, open `https://<api-host>/actuator/health`
+   (`{"groups":["liveness","readiness"],"status":"UP"}`). Until the variables are complete the API stops at
+   start on purpose (`Unsafe production configuration` in the deploy logs).
+4. Google Cloud: add `https://<api-host>/login/oauth2/code/google` (§2 step 4) and the test users.
+5. Check in the browser: Web login, reload keeps the session, data isolation between two accounts.
+
+Expected database state: after the first Google sign-in `users=1`, `user_identities=1`, `event_categories=6`
+and no goals/days/tags/events/reviews; after a second account `2 / 2 / 12`.
+
+### 3.4 Operational notes
+
+- Health check: `GET /actuator/health` (public, no details); `/actuator/*` otherwise needs a token.
+  OpenAPI/Swagger are disabled in `prod`.
+- TLS terminates at the platform; `server.forward-headers-strategy=framework` trusts `X-Forwarded-*`. The
+  short Google login session cookie is `Secure; HttpOnly; SameSite=Lax` in `prod`. With several API instances
+  those login paths need sticky sessions; run one instance.
+- Flyway runs at start (Railway's private network is not available during the Docker build).
+- Memory: measured locally with a 512 MB container limit, the API used ~330 MB idle and ~360 MB after 3,000
+  requests, without OOM. The image default `-XX:MaxRAMPercentage=75` lets the heap grow to ~384 MB on 512 MB,
+  which plus ~110 MB non-heap leaves almost no margin, and on a large memory limit it lets the heap grow (and
+  bill) further. `JAVA_TOOL_OPTIONS=-Xmx256m -XX:+UseSerialGC -Xss512k` caps it.
+- The Docker build context is `services/api` only; `.dockerignore` excludes `target`, `src/test` and any
+  `.env*`/key files. No secret is committed: `.env` files are git-ignored and `.env.example` files hold
+  placeholders only.

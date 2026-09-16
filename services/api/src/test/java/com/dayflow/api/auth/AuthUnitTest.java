@@ -86,6 +86,15 @@ class AuthUnitTest {
                 "a-real-server-secret-of-at-least-32-bytes!", new RefreshCookie(true, "Lax"), false);
         assertThat(ProductionConfigValidator.problems(production)).isEmpty();
 
+        // Values pasted from a browser address bar keep working: trailing slashes are removed.
+        DayFlowProperties pasted = properties("https://dayflow-api.up.railway.app/", "https://dayflow.vercel.app/",
+                List.of(" https://dayflow.vercel.app/ "), new Google("client-id", "client-secret"),
+                "a-real-server-secret-of-at-least-32-bytes!", new RefreshCookie(true, "Lax"), false);
+        assertThat(pasted.publicBaseUrl()).isEqualTo("https://dayflow-api.up.railway.app");
+        assertThat(pasted.web().url()).isEqualTo("https://dayflow.vercel.app");
+        assertThat(pasted.web().allowedOrigins()).containsExactly("https://dayflow.vercel.app");
+        assertThat(ProductionConfigValidator.problems(pasted)).isEmpty();
+
         assertThatThrownBy(() -> properties("https://api.dayflow.app", "https://dayflow.app", List.of(),
                 new Google(null, null), "short", new RefreshCookie(true, "Lax"), false))
                 .isInstanceOf(IllegalStateException.class)

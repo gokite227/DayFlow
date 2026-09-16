@@ -71,6 +71,18 @@ Set `EXPO_PUBLIC_DAYFLOW_API_BASE_URL` (no default; the app shows a setup screen
 On a phone `localhost` is the phone itself. The value is inlined when Metro starts, so restart
 `start` after changing it. Debug Android builds allow plain HTTP; iOS does not apply ATS to IP addresses.
 
+### Local development vs production
+
+| Environment | `EXPO_PUBLIC_DAYFLOW_API_BASE_URL` | Google login |
+| --- | --- | --- |
+| Local (emulator / simulator / LAN phone) | `http://10.0.2.2:8080`, `http://localhost:8080` or `http://<LAN IP>:8080` | Not on a phone: Google refuses LAN IP redirect URIs |
+| Production (Railway API) | `https://<railway api host>` (no trailing slash, e.g. `https://dayflow-api-production.up.railway.app`) | Works: API → Google → API → `dayflow://auth/callback` |
+
+- For a production build set the value where the bundle is made: `apps/mobile/.env.local` before
+  `expo start` / `expo run:*`, or as an EAS environment variable for `eas build` (it is inlined at build time).
+- Only the public API origin goes into the app. Google client secret and JWT secret stay on the API server.
+- The login callback stays `dayflow://auth/callback` (the API's `DAYFLOW_MOBILE_REDIRECT_URI` default).
+
 ## 2. Install and run
 
 ```bash

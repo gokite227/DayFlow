@@ -29,6 +29,11 @@ export interface KeyValueStorage {
 
 export interface WebAuthSessionOptions {
   apiBaseUrl: string;
+  /**
+   * Origin of the refresh-cookie endpoints (exchange/refresh/logout): the Web's own origin, which proxies them to
+   * the API (next.config.ts), so the cookie is first-party even when Web and API are different sites.
+   */
+  authBaseUrl: string;
   fetch: (request: Request) => Promise<Response>;
   storage: KeyValueStorage;
   crypto: PkceCrypto;
@@ -51,7 +56,7 @@ export function createWebAuthSession(options: WebAuthSessionOptions) {
   let accessToken: string | null = null;
   const listeners = new Set<() => void>();
   // Auth endpoints send the refresh cookie (credentials) and never an access token.
-  const authApi = createDayFlowApiClient({ baseUrl: options.apiBaseUrl, fetch: options.fetch, credentials: "include" });
+  const authApi = createDayFlowApiClient({ baseUrl: options.authBaseUrl, fetch: options.fetch, credentials: "include" });
   const completions = new Map<string, Promise<string>>();
 
   function publish(next: WebAuthState) {

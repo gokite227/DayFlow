@@ -1,4 +1,12 @@
+# Only the Maven wrapper, pom.xml and src/main go into the image build.
 target
+src/test
 .idea
+.vscode
 *.iml
 *.log
+# Never copy local environment files or secrets into an image.
+.env
+.env.*
+*.pem
+*.key

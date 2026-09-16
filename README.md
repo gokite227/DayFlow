@@ -4,8 +4,8 @@
 
 ## 현재 상태
 
-모노레포와 Web skeleton이 구성되어 있습니다. Web의 /에는 실행 확인 화면만 있으며,
-제품 기능, API, DB, 인증 연결은 아직 없습니다.
+Web(Next.js), Mobile(Expo), Spring API, PostgreSQL, Google 로그인 기반 멀티유저가 구성되어 있습니다.
+배포 구성은 아래 Production 구성을 참고하세요.
 
 ## 문서 기준
 
@@ -32,6 +32,18 @@
 infra에는 로컬 PostgreSQL용 docker-compose.yml과 .env.example이 있습니다.
 services/api는 Maven Wrapper(mvnw)로 빌드하는 최소 Spring Boot 프로젝트입니다.
 services/api와 infra는 pnpm 패키지가 아닙니다.
+
+## Production 구성
+
+| 구성 | 플랫폼 | 비고 |
+| --- | --- | --- |
+| Spring API (`services/api/Dockerfile`) | Railway | `https://<api>.up.railway.app`, health `/actuator/health` |
+| PostgreSQL | Railway PostgreSQL | API와 private network로 연결, 빈 DB에서 Flyway V1→V8 |
+| Next.js Web (`apps/web`) | Vercel | refresh cookie endpoint는 Web origin에서 API로 rewrite |
+| Mobile | EAS / 개발 빌드 | `EXPO_PUBLIC_DAYFLOW_API_BASE_URL` = Railway API HTTPS 주소 |
+
+Google OAuth callback은 API(`https://<api>/login/oauth2/code/google`)가 받는다. 환경변수 이름과 배포 절차는
+[infra/README.md](infra/README.md)에 있다. secret 값은 저장소에 두지 않는다.
 
 ## 개발 도구
 
