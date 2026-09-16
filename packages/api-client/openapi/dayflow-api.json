@@ -692,6 +692,11 @@
             "minLength" : 0,
             "type" : "string"
           },
+          "goalId" : {
+            "description" : "Goal this line reflects on: the review's Goal level, overlapping the period (REV-003)",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
           "id" : {
             "description" : "null for a new item",
             "format" : "uuid",
@@ -700,6 +705,11 @@
           "kind" : {
             "enum" : [ "KEEP", "PROBLEM", "TRY" ],
             "type" : "string"
+          },
+          "targetGoalId" : {
+            "description" : "TRY only: a later Goal of the review's Goal level to carry the Try into (REV-004)",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
           }
         },
         "required" : [ "content", "kind" ],
@@ -715,6 +725,11 @@
             "format" : "uuid",
             "type" : [ "string", "null" ]
           },
+          "goalId" : {
+            "description" : "The Goal this line reflects on, or null",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
           "id" : {
             "format" : "uuid",
             "type" : "string"
@@ -722,9 +737,14 @@
           "kind" : {
             "enum" : [ "KEEP", "PROBLEM", "TRY" ],
             "type" : "string"
+          },
+          "targetGoalId" : {
+            "description" : "TRY only: the later Goal this Try is carried into, or null",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "content", "convertedDayId", "id", "kind" ],
+        "required" : [ "content", "convertedDayId", "goalId", "id", "kind", "targetGoalId" ],
         "type" : "object"
       },
       "ReviewResponse" : {

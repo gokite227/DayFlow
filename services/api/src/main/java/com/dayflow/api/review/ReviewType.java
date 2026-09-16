@@ -1,5 +1,6 @@
 package com.dayflow.api.review;
 
+import com.dayflow.api.goal.GoalType;
 import java.time.LocalDate;
 
 /** REV-001 review periods. */
@@ -9,6 +10,16 @@ public enum ReviewType {
     MONTH,
     QUARTER,
     YEAR;
+
+    /** The Goal level a review looks at (prototype: daily and weekly reviews use WEEK Goals). */
+    public GoalType goalType() {
+        return switch (this) {
+            case DAY, WEEK -> GoalType.WEEK;
+            case MONTH -> GoalType.MONTH;
+            case QUARTER -> GoalType.QUARTER;
+            case YEAR -> GoalType.YEAR;
+        };
+    }
 
     /**
      * The last date of the period starting at {@code start}, or null when {@code start} is not a

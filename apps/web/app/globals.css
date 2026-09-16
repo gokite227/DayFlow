@@ -1708,14 +1708,76 @@ a.btn {
   flex-wrap: wrap;
   margin-top: 9px;
 }
+/* prototype .kpt-add: text, optional Goal, add button. */
 .kpt-add {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr minmax(0, 180px) auto;
   gap: 7px;
   padding: 0 12px 12px;
 }
-.kpt-add input {
+.kpt-add input,
+.kpt-add select {
   width: 100%;
+}
+@media (max-width: 760px) {
+  .kpt-add {
+    grid-template-columns: 1fr;
+  }
+}
+.kpt-item-buttons {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+/* REV-003 linked Goal, prototype .kpt-item-link: small and quiet. */
+.kpt-goal-chip {
+  display: inline-flex;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--lav);
+  color: #6f5a8a;
+  font-size: 11px;
+  font-weight: 700;
+}
+.kpt-goal-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: #fffafd;
+}
+.kpt-goal-option {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.kpt-goal-option.active {
+  border-color: var(--accent-2);
+  background: var(--lav);
+  font-weight: 700;
+}
+/* REV-004 what happened to a Try: Day and next Goal, each on its own line. */
+.kpt-try-results {
+  display: grid;
+  gap: 6px;
+  margin-top: 9px;
+}
+.kpt-try-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.kpt-try-results .kpt-item-actions {
+  margin-top: 0;
 }
 .review-complete {
   display: flex;

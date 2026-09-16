@@ -154,6 +154,13 @@ class OpenApiContractTest {
                         containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath(SCHEMAS + "DayResponse.properties.plannedDate.type",
                         containsInAnyOrder("string", "null")))
+                // REV-003/REV-004: review lines always send both Goal links, null when unlinked.
+                .andExpect(jsonPath(SCHEMAS + "ReviewItemResponse.properties.goalId.type",
+                        containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath(SCHEMAS + "ReviewItemResponse.properties.targetGoalId.type",
+                        containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath(SCHEMAS + "ReviewItemRequest.required", not(hasItem("goalId"))))
+                .andExpect(jsonPath(SCHEMAS + "ReviewItemRequest.required", not(hasItem("targetGoalId"))))
                 // DAY-001: a Day without a Goal sends goalId: null, so the field stays required.
                 .andExpect(jsonPath(SCHEMAS + "DayResponse.properties.goalId.type",
                         containsInAnyOrder("string", "null")))

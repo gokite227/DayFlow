@@ -16,6 +16,7 @@ public enum ErrorCode {
     INVALID_SCHEDULE_RANGE(HttpStatus.BAD_REQUEST, "Invalid schedule range"),
     INVALID_REVIEW_PERIOD(HttpStatus.BAD_REQUEST, "Invalid review period"),
     REVIEW_ITEM_NOT_TRY(HttpStatus.BAD_REQUEST, "Only Try items can become a Day"),
+    INVALID_REVIEW_GOAL(HttpStatus.BAD_REQUEST, "Invalid review item Goal"),
     INVALID_RECOVERY_DECISION(HttpStatus.BAD_REQUEST, "Invalid recovery decision"),
     INVALID_RECOVERY_RETURN_DATE(HttpStatus.BAD_REQUEST, "Invalid recovery return date"),
     INVALID_EVENT_TIME(HttpStatus.BAD_REQUEST, "Invalid Event time"),

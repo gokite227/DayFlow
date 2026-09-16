@@ -39,11 +39,21 @@ public final class ReviewDtos {
             @PositiveOrZero Long expectedVersion) {
     }
 
+    /**
+     * One KPT line. PUT replaces the whole list, so an omitted goalId/targetGoalId means "no link".
+     * convertedDayId is not part of the request: only the convert endpoint sets it.
+     */
     public record ReviewItemRequest(
             @Schema(types = {"string", "null"}, format = "uuid", description = "null for a new item")
             UUID id,
             @NotNull ReviewItemKind kind,
-            @NotBlank @Size(max = 1000) String content) {
+            @NotBlank @Size(max = 1000) String content,
+            @Schema(types = {"string", "null"}, format = "uuid",
+                    description = "Goal this line reflects on: the review's Goal level, overlapping the period (REV-003)")
+            UUID goalId,
+            @Schema(types = {"string", "null"}, format = "uuid",
+                    description = "TRY only: a later Goal of the review's Goal level to carry the Try into (REV-004)")
+            UUID targetGoalId) {
     }
 
     public record ReviewItemResponse(
@@ -52,10 +62,17 @@ public final class ReviewDtos {
             @Schema(requiredMode = REQUIRED) String content,
             @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "uuid",
                     description = "The Day created from this Try item, or null")
-            UUID convertedDayId) {
+            UUID convertedDayId,
+            @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "uuid",
+                    description = "The Goal this line reflects on, or null")
+            UUID goalId,
+            @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "uuid",
+                    description = "TRY only: the later Goal this Try is carried into, or null")
+            UUID targetGoalId) {
 
         static ReviewItemResponse from(ReviewItem item) {
-            return new ReviewItemResponse(item.getId(), item.getKind(), item.getContent(), item.getConvertedDayId());
+            return new ReviewItemResponse(item.getId(), item.getKind(), item.getContent(), item.getConvertedDayId(),
+                    item.getGoalId(), item.getTargetGoalId());
         }
     }
 

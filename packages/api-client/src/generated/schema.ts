@@ -586,11 +586,21 @@ export interface components {
             content: string;
             /**
              * Format: uuid
+             * @description Goal this line reflects on: the review's Goal level, overlapping the period (REV-003)
+             */
+            goalId?: string | null;
+            /**
+             * Format: uuid
              * @description null for a new item
              */
             id?: string | null;
             /** @enum {string} */
             kind: "KEEP" | "PROBLEM" | "TRY";
+            /**
+             * Format: uuid
+             * @description TRY only: a later Goal of the review's Goal level to carry the Try into (REV-004)
+             */
+            targetGoalId?: string | null;
         };
         ReviewItemResponse: {
             content: string;
@@ -599,10 +609,20 @@ export interface components {
              * @description The Day created from this Try item, or null
              */
             convertedDayId: string | null;
+            /**
+             * Format: uuid
+             * @description The Goal this line reflects on, or null
+             */
+            goalId: string | null;
             /** Format: uuid */
             id: string;
             /** @enum {string} */
             kind: "KEEP" | "PROBLEM" | "TRY";
+            /**
+             * Format: uuid
+             * @description TRY only: the later Goal this Try is carried into, or null
+             */
+            targetGoalId: string | null;
         };
         ReviewResponse: {
             completed: boolean;

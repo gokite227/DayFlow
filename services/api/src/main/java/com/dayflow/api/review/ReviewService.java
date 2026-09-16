@@ -6,6 +6,9 @@ import com.dayflow.api.day.DayDtos.CreateDayRequest;
 import com.dayflow.api.day.DayDtos.DayResponse;
 import com.dayflow.api.day.DayRepository;
 import com.dayflow.api.day.DayService;
+import com.dayflow.api.goal.Goal;
+import com.dayflow.api.goal.GoalRepository;
+import com.dayflow.api.goal.GoalType;
 import com.dayflow.api.review.ReviewDtos.ConvertReviewItemResponse;
 import com.dayflow.api.review.ReviewDtos.ReviewItemRequest;
 import com.dayflow.api.review.ReviewDtos.ReviewResponse;
@@ -31,11 +34,13 @@ public class ReviewService {
     private final ReviewRepository reviews;
     private final DayService dayService;
     private final DayRepository days;
+    private final GoalRepository goals;
 
-    public ReviewService(ReviewRepository reviews, DayService dayService, DayRepository days) {
+    public ReviewService(ReviewRepository reviews, DayService dayService, DayRepository days, GoalRepository goals) {
         this.reviews = reviews;
         this.dayService = dayService;
         this.days = days;
+        this.goals = goals;
     }
 
     @Transactional(readOnly = true)
@@ -68,7 +73,9 @@ public class ReviewService {
 
     /**
      * Turns a Try item into a Day (REV-004). Idempotent: if the item already produced a Day that
-     * still exists, that Day is returned and nothing new is created.
+     * still exists, that Day is returned and nothing new is created. The Day's Goal is optional and,
+     * when given, follows the Day rules (WEEK Goal, date inside its period). Independent of the
+     * item's goalId/targetGoalId links.
      */
     public ConvertReviewItemResponse convertTry(UUID itemId, CreateDayRequest request) {
         Review review = reviews.findByItems_Id(itemId)
@@ -100,7 +107,7 @@ public class ReviewService {
         return end;
     }
 
-    private static void replaceItems(Review review, List<ReviewItemRequest> requested) {
+    private void replaceItems(Review review, List<ReviewItemRequest> requested) {
         Map<UUID, ReviewItem> existing = review.getItems().stream()
                 .collect(Collectors.toMap(ReviewItem::getId, Function.identity()));
         Set<UUID> seen = new HashSet<>();
@@ -108,6 +115,7 @@ public class ReviewService {
 
         for (int index = 0; index < requested.size(); index++) {
             ReviewItemRequest itemRequest = requested.get(index);
+            String field = "items[" + index + "]";
             String content = itemRequest.content().strip();
             ReviewItem item;
             if (itemRequest.id() == null) {
@@ -116,14 +124,52 @@ public class ReviewService {
                 item = existing.get(itemRequest.id());
                 if (item == null || !seen.add(itemRequest.id())) {
                     throw new ApiException(ErrorCode.VALIDATION_ERROR,
-                            "Item " + itemRequest.id() + " does not belong to this review.", "items[" + index + "].id");
+                            "Item " + itemRequest.id() + " does not belong to this review.", field + ".id");
                 }
                 item.update(itemRequest.kind(), content, index);
             }
+            validateLinks(review, item, itemRequest, field);
+            item.link(itemRequest.goalId(), itemRequest.targetGoalId());
             next.add(item);
         }
 
         review.getItems().clear();
         review.getItems().addAll(next);
+    }
+
+    /**
+     * REV-003/REV-004 Goal links. Only a new or changed link is checked, so saving a rating later
+     * never fails because an already linked Goal's period was edited afterwards.
+     * - goalId: a Goal of the review's level that overlaps the reviewed period.
+     * - targetGoalId: TRY only, a Goal of the review's level that is still ahead after the period.
+     */
+    private void validateLinks(Review review, ReviewItem item, ReviewItemRequest request, String field) {
+        GoalType level = review.getType().goalType();
+
+        UUID goalId = request.goalId();
+        if (goalId != null && !goalId.equals(item.getGoalId())) {
+            Goal goal = goals.findById(goalId).orElse(null);
+            boolean overlapsPeriod = goal != null
+                    && !goal.getStartDate().isAfter(review.getPeriodEnd())
+                    && !goal.getEndDate().isBefore(review.getPeriodStart());
+            if (goal == null || goal.getType() != level || !overlapsPeriod) {
+                throw new ApiException(ErrorCode.INVALID_REVIEW_GOAL,
+                        "A review line can link a " + level + " Goal of the reviewed period.", field + ".goalId");
+            }
+        }
+
+        UUID targetGoalId = request.targetGoalId();
+        if (targetGoalId != null && request.kind() != ReviewItemKind.TRY) {
+            throw new ApiException(ErrorCode.INVALID_REVIEW_GOAL,
+                    "Only Try items can be carried into a next Goal.", field + ".targetGoalId");
+        }
+        if (targetGoalId != null && !targetGoalId.equals(item.getTargetGoalId())) {
+            Goal target = goals.findById(targetGoalId).orElse(null);
+            if (target == null || target.getType() != level || !target.getEndDate().isAfter(review.getPeriodEnd())) {
+                throw new ApiException(ErrorCode.INVALID_REVIEW_GOAL,
+                        "A Try can be carried into a " + level + " Goal that continues after the reviewed period.",
+                        field + ".targetGoalId");
+            }
+        }
     }
 }

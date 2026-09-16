@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
-import { addDays } from "@/features/calendar/calendar-time";
+import { koreanShortDate } from "@/features/calendar/calendar-time";
 import { useDays } from "@/features/days/day-queries";
 import { DAY_STATUS_LABEL, describeDaySchedule } from "@/features/days/day-values";
 import { useGoals } from "@/features/goals/goal-queries";
@@ -15,12 +15,12 @@ import {
   REVIEW_GOAL_TYPE,
   REVIEW_TYPES,
   REVIEW_TYPE_LABEL,
-  overlaps,
   reviewPeriod,
   shiftAnchor,
   type ReviewPeriod,
   type ReviewType,
 } from "./review-period";
+import { goalChipLabel, nextGoalCandidates, reviewGoalCandidates, toItemRequest } from "./review-goals";
 import { useReview, useSaveReview } from "./review-queries";
 import { formatRate, isOpen, summarizeDays, summarizeGoal } from "./review-summary";
 import { TryToDayModal } from "./try-to-day-modal";
@@ -88,13 +88,19 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
 
   const goals = goalsQuery.data ?? [];
   const days = daysQuery.data ?? [];
-  const periodGoals = sortGoals(goals.filter((goal) => goal.type === REVIEW_GOAL_TYPE[period.type] && overlaps(goal, period)));
+  const periodGoals = reviewGoalCandidates(goals, period);
   const summary = summarizeDays(days);
   const missedCount = days.filter((day) => day.plannedDate !== null && day.plannedDate < today && isOpen(day)).length;
   const weekGoals = sortGoals(goals.filter((goal) => goal.type === "WEEK"));
-  const nextPlanDate = addDays(period.end, 1);
-  const suggestedGoalId =
-    weekGoals.find((goal) => goal.startDate <= nextPlanDate && nextPlanDate <= goal.endDate)?.id ?? "";
+  // Converted Days can be planned outside this period, so they are looked up in the full list.
+  const allDaysQuery = useDays();
+  const daysById = new Map((allDaysQuery.data ?? []).map((day) => [day.id, day]));
+  const goalLinks: GoalLinks = {
+    goalsById: new Map(goals.map((goal) => [goal.id, goal])),
+    sourceCandidates: reviewGoalCandidates(goals, period),
+    nextCandidates: nextGoalCandidates(goals, period),
+    daysById,
+  };
 
   return (
     <div className="review-layout">
@@ -169,7 +175,7 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
         ) : reviewQuery.isError ? (
           <ErrorNotice error={reviewQuery.error} onRetry={() => void reviewQuery.refetch()} />
         ) : (
-          <KptEditor period={period} review={reviewQuery.data} onConvert={setConvertingItem} />
+          <KptEditor period={period} review={reviewQuery.data} links={goalLinks} onConvert={setConvertingItem} />
         )}
       </div>
 
@@ -177,7 +183,6 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
         <TryToDayModal
           item={convertingItem}
           weekGoals={weekGoals}
-          suggestedGoalId={suggestedGoalId}
           reviewType={period.type}
           periodStart={period.start}
           onClose={() => setConvertingItem(null)}
@@ -237,31 +242,48 @@ function ReviewDayRow({ day }: { day: DayResponse }) {
   );
 }
 
+/** Lookups the KPT editor needs to show and change Goal links and Try results. */
+interface GoalLinks {
+  goalsById: Map<string, GoalResponse>;
+  /** REV-003: Goals a line can reflect on (the review's level, overlapping the period). */
+  sourceCandidates: GoalResponse[];
+  /** REV-004: later Goals a Try can be carried into. */
+  nextCandidates: GoalResponse[];
+  daysById: Map<string, DayResponse>;
+}
+
+type ItemRequest = ReturnType<typeof toItemRequest>;
+
 /** KPT, rating and completion. Every change saves the whole review with expectedVersion. */
 function KptEditor({
   period,
   review,
+  links,
   onConvert,
 }: {
   period: ReviewPeriod;
   review: ReviewResponse | null;
+  links: GoalLinks;
   onConvert: (item: ReviewItemResponse) => void;
 }) {
   const [drafts, setDrafts] = useState<Record<ItemKind, string>>({ KEEP: "", PROBLEM: "", TRY: "" });
+  const [draftGoals, setDraftGoals] = useState<Record<ItemKind, string>>({ KEEP: "", PROBLEM: "", TRY: "" });
+  // Which line has its Goal picker ("goal") or next-Goal picker ("next") open.
+  const [editing, setEditing] = useState<{ itemId: string; mode: "goal" | "next" } | null>(null);
   const save = useSaveReview(period.type, period.start);
   const items = review?.items ?? [];
   const completed = review?.completed ?? false;
   const rating = review?.rating ?? null;
 
   const persist = (
-    next: { items?: { id: string | null; kind: ItemKind; content: string }[]; rating?: number | null; completed?: boolean },
+    next: { items?: ItemRequest[]; rating?: number | null; completed?: boolean },
     onSaved?: () => void,
   ) =>
     save.mutate(
       {
         rating: next.rating !== undefined ? next.rating : rating,
         completed: next.completed ?? completed,
-        items: next.items ?? items.map(({ id, kind, content }) => ({ id, kind, content })),
+        items: next.items ?? items.map(toItemRequest),
         expectedVersion: review?.version ?? null,
       },
       { onSuccess: onSaved },
@@ -270,22 +292,35 @@ function KptEditor({
   const addItem = (kind: ItemKind) => {
     const content = drafts[kind].trim();
     if (!content) return;
-    persist(
-      { items: [...items.map(({ id, kind: itemKind, content: text }) => ({ id, kind: itemKind, content: text })), { id: null, kind, content }] },
-      () => setDrafts((current) => ({ ...current, [kind]: "" })),
-    );
+    const goalId = draftGoals[kind] === "" ? null : draftGoals[kind];
+    persist({ items: [...items.map(toItemRequest), { id: null, kind, content, goalId, targetGoalId: null }] }, () => {
+      setDrafts((current) => ({ ...current, [kind]: "" }));
+      setDraftGoals((current) => ({ ...current, [kind]: "" }));
+    });
   };
 
   const removeItem = (itemId: string) =>
-    persist({ items: items.filter((item) => item.id !== itemId).map(({ id, kind, content }) => ({ id, kind, content })) });
+    persist({ items: items.filter((item) => item.id !== itemId).map(toItemRequest) });
+
+  /** Changes one link of one line; the Try → Day result (convertedDayId) is never touched here. */
+  const updateLink = (itemId: string, change: { goalId?: string | null; targetGoalId?: string | null }) =>
+    persist(
+      { items: items.map((item) => (item.id === itemId ? { ...toItemRequest(item), ...change } : toItemRequest(item))) },
+      () => setEditing(null),
+    );
+
+  const goalLabel = (goalId: string | null) => {
+    const goal = goalId === null ? undefined : links.goalsById.get(goalId);
+    return goal ? goalChipLabel(goal) : null;
+  };
 
   return (
     <>
-      {save.error && (
+      {save.error ? (
         <div style={{ marginBottom: 12 }}>
           <ErrorNotice error={save.error} />
         </div>
-      )}
+      ) : null}
       <div className="review-kpt">
         {KPT.map(({ kind, title, hint, placeholder }) => {
           const kindItems = items.filter((item) => item.kind === kind);
@@ -299,27 +334,112 @@ function KptEditor({
                 {kindItems.length === 0 ? (
                   <div className="mini">아직 작성한 내용이 없습니다.</div>
                 ) : (
-                  kindItems.map((item) => (
-                    <div key={item.id} className="kpt-item">
-                      <div className="kpt-item-main">
-                        <div className="kpt-item-content">{item.content}</div>
-                        <button type="button" className="btn secondary small" onClick={() => removeItem(item.id)} disabled={save.isPending}>
-                          삭제
-                        </button>
-                      </div>
-                      {kind === "TRY" && (
-                        <div className="kpt-item-actions">
-                          {item.convertedDayId ? (
-                            <span className="converted-badge">✓ 다음 계획에 추가됨</span>
-                          ) : (
-                            <button type="button" className="btn ghost small" onClick={() => onConvert(item)} disabled={save.isPending}>
-                              다음 계획에 추가
+                  kindItems.map((item) => {
+                    const sourceLabel = goalLabel(item.goalId);
+                    const targetLabel = goalLabel(item.targetGoalId);
+                    const convertedDay = item.convertedDayId ? links.daysById.get(item.convertedDayId) : undefined;
+                    const pickingGoal = editing?.itemId === item.id && editing.mode === "goal";
+                    const pickingNext = editing?.itemId === item.id && editing.mode === "next";
+                    return (
+                      <div key={item.id} className="kpt-item" data-item-id={item.id}>
+                        <div className="kpt-item-main">
+                          <div>
+                            <div className="kpt-item-content">{item.content}</div>
+                            {sourceLabel && (
+                              <span className="kpt-goal-chip" title="이 회고가 가리키는 목표">
+                                {sourceLabel}
+                              </span>
+                            )}
+                          </div>
+                          <div className="kpt-item-buttons">
+                            <button
+                              type="button"
+                              className="btn ghost small"
+                              aria-expanded={pickingGoal}
+                              onClick={() => setEditing(pickingGoal ? null : { itemId: item.id, mode: "goal" })}
+                              disabled={save.isPending}
+                            >
+                              {item.goalId ? "목표 변경" : "목표 연결"}
                             </button>
-                          )}
+                            <button type="button" className="btn secondary small" onClick={() => removeItem(item.id)} disabled={save.isPending}>
+                              삭제
+                            </button>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))
+
+                        {pickingGoal && (
+                          <GoalPicker
+                            label="연결할 목표"
+                            candidates={links.sourceCandidates}
+                            current={item.goalId === null ? undefined : links.goalsById.get(item.goalId)}
+                            emptyText="이 기간에 연결할 목표가 없어요."
+                            clearLabel="목표 연결 해제"
+                            disabled={save.isPending}
+                            onPick={(goalId) => updateLink(item.id, { goalId })}
+                            onCancel={() => setEditing(null)}
+                          />
+                        )}
+
+                        {kind === "TRY" && (
+                          <div className="kpt-try-results">
+                            {item.convertedDayId ? (
+                              <div className="kpt-try-result">
+                                <span className="converted-badge">✓ Day로 추가됨</span>
+                                {convertedDay && (
+                                  <span className="mini">
+                                    → {convertedDay.plannedDate ? `${koreanShortDate(convertedDay.plannedDate)} · ` : "날짜 미정 · "}
+                                    {convertedDay.title}
+                                  </span>
+                                )}
+                              </div>
+                            ) : null}
+                            {targetLabel ? (
+                              <div className="kpt-try-result">
+                                <span className="converted-badge">✓ 다음 목표에 연결됨</span>
+                                <span className="mini">→ {targetLabel}</span>
+                                <button
+                                  type="button"
+                                  className="btn ghost small"
+                                  onClick={() => updateLink(item.id, { targetGoalId: null })}
+                                  disabled={save.isPending}
+                                >
+                                  연결 해제
+                                </button>
+                              </div>
+                            ) : null}
+                            <div className="kpt-item-actions">
+                              {!item.convertedDayId && (
+                                <button type="button" className="btn ghost small" onClick={() => onConvert(item)} disabled={save.isPending}>
+                                  Day로 만들기
+                                </button>
+                              )}
+                              {!item.targetGoalId && (
+                                <button
+                                  type="button"
+                                  className="btn ghost small"
+                                  aria-expanded={pickingNext}
+                                  onClick={() => setEditing(pickingNext ? null : { itemId: item.id, mode: "next" })}
+                                  disabled={save.isPending}
+                                >
+                                  다음 목표에 연결
+                                </button>
+                              )}
+                            </div>
+                            {pickingNext && (
+                              <GoalPicker
+                                label="이어갈 다음 목표"
+                                candidates={links.nextCandidates}
+                                emptyText="연결할 다음 목표가 아직 없어요."
+                                disabled={save.isPending}
+                                onPick={(targetGoalId) => updateLink(item.id, { targetGoalId })}
+                                onCancel={() => setEditing(null)}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
               <form
@@ -337,6 +457,19 @@ function KptEditor({
                   onChange={(event) => setDrafts((current) => ({ ...current, [kind]: event.target.value }))}
                   disabled={save.isPending}
                 />
+                <select
+                  aria-label={`${title} 목표`}
+                  value={draftGoals[kind]}
+                  onChange={(event) => setDraftGoals((current) => ({ ...current, [kind]: event.target.value }))}
+                  disabled={save.isPending}
+                >
+                  <option value="">목표 연결 안 함</option>
+                  {links.sourceCandidates.map((goal) => (
+                    <option key={goal.id} value={goal.id}>
+                      {goalChipLabel(goal)}
+                    </option>
+                  ))}
+                </select>
                 <button type="submit" className="btn small" disabled={save.isPending || drafts[kind].trim() === ""}>
                   + 추가
                 </button>
@@ -379,5 +512,58 @@ function KptEditor({
         {completed && <span className="review-status done">✓ 작성 완료</span>}
       </section>
     </>
+  );
+}
+
+/** A short inline Goal list for one line: pick a candidate, clear the link, or cancel. */
+function GoalPicker({
+  label,
+  candidates,
+  current,
+  emptyText,
+  clearLabel,
+  disabled,
+  onPick,
+  onCancel,
+}: {
+  label: string;
+  candidates: GoalResponse[];
+  /** The linked Goal, shown even if it is no longer a candidate (e.g. its period was edited). */
+  current?: GoalResponse;
+  emptyText: string;
+  clearLabel?: string;
+  disabled: boolean;
+  onPick: (goalId: string | null) => void;
+  onCancel: () => void;
+}) {
+  const options = current && !candidates.some((goal) => goal.id === current.id) ? [current, ...candidates] : candidates;
+  return (
+    <div className="kpt-goal-picker" role="group" aria-label={label}>
+      <span className="mini">{label}</span>
+      {options.length === 0 ? (
+        <span className="mini">{emptyText}</span>
+      ) : (
+        options.map((goal) => (
+          <button
+            key={goal.id}
+            type="button"
+            className={`kpt-goal-option${current?.id === goal.id ? " active" : ""}`}
+            aria-pressed={current?.id === goal.id}
+            disabled={disabled}
+            onClick={() => onPick(goal.id)}
+          >
+            {goalChipLabel(goal)}
+          </button>
+        ))
+      )}
+      {current && clearLabel && (
+        <button type="button" className="btn ghost small" disabled={disabled} onClick={() => onPick(null)}>
+          {clearLabel}
+        </button>
+      )}
+      <button type="button" className="btn ghost small" onClick={onCancel}>
+        닫기
+      </button>
+    </div>
   );
 }

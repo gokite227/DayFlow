@@ -5,34 +5,46 @@ import { useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
 import { ErrorNotice } from "@/components/query-state";
 import { formatPeriod } from "@/features/goals/goal-tree";
+import { dayGoalCandidates, goalChipLabel, suggestedDayGoalId } from "./review-goals";
 import type { ReviewType } from "./review-period";
 import { useConvertTryItem } from "./review-queries";
 
 const TITLE_MAX = 200;
 const DEFAULT_MINUTES = 30;
 
-/** "다음 계획에 추가": a Try item becomes a Day under a WEEK Goal; the date is optional. */
+/**
+ * "Day로 만들기" (REV-004): a Try becomes a Day. The Goal is optional (DAY-001); when a date is set
+ * only WEEK Goals containing it are offered, and a single match is suggested but never forced.
+ */
 export function TryToDayModal({
   item,
   weekGoals,
-  suggestedGoalId,
   reviewType,
   periodStart,
   onClose,
 }: {
   item: ReviewItemResponse;
   weekGoals: readonly GoalResponse[];
-  suggestedGoalId: string;
   reviewType: ReviewType;
   periodStart: string;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState(item.content.slice(0, TITLE_MAX));
-  const [goalId, setGoalId] = useState(suggestedGoalId);
+  const [goalId, setGoalId] = useState("");
+  const [goalTouched, setGoalTouched] = useState(false);
   const [plannedDate, setPlannedDate] = useState("");
   const [minutes, setMinutes] = useState(String(DEFAULT_MINUTES));
   const convert = useConvertTryItem(reviewType, periodStart);
-  const goal = weekGoals.find((candidate) => candidate.id === goalId);
+  const candidates = dayGoalCandidates(weekGoals, plannedDate);
+  const goal = candidates.find((candidate) => candidate.id === goalId);
+
+  const changeDate = (date: string) => {
+    setPlannedDate(date);
+    const stillValid = dayGoalCandidates(weekGoals, date).some((candidate) => candidate.id === goalId);
+    // Keep what the user picked ("연결 안 함" included) while it fits the date; otherwise suggest.
+    if (goalTouched && (goalId === "" || stillValid)) return;
+    setGoalId(suggestedDayGoalId(weekGoals, date));
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -40,8 +52,7 @@ export function TryToDayModal({
       {
         itemId: item.id,
         body: {
-          // REV-004: linking a Goal is optional here too (DAY-001).
-          goalId: goalId === "" ? null : goalId,
+          goalId: goal ? goal.id : null,
           title,
           status: "NOT_STARTED",
           priority: "NONE",
@@ -56,42 +67,50 @@ export function TryToDayModal({
   };
 
   return (
-    <Modal label="TRY" title="다음 계획에 추가" subtitle={item.content} onClose={onClose}>
+    <Modal label="TRY" title="Day로 만들기" subtitle={item.content} onClose={onClose}>
       <form onSubmit={submit}>
-        {convert.error && (
+        {convert.error ? (
           <div style={{ marginBottom: 12 }}>
             <ErrorNotice error={convert.error} />
           </div>
-        )}
+        ) : null}
         <div className="form-grid">
           <label className="field wide">
             <span className="field-label">Day 제목</span>
             <input required maxLength={TITLE_MAX} value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
-          <label className="field wide">
-            <span className="field-label">주간 목표</span>
-            <select value={goalId} onChange={(event) => setGoalId(event.target.value)}>
-              <option value="">연결 안 함</option>
-              {weekGoals.map((weekGoal) => (
-                <option key={weekGoal.id} value={weekGoal.id}>
-                  {weekGoal.title} ({formatPeriod(weekGoal)})
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="field">
             <span className="field-label">실행 날짜 (선택)</span>
-            <input
-              type="date"
-              value={plannedDate}
-              min={goal?.startDate}
-              max={goal?.endDate}
-              onChange={(event) => setPlannedDate(event.target.value)}
-            />
+            <input type="date" value={plannedDate} onChange={(event) => changeDate(event.target.value)} />
           </label>
           <label className="field">
             <span className="field-label">예상 시간(분)</span>
             <input type="number" required min={1} value={minutes} onChange={(event) => setMinutes(event.target.value)} />
+          </label>
+          <label className="field wide">
+            <span className="field-label">주간 목표 (선택)</span>
+            <select
+              aria-label="주간 목표"
+              value={goal ? goal.id : ""}
+              onChange={(event) => {
+                setGoalTouched(true);
+                setGoalId(event.target.value);
+              }}
+            >
+              <option value="">Goal 연결 안 함</option>
+              {candidates.map((weekGoal) => (
+                <option key={weekGoal.id} value={weekGoal.id}>
+                  {goalChipLabel(weekGoal)} ({formatPeriod(weekGoal)})
+                </option>
+              ))}
+            </select>
+            <span className="mini">
+              {plannedDate === ""
+                ? "날짜를 고르면 그 날짜가 속한 주간 목표만 보여줍니다."
+                : candidates.length === 0
+                  ? "이 날짜를 포함하는 주간 목표가 없어요. 목표 없이 만들 수 있습니다."
+                  : "이 날짜를 포함하는 주간 목표만 보여줍니다."}
+            </span>
           </label>
         </div>
         <div className="modal-footer">
