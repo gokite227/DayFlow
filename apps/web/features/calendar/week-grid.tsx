@@ -24,11 +24,21 @@ import {
   formatMinutes,
   snapMinutes,
   wallClock,
-  weekdayShort,
+  weekdayKr,
 } from "./calendar-time";
 
-/** Pixel height of one hour; one snap step is HOUR_HEIGHT * CALENDAR_SNAP_MINUTES / 60. */
-export const HOUR_HEIGHT = 48;
+/**
+ * Pixel height of one hour; one snap step is HOUR_HEIGHT * CALENDAR_SNAP_MINUTES / 60. Compact on
+ * purpose (CAL-006) so more of the day fits on screen; 15 minutes is still 10px, enough to click and
+ * resize. Placement precision stays CALENDAR_SNAP_MINUTES.
+ */
+export const HOUR_HEIGHT = 40;
+
+/**
+ * In the compact grid 15 minutes is 10px, too small to read a title or grab the resize handle, so a
+ * block is never drawn shorter than this. Only the drawing has a floor; the stored times do not.
+ */
+const MIN_BLOCK_HEIGHT = 16;
 
 export interface DayDragData {
   day: DayResponse;
@@ -133,13 +143,18 @@ export function WeekGrid({
     return { scheduled, events, slots };
   };
 
+  // One CSS variable drives every row, so week / 3 days / day share the same grid and overlap engine.
+  const columns = { "--tc-columns": dates.length } as CSSProperties;
+
   return (
-    <div className="tc-week">
+    <div className={`tc-week columns-${dates.length}`} style={columns}>
       <div className="tc-row tc-head">
         <div className="tc-gutter" />
         {dates.map((date) => (
           <div key={date} className={`tc-head-cell${date === today ? " today" : ""}`}>
-            <span className="tc-weekday">{weekdayShort(date)}</span>
+            <span className="tc-weekday">{weekdayKr(date)}</span>
+            {/* 3 days / 1 day have room for the month, which the range label alone would not show per column. */}
+            {dates.length <= 3 && <span className="tc-headmonth">{Number(date.slice(5, 7))}월</span>}
             <span className="tc-daynum">{dayOfMonth(date)}</span>
           </div>
         ))}
@@ -324,9 +339,7 @@ function EventBlock({
       data-event-id={occurrence.eventId}
       style={{
         top: (start / 60) * HOUR_HEIGHT,
-        height: point
-          ? (CALENDAR_SNAP_MINUTES / 60) * HOUR_HEIGHT - 1
-          : Math.max((visibleLength / 60) * HOUR_HEIGHT - 1, (CALENDAR_SNAP_MINUTES / 60) * HOUR_HEIGHT - 1),
+        height: point ? MIN_BLOCK_HEIGHT : Math.max((visibleLength / 60) * HOUR_HEIGHT - 1, MIN_BLOCK_HEIGHT),
         ...laneStyle(slot),
       }}
       onClick={open}
@@ -410,7 +423,7 @@ function ScheduledBlock({
       className={`tc-block${day.status === "DONE" ? " done" : ""}${day.coreDay ? " core" : ""}${compact ? " compact" : ""}`}
       style={{
         top: (start / 60) * HOUR_HEIGHT,
-        height: Math.max((visibleLength / 60) * HOUR_HEIGHT - 1, (CALENDAR_SNAP_MINUTES / 60) * HOUR_HEIGHT - 1),
+        height: Math.max((visibleLength / 60) * HOUR_HEIGHT - 1, MIN_BLOCK_HEIGHT),
         opacity: isDragging ? 0.35 : undefined,
         ...laneStyle(slot),
       }}

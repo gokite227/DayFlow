@@ -46,6 +46,18 @@ export function weekdayShort(date: string): string {
   return WEEKDAYS[parseLocalDate(date).getDay()] ?? "";
 }
 
+const WEEKDAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
+
+/** Korean weekday for the Calendar grid (CAL-006): 월 화 수 목 금 토 일. */
+export function weekdayKr(date: string): string {
+  return WEEKDAYS_KR[parseLocalDate(date).getDay()] ?? "";
+}
+
+/** "9월 16일 (수)" — the Calendar keeps dates Korean (CAL-006). */
+export function koreanShortDate(date: string): string {
+  return `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일 (${weekdayKr(date)})`;
+}
+
 export function dayOfMonth(date: string): number {
   return Number(date.slice(8, 10));
 }

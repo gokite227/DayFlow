@@ -12,7 +12,8 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
 import { DayFormModal } from "@/features/days/day-form-modal";
@@ -26,19 +27,24 @@ import { sortGoals } from "@/features/goals/goal-tree";
 import { useNowMinutes, useToday } from "@/lib/use-today";
 import { planDrop, type DropTarget } from "./calendar-drop";
 import {
-  addDays,
-  formatWeekRange,
-  minutesOfDay,
-  scheduleRequest,
-  startOfWeek,
-  wallClock,
-  weekDates,
-} from "./calendar-time";
+  CALENDAR_VIEWS,
+  CALENDAR_VIEW_LABEL,
+  calendarHref,
+  calendarRangeLabel,
+  parseCalendarViewState,
+  shiftCalendarDate,
+  viewDates,
+  type CalendarViewName,
+  type CalendarViewState,
+} from "./calendar-range";
+import { koreanShortDate, minutesOfDay, scheduleRequest, wallClock } from "./calendar-time";
 import { UnscheduledPanel } from "./unscheduled-panel";
+import { useUnscheduledCollapsed } from "./use-panel-preference";
 import { HOUR_HEIGHT, WeekGrid, type DayDragData } from "./week-grid";
 
 /** Hours shown above "now" when scrolling to the current time. */
 const NOW_SCROLL_OFFSET_HOURS = 2;
+
 
 /**
  * Date-only cells and the Unscheduled panel sit on top of (or beside) the partly hidden time
@@ -52,15 +58,17 @@ const collisionDetection: CollisionDetection = (args) => {
 
 export function CalendarView() {
   const today = useToday();
-  // Deep link from a Goal period label (GOAL-007): /calendar?date=YYYY-MM-DD opens that week.
-  const dateParam = useSearchParams().get("date");
-  const initialDate = dateParam !== null && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
-  return today === null || initialDate === null ? <LoadingState /> : <CalendarContent today={today} initialDate={initialDate} />;
+  // View and reference date live in the URL: a refresh, a browser back or a Goal deep link
+  // (/calendar?date=YYYY-MM-DD, GOAL-007) opens the same days.
+  const searchParams = useSearchParams();
+  if (today === null) return <LoadingState />;
+  return <CalendarContent today={today} state={parseCalendarViewState(searchParams, today)} />;
 }
 
-function CalendarContent({ today, initialDate }: { today: string; initialDate: string }) {
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(initialDate));
-  const [mode, setMode] = useState<"week" | "list">("week");
+function CalendarContent({ today, state }: { today: string; state: CalendarViewState }) {
+  const router = useRouter();
+  const [mode, setMode] = useState<"grid" | "list">("grid");
+  const [unscheduledCollapsed, toggleUnscheduled] = useUnscheduledCollapsed();
   const [editingDay, setEditingDay] = useState<DayResponse | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [draggingDay, setDraggingDay] = useState<DayResponse | null>(null);
@@ -68,10 +76,12 @@ function CalendarContent({ today, initialDate }: { today: string; initialDate: s
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const nowMinutes = useNowMinutes();
 
-  const dates = weekDates(weekStart);
-  const weekDaysQuery = useDays({ from: dates[0], to: dates[6] });
+  const dates = viewDates(state);
+  const rangeStart = dates[0]!;
+  const rangeEnd = dates[dates.length - 1]!;
+  const weekDaysQuery = useDays({ from: rangeStart, to: rangeEnd });
   // Events are a separate domain and query; they are drawn with the Days but never dragged.
-  const occurrencesQuery = useEventOccurrences(dates[0], dates[6]);
+  const occurrencesQuery = useEventOccurrences(rangeStart, rangeEnd);
   // The API has no "no date" filter, so Unscheduled is derived from the full list.
   const allDaysQuery = useDays();
   const weekGoalsQuery = useGoals({ type: "WEEK" });
@@ -90,6 +100,7 @@ function CalendarContent({ today, initialDate }: { today: string; initialDate: s
       scrollRef.current.scrollTop = hours * HOUR_HEIGHT;
     }
   };
+
 
   // Scroll near the current time once when the grid first appears; later scrolling is left to the user.
   const gridReady = weekDaysQuery.isSuccess;
@@ -169,8 +180,12 @@ function CalendarContent({ today, initialDate }: { today: string; initialDate: s
     });
   };
 
+  // Navigation replaces the URL so the browser back button leaves the Calendar instead of walking weeks.
+  const goTo = (next: Partial<CalendarViewState>) =>
+    router.replace(calendarHref({ ...state, ...next }, today), { scroll: false });
+
   const goToToday = () => {
-    setWeekStart(startOfWeek(today));
+    goTo({ date: today });
     scrollToNow();
   };
 
@@ -182,44 +197,50 @@ function CalendarContent({ today, initialDate }: { today: string; initialDate: s
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
-      <div className="tc-layout">
-        <UnscheduledPanel
-          days={unscheduledDays}
-          loading={allDaysQuery.isPending}
-          error={allDaysQuery.error}
-          onRetry={() => void allDaysQuery.refetch()}
-          disabled={pending}
-          onOpen={openDay}
-        />
-
-        <section className="tc-main" aria-label="Week calendar">
+      <div className={`tc-layout${unscheduledCollapsed ? " panel-collapsed" : ""}`}>
+        <section className="tc-main" aria-label="캘린더">
           <div className="tc-toolbar">
             <div className="tc-nav">
               <button
                 type="button"
                 className="tc-icon-btn"
-                aria-label="이전 주"
-                onClick={() => setWeekStart((start) => addDays(start, -7))}
+                aria-label="이전 기간"
+                onClick={() => goTo({ date: shiftCalendarDate(state, -1) })}
               >
                 ‹
               </button>
-              <h1 className="tc-range">{formatWeekRange(dates)}</h1>
+              <h1 className="tc-range">{calendarRangeLabel(state)}</h1>
               <button
                 type="button"
                 className="tc-icon-btn"
-                aria-label="다음 주"
-                onClick={() => setWeekStart((start) => addDays(start, 7))}
+                aria-label="다음 기간"
+                onClick={() => goTo({ date: shiftCalendarDate(state, 1) })}
               >
                 ›
+              </button>
+              <button type="button" className="tc-today-btn" onClick={goToToday}>
+                오늘
               </button>
             </div>
             <div className="tc-nav">
               {pending && <span className="tc-saving">저장 중…</span>}
-              <button type="button" className="tc-today-btn" onClick={goToToday}>
-                Today
-              </button>
-              <div className="day-view-switch" role="tablist" aria-label="보기 방식">
-                {(["week", "list"] as const).map((value) => (
+              <div className="day-view-switch" role="tablist" aria-label="기간 보기">
+                {CALENDAR_VIEWS.map((value: CalendarViewName) => (
+                  <Link
+                    key={value}
+                    href={calendarHref({ ...state, view: value }, today)}
+                    replace
+                    scroll={false}
+                    role="tab"
+                    aria-selected={state.view === value}
+                    className={state.view === value ? "active" : undefined}
+                  >
+                    {CALENDAR_VIEW_LABEL[value]}
+                  </Link>
+                ))}
+              </div>
+              <div className="day-view-switch" role="tablist" aria-label="표시 방식">
+                {(["grid", "list"] as const).map((value) => (
                   <button
                     key={value}
                     type="button"
@@ -228,7 +249,7 @@ function CalendarContent({ today, initialDate }: { today: string; initialDate: s
                     className={mode === value ? "active" : undefined}
                     onClick={() => setMode(value)}
                   >
-                    {value === "week" ? "Week" : "List"}
+                    {value === "grid" ? "캘린더" : "리스트"}
                   </button>
                 ))}
               </div>
@@ -277,6 +298,17 @@ function CalendarContent({ today, initialDate }: { today: string; initialDate: s
             </div>
           )}
         </section>
+
+        <UnscheduledPanel
+          days={unscheduledDays}
+          loading={allDaysQuery.isPending}
+          error={allDaysQuery.error}
+          onRetry={() => void allDaysQuery.refetch()}
+          disabled={pending}
+          collapsed={unscheduledCollapsed}
+          onToggle={toggleUnscheduled}
+          onOpen={openDay}
+        />
       </div>
 
       <DragOverlay dropAnimation={null}>
@@ -321,7 +353,7 @@ function CalendarList({
       <span>
         <strong>{occurrence.title}</strong>
       </span>
-      <span className="day-list-schedule">{describeOccurrenceTime(occurrence)}</span>
+      <span className="day-list-schedule">{describeOccurrenceTime(occurrence, koreanShortDate)}</span>
       <span className="day-list-status">일정 수정 →</span>
     </button>
   ));

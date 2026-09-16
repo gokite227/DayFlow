@@ -59,19 +59,25 @@ export function shortDate(date: string): string {
   return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))} (${weekdayShort(date)})`;
 }
 
-/** Human-readable time of an occurrence, in the Event timezone wall clock. */
-export function describeOccurrenceTime(occurrence: EventOccurrenceResponse): string {
+/**
+ * Human-readable time of an occurrence, in the Event timezone wall clock. `formatDate` lets the
+ * Calendar print the date in Korean (CAL-006) without changing the Events screen.
+ */
+export function describeOccurrenceTime(
+  occurrence: EventOccurrenceResponse,
+  formatDate: (date: string) => string = shortDate,
+): string {
   const time = eventTime(occurrence);
   if (time.allDay) {
     const last = addDays(time.endDateExclusive, -1);
-    return last === time.startDate ? `${shortDate(time.startDate)} · 하루 종일` : `${shortDate(time.startDate)} ~ ${shortDate(last)} · 하루 종일`;
+    return last === time.startDate ? `${formatDate(time.startDate)} · 하루 종일` : `${formatDate(time.startDate)} ~ ${formatDate(last)} · 하루 종일`;
   }
   const start = wallClock(time.startAt);
   const end = wallClock(time.endAt);
-  if (time.startAt === time.endAt) return `${shortDate(start.date)} · ${formatMinutes(start.minutes)}`;
+  if (time.startAt === time.endAt) return `${formatDate(start.date)} · ${formatMinutes(start.minutes)}`;
   return end.date === start.date
-    ? `${shortDate(start.date)} · ${formatMinutes(start.minutes)}–${formatMinutes(end.minutes)}`
-    : `${shortDate(start.date)} ${formatMinutes(start.minutes)} ~ ${shortDate(end.date)} ${formatMinutes(end.minutes)}`;
+    ? `${formatDate(start.date)} · ${formatMinutes(start.minutes)}–${formatMinutes(end.minutes)}`
+    : `${formatDate(start.date)} ${formatMinutes(start.minutes)} ~ ${formatDate(end.date)} ${formatMinutes(end.minutes)}`;
 }
 
 /** The first date an occurrence touches (for grouping and sorting). */
