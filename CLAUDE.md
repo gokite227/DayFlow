@@ -101,6 +101,18 @@ Goal → Plan → Focus → Review → Recovery → Next Plan
 
 ## Domain Rules
 
+### User / Auth
+
+DayFlow는 Google-first 멀티유저 서비스다(requirements §4.10, §8.7).
+
+- 모든 계획 데이터(Goal/Day/Tag/Event/Category/Review/Recovery)는 User 소유다. repository 단계에서 `…AndUserId`/user 조건으로 범위를 제한하고, current User는 `CurrentUser`(access token)에서 가져온다. API 요청으로 owner userId를 받지 않는다.
+- 다른 User의 id는 없는 id와 똑같이 응답한다(직접 조회·수정·삭제 404, 관계 연결 400). cross-user 관계를 만들지 않는다.
+- Identity는 provider + stable subject(Google `sub`)다. 이메일로 User를 찾거나 병합하지 않는다.
+- access token은 memory, refresh token은 Web HttpOnly cookie / Mobile expo-secure-store에만 둔다. URL·localStorage·AsyncStorage에 token 금지. DB에는 refresh token·exchange code hash만 저장한다.
+- 새 User는 기본 Event Category 6개를 같은 transaction에서 받는다.
+- 로그인/로그아웃/User 변경 시 TanStack Query cache를 비운다.
+- 새 기능 테스트는 `AuthTestSupport`로 명시적인 User context에서 실행하고, 소유권이 걸린 기능은 다른 User 격리 테스트를 함께 둔다.
+
 ### Goal
 
 Goal hierarchy:

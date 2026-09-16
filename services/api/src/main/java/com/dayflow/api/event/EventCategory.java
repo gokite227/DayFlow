@@ -4,6 +4,7 @@ import com.dayflow.api.common.VersionedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import java.util.UUID;
 import org.hibernate.annotations.BatchSize;
 
 /**
@@ -15,6 +16,10 @@ import org.hibernate.annotations.BatchSize;
 @Table(name = "event_categories")
 @BatchSize(size = 50)
 public class EventCategory extends VersionedEntity {
+
+    /** The owner (AUTH-003); names are unique per user. */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
 
     @Column(name = "name", nullable = false)
     private String name;
@@ -29,10 +34,15 @@ public class EventCategory extends VersionedEntity {
     protected EventCategory() {
     }
 
-    public EventCategory(String name, String color, int sortOrder) {
+    public EventCategory(UUID userId, String name, String color, int sortOrder) {
+        this.userId = userId;
         this.name = name;
         this.color = color;
         this.sortOrder = sortOrder;
+    }
+
+    public UUID getUserId() {
+        return userId;
     }
 
     public String getName() {

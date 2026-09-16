@@ -1,5 +1,6 @@
 package com.dayflow.api.day;
 
+import com.dayflow.api.auth.CurrentUser;
 import com.dayflow.api.common.ApiException;
 import com.dayflow.api.common.ErrorCode;
 import com.dayflow.api.day.DayDtos.CreateDayRequest;
@@ -27,7 +28,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Server-side enforcement of the Day/DaySchedule rules in packages/domain (DAY-001, DAY-002). */
+/**
+ * Server-side enforcement of the Day/DaySchedule rules in packages/domain (DAY-001, DAY-002). Days, their
+ * Goal and their Tags all belong to the current user (AUTH-003).
+ */
 @Service
 @Transactional
 public class DayService {
@@ -36,13 +40,15 @@ public class DayService {
     private final DayScheduleRepository schedules;
     private final GoalRepository goals;
     private final DayTagService dayTags;
+    private final CurrentUser currentUser;
 
     public DayService(DayRepository days, DayScheduleRepository schedules, GoalRepository goals,
-            DayTagService dayTags) {
+            DayTagService dayTags, CurrentUser currentUser) {
         this.days = days;
         this.schedules = schedules;
         this.goals = goals;
         this.dayTags = dayTags;
+        this.currentUser = currentUser;
     }
 
     /** goalId may be null (DAY-001); a Goal, if given, must be a WEEK Goal and contain plannedDate. */
@@ -50,7 +56,7 @@ public class DayService {
         Goal goal = findWeekGoal(request.goalId());
         validateDateInGoal(request.plannedDate(), goal, "plannedDate");
 
-        Day day = new Day(goal == null ? null : goal.getId(), request.title().strip(), request.status(),
+        Day day = new Day(currentUser.id(), goal == null ? null : goal.getId(), request.title().strip(), request.status(),
                 request.priority(), request.estimatedMinutes(), request.plannedDate(), request.planningMode(),
                 request.coreDay());
         day.setTags(dayTags.resolve(request.tagIds()));
@@ -67,8 +73,10 @@ public class DayService {
         if (from != null && to != null && from.isAfter(to)) {
             throw new ApiException(ErrorCode.VALIDATION_ERROR, "from must be on or before to.", "from");
         }
+        UUID userId = currentUser.id();
         Specification<Day> filter = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("userId"), userId));
             if (from != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.<LocalDate>get("plannedDate"), from));
             }
@@ -175,7 +183,7 @@ public class DayService {
         Goal goal = findWeekGoal(goalId);
         validateDateInGoal(date, goal, "targetDate");
 
-        Day day = new Day(goal == null ? null : goal.getId(), source.getTitle(), DayStatus.NOT_STARTED,
+        Day day = new Day(currentUser.id(), goal == null ? null : goal.getId(), source.getTitle(), DayStatus.NOT_STARTED,
                 source.getPriority(), source.getEstimatedMinutes(), date, source.getPlanningMode(), false);
         day.setTags(source.getTags());
         day.setCarriedFromDayId(source.getId());
@@ -233,16 +241,19 @@ public class DayService {
     }
 
     private Day find(UUID id) {
-        return days.findById(id)
+        return days.findByIdAndUserId(id, currentUser.id())
                 .orElseThrow(() -> new ApiException(ErrorCode.DAY_NOT_FOUND, "Day " + id + " was not found."));
     }
 
-    /** null goalId means "no Goal" and is valid; any other value must be an existing WEEK Goal. */
+    /**
+     * null goalId means "no Goal" and is valid; any other value must be an existing WEEK Goal of the current
+     * user. Another user's Goal gets the same answer as an unknown one.
+     */
     private Goal findWeekGoal(UUID goalId) {
         if (goalId == null) {
             return null;
         }
-        return goals.findById(goalId)
+        return goals.findByIdAndUserId(goalId, currentUser.id())
                 .filter(goal -> goal.getType() == GoalType.WEEK)
                 .orElseThrow(() -> new ApiException(ErrorCode.DAY_REQUIRES_WEEK_GOAL,
                         "A Day can only belong directly to a WEEK Goal.", "goalId"));

@@ -1,5 +1,6 @@
 package com.dayflow.api.recovery;
 
+import com.dayflow.api.auth.CurrentUser;
 import com.dayflow.api.common.ApiException;
 import com.dayflow.api.common.ErrorCode;
 import com.dayflow.api.day.Day;
@@ -40,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * REC-001 recovery plans, REC-002 recovery days and REC-005 history/re-surfacing. Day changes go through
  * DayService, so the same rules as PATCH /days apply (versions, WEEK Goal period, schedule handling).
+ * Candidates, history and Recovery Days only ever contain the current user's data (AUTH-003).
  * CARRY_OVER lives in {@link CarryOverService} because it needs its own preview.
  */
 @Service
@@ -55,14 +57,16 @@ public class RecoveryService {
     private final DayScheduleRepository schedules;
     private final RecoveryEventRepository events;
     private final RecoveryDayRepository recoveryDays;
+    private final CurrentUser currentUser;
 
     public RecoveryService(DayService dayService, DayRepository days, DayScheduleRepository schedules,
-            RecoveryEventRepository events, RecoveryDayRepository recoveryDays) {
+            RecoveryEventRepository events, RecoveryDayRepository recoveryDays, CurrentUser currentUser) {
         this.dayService = dayService;
         this.days = days;
         this.schedules = schedules;
         this.events = events;
         this.recoveryDays = recoveryDays;
+        this.currentUser = currentUser;
     }
 
     /**
@@ -73,7 +77,7 @@ public class RecoveryService {
      */
     @Transactional(readOnly = true)
     public List<RecoveryCandidateResponse> candidates(LocalDate today, Instant now) {
-        List<Day> open = days.findByStatusInAndPlannedDateLessThanEqual(OPEN, today);
+        List<Day> open = days.findByUserIdAndStatusInAndPlannedDateLessThanEqual(currentUser.id(), OPEN, today);
         Map<UUID, DaySchedule> scheduleByDay = schedules.findByDayIdIn(open.stream().map(Day::getId).toList()).stream()
                 .collect(Collectors.toMap(DaySchedule::getDayId, Function.identity()));
 
@@ -109,7 +113,8 @@ public class RecoveryService {
 
     /** Applies every decision in one transaction; any invalid or stale decision rolls back all of them. */
     public ApplyRecoveryResponse apply(ApplyRecoveryRequest request) {
-        RecoveryEvent event = new RecoveryEvent(request.localDate());
+        UUID userId = currentUser.id();
+        RecoveryEvent event = new RecoveryEvent(userId, request.localDate());
         List<DayResponse> results = new ArrayList<>();
         Set<Object> seenDays = new HashSet<>();
 
@@ -120,7 +125,7 @@ public class RecoveryService {
                 throw invalid(field + ".dayId", "Each Day can only have one decision.");
             }
 
-            Day day = days.findById(decision.dayId())
+            Day day = days.findByIdAndUserId(decision.dayId(), userId)
                     .orElseThrow(() -> new ApiException(ErrorCode.DAY_NOT_FOUND,
                             "Day " + decision.dayId() + " was not found.", field + ".dayId"));
             if (!Objects.equals(day.getVersion(), decision.version())) {
@@ -145,7 +150,7 @@ public class RecoveryService {
             };
 
             // The state right after the decision: while the Day keeps it, it is not offered again (REC-005).
-            Day after = days.findById(day.getId()).orElseThrow();
+            Day after = days.findByIdAndUserId(day.getId(), userId).orElseThrow();
             String state = RecoveryPlanningState.of(after, schedules.findByDayId(day.getId()).orElse(null));
             event.addItem(new RecoveryEventItem(day.getId(), previousTitle, decision.action(), previousStatus,
                     result.status(), previousDate, result.plannedDate(), previousMinutes, result.estimatedMinutes(),
@@ -160,7 +165,9 @@ public class RecoveryService {
     /** REC-005 history, newest first. Read only. */
     @Transactional(readOnly = true)
     public List<RecoveryEventResponse> history(int limit) {
-        List<RecoveryEvent> found = events.findAllByOrderByAppliedAtDesc(PageRequest.of(0, Math.min(Math.max(limit, 1), MAX_HISTORY)));
+        UUID userId = currentUser.id();
+        List<RecoveryEvent> found = events.findAllByUserIdOrderByAppliedAtDesc(userId,
+                PageRequest.of(0, Math.min(Math.max(limit, 1), MAX_HISTORY)));
         Set<UUID> dayIds = new HashSet<>();
         for (RecoveryEvent event : found) {
             for (RecoveryEventItem item : event.getItems()) {
@@ -172,7 +179,8 @@ public class RecoveryService {
                 }
             }
         }
-        Map<UUID, Day> dayById = days.findAllById(dayIds).stream().collect(Collectors.toMap(Day::getId, Function.identity()));
+        Map<UUID, Day> dayById = days.findByUserIdAndIdIn(userId, dayIds).stream()
+                .collect(Collectors.toMap(Day::getId, Function.identity()));
 
         return found.stream().map(event -> new RecoveryEventResponse(event.getId(), event.getLocalDate(),
                 event.getAppliedAt(), event.getItems().stream().map(item -> {
@@ -193,7 +201,9 @@ public class RecoveryService {
         if (from.isAfter(to)) {
             throw new ApiException(ErrorCode.VALIDATION_ERROR, "from must be on or before to.", "from");
         }
-        return recoveryDays.findByDateBetweenOrderByDate(from, to).stream().map(RecoveryDayResponse::from).toList();
+        return recoveryDays.findByUserIdAndDateBetweenOrderByDate(currentUser.id(), from, to).stream()
+                .map(RecoveryDayResponse::from)
+                .toList();
     }
 
     /**
@@ -206,7 +216,8 @@ public class RecoveryService {
             throw new ApiException(ErrorCode.INVALID_RECOVERY_RETURN_DATE,
                     "The return date must be after the recovery day.", "returnDate");
         }
-        RecoveryDay recoveryDay = recoveryDays.findByDate(date).orElse(null);
+        UUID userId = currentUser.id();
+        RecoveryDay recoveryDay = recoveryDays.findByUserIdAndDate(userId, date).orElse(null);
         Long currentVersion = recoveryDay == null ? null : recoveryDay.getVersion();
         if (!Objects.equals(currentVersion, request.expectedVersion())) {
             throw new ApiException(ErrorCode.VERSION_CONFLICT,
@@ -217,7 +228,7 @@ public class RecoveryService {
         for (int index = 0; index < releases.size(); index++) {
             VersionedIdRequest release = releases.get(index);
             String field = "releaseCoreDays[" + index + "]";
-            Day day = days.findById(release.id())
+            Day day = days.findByIdAndUserId(release.id(), userId)
                     .orElseThrow(() -> new ApiException(ErrorCode.DAY_NOT_FOUND, "Day " + release.id() + " was not found.",
                             field + ".id"));
             if (!date.equals(day.getPlannedDate()) || !day.isCoreDay()) {
@@ -231,14 +242,14 @@ public class RecoveryService {
         }
 
         if (recoveryDay == null) {
-            recoveryDay = new RecoveryDay(date);
+            recoveryDay = new RecoveryDay(userId, date);
         }
         recoveryDay.update(request.returnDate(), request.note().strip());
         return RecoveryDayResponse.from(recoveryDays.saveAndFlush(recoveryDay));
     }
 
     public void deleteDay(LocalDate date) {
-        RecoveryDay recoveryDay = recoveryDays.findByDate(date)
+        RecoveryDay recoveryDay = recoveryDays.findByUserIdAndDate(currentUser.id(), date)
                 .orElseThrow(() -> new ApiException(ErrorCode.RECOVERY_DAY_NOT_FOUND,
                         date + " is not a recovery day."));
         recoveryDays.delete(recoveryDay);
@@ -250,7 +261,7 @@ public class RecoveryService {
         if (dayIds.isEmpty()) {
             return latest;
         }
-        for (RecoveryEventItem item : events.findItemsNewestFirst(dayIds)) {
+        for (RecoveryEventItem item : events.findItemsNewestFirst(currentUser.id(), dayIds)) {
             latest.putIfAbsent(item.getDayId(), item);
         }
         return latest;

@@ -1,16 +1,13 @@
-import { createDayFlowApiClient, type DayFlowApiClient } from "@dayflow/api-client";
-import { resolveApiConfig, type ApiConfig } from "@/config/api-config";
+import type { DayFlowApiClient } from "@dayflow/api-client";
+import { getMobileAuthSession } from "@/features/auth/auth-session";
 
-/** Read once: EXPO_PUBLIC_* values are inlined into the bundle when Metro starts. */
-export const apiConfig: ApiConfig = resolveApiConfig(process.env.EXPO_PUBLIC_DAYFLOW_API_BASE_URL);
+export { apiConfig } from "./api-config";
 
-let client: DayFlowApiClient | undefined;
-
-/** Shared generated client. The root layout does not render screens while the config is invalid. */
+/**
+ * Shared generated client. Every call goes through the auth session's fetch: Bearer access token, one refresh
+ * on 401 (features/auth/mobile-auth-session.ts). The root layout does not render screens while the config is
+ * invalid or the user is signed out.
+ */
 export function getDayFlowApiClient(): DayFlowApiClient {
-  if (!apiConfig.ok) {
-    throw new Error("DayFlow API base URL is not configured (EXPO_PUBLIC_DAYFLOW_API_BASE_URL).");
-  }
-  client ??= createDayFlowApiClient({ baseUrl: apiConfig.baseUrl });
-  return client;
+  return getMobileAuthSession().api;
 }

@@ -2,7 +2,7 @@ spring:
   application:
     name: dayflow-api
   profiles:
-    # Running without an explicit profile uses the local Docker database.
+    # Running without an explicit profile uses the local Docker database. Servers set SPRING_PROFILES_ACTIVE=prod.
     default: local
   jpa:
     open-in-view: false
@@ -20,11 +20,37 @@ springdoc:
   # Successful bodies are JSON (errors declare application/problem+json explicitly).
   default-produces-media-type: application/json
 
+# Every value comes from the environment (see infra/README.md "Server environment"); the profiles
+# application-local.yml / application-test.yml give development defaults, application-prod.yml none.
 dayflow:
-  cors:
-    # Browser origins allowed to call /api/**. Empty by default; set per profile or with
-    # DAYFLOW_CORS_ALLOWED_ORIGINS (comma-separated) for other environments.
-    allowed-origins: []
+  # Public origin of this API, e.g. https://api.dayflow.app. Used as JWT issuer and Google callback base.
+  public-base-url: ${DAYFLOW_PUBLIC_BASE_URL:}
+  web:
+    # Where the Web app lives; Google login returns to <url>/auth/callback.
+    url: ${DAYFLOW_WEB_URL:}
+    # Browser origins allowed to call /api/** (comma-separated). /api/v1/auth/** also allows credentials.
+    allowed-origins: ${DAYFLOW_ALLOWED_WEB_ORIGINS:}
+  mobile:
+    # The app's login callback (Expo scheme "dayflow").
+    redirect-uri: ${DAYFLOW_MOBILE_REDIRECT_URI:dayflow://auth/callback}
+  google:
+    # OAuth Web client of Google Cloud. The secret stays on the server; Web/Mobile never see it.
+    client-id: ${GOOGLE_CLIENT_ID:}
+    client-secret: ${GOOGLE_CLIENT_SECRET:}
+  auth:
+    # HMAC-SHA256 key of DayFlow access tokens, at least 32 bytes.
+    jwt-secret: ${DAYFLOW_JWT_SECRET:}
+    access-token-ttl: 15m
+    refresh-token-ttl: 30d
+    exchange-code-ttl: 3m
+    # A rotated refresh token presented again within this window (another tab refreshing at the same
+    # moment) is only rejected; later reuse revokes the whole token family.
+    refresh-reuse-grace: 20s
+    refresh-cookie:
+      secure: ${DAYFLOW_REFRESH_COOKIE_SECURE:true}
+      same-site: ${DAYFLOW_REFRESH_COOKIE_SAME_SITE:Lax}
+    # Development-only sign-in without Google (E2E). Refused in the prod profile.
+    dev-login-enabled: ${DAYFLOW_DEV_LOGIN_ENABLED:false}
 
 management:
   endpoints:

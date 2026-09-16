@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,7 +29,18 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class ReviewGoalLinkApiIntegrationTest {
 
     @Autowired
-    private MockMvc mvc;
+    private MockMvc mockMvc;
+
+    @Autowired
+    private AuthTestSupport auth;
+
+    /** Every request of this class runs as one freshly signed-in user. */
+    private AuthTestSupport.UserMvc mvc;
+
+    @BeforeEach
+    void signIn() {
+        mvc = auth.as(mockMvc, auth.newUser("review-goal-link"));
+    }
 
     @Test
     void rev003LinksKeepProblemTryToGoalsAndChangesOrClearsTheLink() throws Exception {

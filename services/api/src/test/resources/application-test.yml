@@ -6,6 +6,20 @@ logging:
     org.flywaydb: info
 
 dayflow:
-  cors:
+  public-base-url: http://localhost:8080
+  web:
+    url: http://localhost:3000
     allowed-origins:
       - http://localhost:3000
+  mobile:
+    redirect-uri: dayflow://auth/callback
+  google:
+    # Placeholder client: tests never call Google, they only check the redirect to it.
+    client-id: test-google-client-id
+    client-secret: test-google-client-secret
+  auth:
+    jwt-secret: test-only-jwt-secret-0123456789-abcdefghij
+    refresh-cookie:
+      secure: false
+    # AuthFlowIntegrationTest drives the real callback → exchange flow through it (hidden from OpenAPI).
+    dev-login-enabled: true

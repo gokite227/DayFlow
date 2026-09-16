@@ -29,5 +29,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ["expo-notifications", { color: "#ee749d" }],
     "@react-native-community/datetimepicker",
     "expo-system-ui",
+    // AUTH-004: refresh token in the Keychain / Keystore; Google login in the system browser.
+    "expo-secure-store",
+    "expo-web-browser",
   ],
 });

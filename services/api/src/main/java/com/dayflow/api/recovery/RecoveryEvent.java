@@ -22,6 +22,10 @@ public class RecoveryEvent {
     @Id
     private UUID id = UUID.randomUUID();
 
+    /** The owner (AUTH-003). Every item is about one of this user's Days. */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
+
     /** The user's local date when the plan was applied. */
     @Column(name = "local_date", nullable = false, updatable = false)
     private LocalDate localDate;
@@ -37,8 +41,13 @@ public class RecoveryEvent {
     protected RecoveryEvent() {
     }
 
-    public RecoveryEvent(LocalDate localDate) {
+    public RecoveryEvent(UUID userId, LocalDate localDate) {
+        this.userId = userId;
         this.localDate = localDate;
+    }
+
+    public UUID getUserId() {
+        return userId;
     }
 
     public void addItem(RecoveryEventItem item) {

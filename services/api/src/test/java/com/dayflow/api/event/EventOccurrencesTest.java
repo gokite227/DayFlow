@@ -5,10 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /** EVT-003 recurrence expansion without Spring or a database. */
 class EventOccurrencesTest {
+
+    private static final UUID OWNER = UUID.randomUUID();
 
     @Test
     void evt003MonthlyOn31stClampsToMonthEndWithoutDrifting() {
@@ -33,7 +36,7 @@ class EventOccurrencesTest {
 
     @Test
     void evt003TimedMonthlyKeepsLocalTimeAndDuration() {
-        Event event = new Event("Report", null, "Asia/Seoul", EventRecurrence.MONTHLY);
+        Event event = new Event(OWNER, "Report", null, "Asia/Seoul", EventRecurrence.MONTHLY);
         event.placeTimed(Instant.parse("2027-01-31T05:00:00Z"), Instant.parse("2027-01-31T06:30:00Z"));
 
         List<EventOccurrences.Occurrence> found = EventOccurrences.between(event,
@@ -48,7 +51,7 @@ class EventOccurrencesTest {
     @Test
     void evt003RangeUsesTheEventTimezoneAndIncludesZeroLengthDeadlines() {
         // 2026-09-30 23:59 in Seoul is 14:59 UTC the same day.
-        Event event = new Event("Portfolio", null, "Asia/Seoul", EventRecurrence.NONE);
+        Event event = new Event(OWNER, "Portfolio", null, "Asia/Seoul", EventRecurrence.NONE);
         event.placeTimed(Instant.parse("2026-09-30T14:59:00Z"), Instant.parse("2026-09-30T14:59:00Z"));
 
         assertThat(EventOccurrences.between(event, LocalDate.parse("2026-09-30"), LocalDate.parse("2026-09-30")))
@@ -78,7 +81,7 @@ class EventOccurrencesTest {
     }
 
     private static Event allDay(EventRecurrence recurrence, String start, String endExclusive) {
-        Event event = new Event("Birthday", null, "Asia/Seoul", recurrence);
+        Event event = new Event(OWNER, "Birthday", null, "Asia/Seoul", recurrence);
         event.placeAllDay(LocalDate.parse(start), LocalDate.parse(endExclusive));
         return event;
     }

@@ -1,5 +1,7 @@
 import { useRouter } from "expo-router";
-import { Platform, Text, View } from "react-native";
+import { useState } from "react";
+import { Image, Platform, Text, View } from "react-native";
+import { useAuthSession, useAuthState } from "@/features/auth/use-auth";
 import { TAB_META } from "@/features/navigation/tab-navigation";
 import { useOpenScreen } from "@/features/navigation/use-open-screen";
 import { PERMISSION_STATE_LABEL } from "@/features/notifications/permission-state";
@@ -13,7 +15,8 @@ import {
 } from "@/features/settings/settings-model";
 import { useSettings } from "@/features/settings/settings-provider";
 import { apiConfig } from "@/lib/api-client";
-import { Card, FieldLabel, ListRow, Notice, Screen, SectionHeader, Segmented, layout, useTextStyles } from "@/ui/components";
+import { Button, Card, FieldLabel, ListRow, Notice, Screen, SectionHeader, Segmented, layout, useTextStyles } from "@/ui/components";
+import { usePalette } from "@/ui/theme";
 
 const SHORTCUTS: readonly TabScreen[] = ["goals", "review", "recovery", "days", "events", "calendar", "today"];
 
@@ -26,6 +29,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
+      <AccountCard />
       <Card>
         <SectionHeader title="화면" />
         <ListRow onPress={() => router.push("/settings/tabs")} accessibilityLabel="하단 탭 설정">
@@ -102,5 +106,46 @@ export default function SettingsScreen() {
         ))}
       </Card>
     </Screen>
+  );
+}
+
+/** AUTH-005: the signed-in Google account and logout (server revoke → secure token deleted → caches cleared). */
+function AccountCard() {
+  const text = useTextStyles();
+  const session = useAuthSession();
+  const auth = useAuthState();
+  const palette = usePalette();
+  const [pending, setPending] = useState(false);
+  if (auth.status !== "signedIn") return null;
+  const { user } = auth;
+
+  return (
+    <Card>
+      <SectionHeader title="계정" />
+      <View style={[layout.rowWrap, { alignItems: "center", gap: 12 }]}>
+        {user.avatarUrl ? (
+          <Image source={{ uri: user.avatarUrl }} style={{ width: 48, height: 48, borderRadius: 24 }} accessibilityIgnoresInvertColors />
+        ) : (
+          <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: palette.accentSoft }}>
+            <Text style={[text.strong, { color: palette.accent }]}>{user.displayName.slice(0, 1)}</Text>
+          </View>
+        )}
+        <View style={layout.flex}>
+          <Text style={text.strong}>{user.displayName}</Text>
+          <Text style={text.muted}>{user.email}</Text>
+          <Text style={text.muted}>Google로 로그인됨</Text>
+        </View>
+      </View>
+      <Button
+        label={pending ? "로그아웃 중…" : "로그아웃"}
+        variant="danger"
+        disabled={pending}
+        onPress={() => {
+          setPending(true);
+          void session.logout().finally(() => setPending(false));
+        }}
+      />
+      <Text style={text.muted}>이 기기에서만 로그아웃돼요. Google 계정은 로그아웃되지 않아요.</Text>
+    </Card>
   );
 }

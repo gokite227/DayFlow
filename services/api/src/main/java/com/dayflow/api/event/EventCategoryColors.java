@@ -22,6 +22,12 @@ public final class EventCategoryColors {
             "#c2549a", // 핑크
             "#8a6d3b"); // 브라운
 
+    /**
+     * AUTH-002: the Categories every new user starts with, in this order and with the first six palette
+     * colors. They are ordinary Categories the user can rename, recolor, reorder or delete.
+     */
+    public static final List<String> DEFAULT_NAMES = List.of("일정", "생일", "면접", "시험", "마감", "약속");
+
     private EventCategoryColors() {
     }
 

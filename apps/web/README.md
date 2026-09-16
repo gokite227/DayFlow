@@ -19,6 +19,23 @@ pnpm --filter @dayflow/web start
 start는 production build 이후 사용합니다. typecheck는 Next.js route type을
 생성한 뒤 TypeScript 검사를 실행하므로 새 checkout에서도 사용할 수 있습니다.
 
+## 로그인 (AUTH-001~005)
+
+- 비로그인 상태에서는 모든 route가 로그인 화면(`features/auth/login-view.tsx`)을 보여주고, 로그인 후 원래
+  route로 돌아간다. `Google로 계속하기`는 PKCE verifier와 원래 route를 sessionStorage에 잠시 두고 API의
+  `/api/v1/auth/google/start`로 이동한다. API는 `/auth/callback?code=…`로 돌려보내고, 이 페이지가 code를
+  exchange한 뒤 URL을 교체한다(주소창에 token 없음).
+- access token은 memory(`lib/auth/web-auth-session.ts`)에만 있다. refresh token은 API가 설정하는 HttpOnly
+  cookie(`dayflow_refresh`, path `/api/v1/auth`)라 스크립트가 읽을 수 없다. 새로고침하면 refresh → `/me`로
+  세션을 복원한다.
+- 모든 API 호출은 `getDayFlowApiClient()`의 fetch wrapper로 `Authorization: Bearer`를 붙이고, 401이면
+  refresh를 한 번(single-flight)만 한 뒤 원래 요청을 한 번 재시도한다. 실패하면 로그인 화면이 된다.
+- Settings(`/settings`): avatar/이름/이메일과 로그아웃. 로그인·로그아웃·계정 변경 때 TanStack Query cache를
+  비운다.
+- 개발용 로그인: API를 `DAYFLOW_DEV_LOGIN_ENABLED=true`로 실행하고 Web에 `NEXT_PUBLIC_DAYFLOW_DEV_LOGIN=true`를
+  주면 로그인 화면에 `개발용 로그인`이 나온다(Google credential 없이 같은 callback/exchange 흐름 확인용). 실제
+  Google 로그인 확인 절차는 `infra/README.md`에 있다.
+
 ## 구조
 
 - app/: route, layout, 전역 CSS. 이후 feature 화면을 조합합니다.

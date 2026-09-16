@@ -30,6 +30,13 @@ public enum ErrorCode {
     DUPLICATE_DAY_TAG_NAME(HttpStatus.BAD_REQUEST, "Duplicate Day Tag name"),
     TOO_MANY_DAY_TAGS(HttpStatus.BAD_REQUEST, "Too many Day Tags"),
     INVALID_DAY_TAG(HttpStatus.BAD_REQUEST, "Day Tag not found"),
+    INVALID_AUTH_REQUEST(HttpStatus.BAD_REQUEST, "Invalid login request"),
+    /** Unknown, expired, already used, wrong verifier or wrong platform: deliberately one code. */
+    INVALID_AUTH_CODE(HttpStatus.BAD_REQUEST, "Invalid login code"),
+
+    /** No, expired or invalid access token. Clients refresh once and sign in again if that fails. */
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Authentication required"),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "Invalid refresh token"),
 
     GOAL_NOT_FOUND(HttpStatus.NOT_FOUND, "Goal not found"),
     DAY_NOT_FOUND(HttpStatus.NOT_FOUND, "Day not found"),
@@ -45,7 +52,9 @@ public enum ErrorCode {
     SCHEDULE_VERSION_CONFLICT(HttpStatus.CONFLICT, "Schedule version conflict"),
     GOAL_IN_USE(HttpStatus.CONFLICT, "Goal in use"),
     ALREADY_CARRIED_OVER(HttpStatus.CONFLICT, "Already carried over"),
-    DATA_CONFLICT(HttpStatus.CONFLICT, "Data conflict");
+    DATA_CONFLICT(HttpStatus.CONFLICT, "Data conflict"),
+
+    GOOGLE_LOGIN_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "Google login is not configured");
 
     private final HttpStatus status;
     private final String title;

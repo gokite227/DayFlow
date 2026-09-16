@@ -10,17 +10,18 @@ import { reconcileEventReminders } from "./reconcile-service";
 const FOREGROUND_RECONCILE_INTERVAL_MS = 60_000;
 
 /**
- * Mounted once in the root layout (only when the API is configured):
- * - app start: create the Android channel and reconcile;
+ * Mounted once in the root layout (only when the API is configured). Works only while a user is signed in:
+ * - sign-in / app start: create the Android channel and reconcile;
  * - foreground: reconcile again (rolling window, changes made on the Web);
- * - notification tap: open the Event detail, also when the tap launched the app.
+ * - notification tap: open the Event detail, also when the tap launched the app (after the sign-in check).
  */
-export function useEventReminderLifecycle(): void {
+export function useEventReminderLifecycle(signedIn: boolean): void {
   const router = useRouter();
   const lastForegroundRun = useRef(0);
   const lastResponse = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
+    if (!signedIn) return;
     void ensureEventReminderChannel()
       .catch(() => undefined)
       .then(() => reconcileEventReminders("app-start"));
@@ -32,14 +33,16 @@ export function useEventReminderLifecycle(): void {
       void reconcileEventReminders("foreground");
     });
     return () => subscription.remove();
-  }, []);
+  }, [signedIn]);
 
   useEffect(() => {
+    // A tap while signed out waits: the Event detail opens once the user is signed in.
+    if (!signedIn) return;
     if (!lastResponse || lastResponse.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
     const route = routeForPayload(lastResponse.notification.request.content.data);
     if (!route) return;
     router.push(route);
     // Handled once: a later re-render or app restart must not open the same Event again.
     Notifications.clearLastNotificationResponse();
-  }, [lastResponse, router]);
+  }, [lastResponse, router, signedIn]);
 }

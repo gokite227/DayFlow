@@ -71,6 +71,21 @@ export function reconcileEventReminders(reason: ReconcileReason): Promise<Reconc
   return running;
 }
 
+/**
+ * After a sign-out (AUTH-005): cancel every DayFlow Event reminder on this device and forget their fingerprints,
+ * so the next user never gets the previous user's reminders. Never throws.
+ */
+export async function clearEventReminders(): Promise<void> {
+  try {
+    for (const identifier of await listPendingReminderIds()) {
+      await cancelReminder(identifier).catch(() => undefined);
+    }
+    await writeFingerprints({});
+  } catch (error) {
+    if (__DEV__) console.warn("[DayFlow] Clearing Event reminders after sign-out failed", error);
+  }
+}
+
 async function run(reason: ReconcileReason): Promise<ReconcileResult> {
   const base = { at: Date.now(), reason, planned: 0, scheduled: 0, cancelled: 0, unchanged: 0, failed: 0 };
   let permission: NotificationPermissionState | null = null;

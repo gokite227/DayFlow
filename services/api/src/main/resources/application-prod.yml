@@ -1,0 +1,24 @@
+# Server profile (SPRING_PROFILES_ACTIVE=prod). No development defaults: every value comes from the
+# environment and ProductionConfigValidator stops the start when a required one is missing or unsafe.
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+server:
+  # Behind a TLS-terminating proxy / load balancer: trust X-Forwarded-* for scheme and host.
+  forward-headers-strategy: framework
+
+springdoc:
+  # The OpenAPI document is a development tool; the generated client is committed.
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoint:
+    health:
+      # /actuator/health for the platform's health check, without internal details.
+      show-details: never

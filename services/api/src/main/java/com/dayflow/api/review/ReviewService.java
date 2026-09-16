@@ -1,5 +1,6 @@
 package com.dayflow.api.review;
 
+import com.dayflow.api.auth.CurrentUser;
 import com.dayflow.api.common.ApiException;
 import com.dayflow.api.common.ErrorCode;
 import com.dayflow.api.day.DayDtos.CreateDayRequest;
@@ -26,7 +27,10 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** KPT reviews (REV-003) and Try → Day conversion (REV-004). */
+/**
+ * KPT reviews (REV-003) and Try → Day conversion (REV-004). Reviews, their linked Goals and converted Days
+ * all belong to the current user (AUTH-003).
+ */
 @Service
 @Transactional
 public class ReviewService {
@@ -35,18 +39,21 @@ public class ReviewService {
     private final DayService dayService;
     private final DayRepository days;
     private final GoalRepository goals;
+    private final CurrentUser currentUser;
 
-    public ReviewService(ReviewRepository reviews, DayService dayService, DayRepository days, GoalRepository goals) {
+    public ReviewService(ReviewRepository reviews, DayService dayService, DayRepository days, GoalRepository goals,
+            CurrentUser currentUser) {
         this.reviews = reviews;
         this.dayService = dayService;
         this.days = days;
         this.goals = goals;
+        this.currentUser = currentUser;
     }
 
     @Transactional(readOnly = true)
     public ReviewResponse get(ReviewType type, LocalDate periodStart) {
         periodEnd(type, periodStart);
-        return reviews.findByTypeAndPeriodStart(type, periodStart)
+        return reviews.findByUserIdAndTypeAndPeriodStart(currentUser.id(), type, periodStart)
                 .map(ReviewResponse::from)
                 .orElseThrow(() -> new ApiException(ErrorCode.REVIEW_NOT_FOUND,
                         "No " + type + " review starting " + periodStart + "."));
@@ -55,14 +62,14 @@ public class ReviewService {
     /** Creates or replaces the review of a period, with optimistic concurrency on expectedVersion. */
     public ReviewResponse save(ReviewType type, LocalDate periodStart, SaveReviewRequest request) {
         LocalDate periodEnd = periodEnd(type, periodStart);
-        Review review = reviews.findByTypeAndPeriodStart(type, periodStart).orElse(null);
+        Review review = reviews.findByUserIdAndTypeAndPeriodStart(currentUser.id(), type, periodStart).orElse(null);
         Long currentVersion = review == null ? null : review.getVersion();
         if (!Objects.equals(currentVersion, request.expectedVersion())) {
             throw new ApiException(ErrorCode.VERSION_CONFLICT,
                     "The review was changed by another request. Reload and try again.", "expectedVersion");
         }
         if (review == null) {
-            review = new Review(type, periodStart, periodEnd);
+            review = new Review(currentUser.id(), type, periodStart, periodEnd);
         }
 
         review.setRating(request.rating());
@@ -78,7 +85,7 @@ public class ReviewService {
      * item's goalId/targetGoalId links.
      */
     public ConvertReviewItemResponse convertTry(UUID itemId, CreateDayRequest request) {
-        Review review = reviews.findByItems_Id(itemId)
+        Review review = reviews.findByUserIdAndItems_Id(currentUser.id(), itemId)
                 .orElseThrow(() -> new ApiException(ErrorCode.REVIEW_ITEM_NOT_FOUND,
                         "Review item " + itemId + " was not found."));
         ReviewItem item = review.getItems().stream()
@@ -89,7 +96,7 @@ public class ReviewService {
             throw new ApiException(ErrorCode.REVIEW_ITEM_NOT_TRY, "Only Try items can become a Day.", "itemId");
         }
 
-        if (item.getConvertedDayId() != null && days.existsById(item.getConvertedDayId())) {
+        if (item.getConvertedDayId() != null && days.existsByIdAndUserId(item.getConvertedDayId(), currentUser.id())) {
             return new ConvertReviewItemResponse(ReviewResponse.from(review), dayService.get(item.getConvertedDayId()));
         }
 
@@ -148,7 +155,7 @@ public class ReviewService {
 
         UUID goalId = request.goalId();
         if (goalId != null && !goalId.equals(item.getGoalId())) {
-            Goal goal = goals.findById(goalId).orElse(null);
+            Goal goal = goals.findByIdAndUserId(goalId, currentUser.id()).orElse(null);
             boolean overlapsPeriod = goal != null
                     && !goal.getStartDate().isAfter(review.getPeriodEnd())
                     && !goal.getEndDate().isBefore(review.getPeriodStart());
@@ -164,7 +171,7 @@ public class ReviewService {
                     "Only Try items can be carried into a next Goal.", field + ".targetGoalId");
         }
         if (targetGoalId != null && !targetGoalId.equals(item.getTargetGoalId())) {
-            Goal target = goals.findById(targetGoalId).orElse(null);
+            Goal target = goals.findByIdAndUserId(targetGoalId, currentUser.id()).orElse(null);
             if (target == null || target.getType() != level || !target.getEndDate().isAfter(review.getPeriodEnd())) {
                 throw new ApiException(ErrorCode.INVALID_REVIEW_GOAL,
                         "A Try can be carried into a " + level + " Goal that continues after the reviewed period.",

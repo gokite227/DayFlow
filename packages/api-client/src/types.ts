@@ -4,6 +4,12 @@ import type { components } from "./generated/schema";
 // regenerate it from the Spring Boot spec instead (see README.md).
 type Schemas = components["schemas"];
 
+export type AuthTokenResponse = Schemas["AuthTokenResponse"];
+export type ExchangeCodeRequest = Schemas["ExchangeCodeRequest"];
+export type RefreshTokenRequest = Schemas["RefreshTokenRequest"];
+export type LogoutRequest = Schemas["LogoutRequest"];
+export type MeResponse = Schemas["MeResponse"];
+
 export type GoalResponse = Schemas["GoalResponse"];
 export type CreateGoalRequest = Schemas["CreateGoalRequest"];
 export type UpdateGoalRequest = Schemas["UpdateGoalRequest"];

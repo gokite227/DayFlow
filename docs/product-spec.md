@@ -432,6 +432,22 @@ Version 0.1 · 2026-09-14
 
 - 장기 목표의 “이유(Why)”와 제약 조건을 보존한다.
 
+## 4.10 계정 — Google로 시작하고, 내 계획은 나만 본다
+
+DayFlow는 여러 사람이 각자 쓰는 서비스다. 목표·실행·회고·회복 기록은 개인의 가장 사적인 데이터이므로, 계정은 가볍게 시작하되 데이터는 확실히 나뉘어야 한다.
+
+- **시작은 Google 한 번:** 첫 화면은 `Google로 계속하기` 하나다. 비밀번호를 새로 만들게 하지 않는다. Apple 로그인은 같은 구조로 이후에 붙인다.
+
+- **처음부터 비어 있지 않은 달력:** 첫 로그인에서 일정 분류(일정/생일/면접/시험/마감/약속)가 준비된다. 목표·Day·Tag·회고는 사용자가 직접 채운다.
+
+- **Web과 Mobile은 같은 계획:** 같은 Google 계정이면 어느 기기에서든 같은 목표와 Day를 이어간다. 새로고침이나 앱 재시작만으로 로그아웃되지 않는다.
+
+- **다른 사람의 계획은 절대 보이지 않는다:** 같은 이름의 목표나 같은 주의 회고가 있어도 각자의 것이다. 로그아웃하거나 다른 계정으로 바꾸면 이전 사람의 화면·캐시·알림이 남지 않는다.
+
+- **로그아웃은 이 기기만:** DayFlow 세션만 끝내고 Google 계정 자체는 건드리지 않는다.
+
+- **토큰은 보이지 않는 곳에:** 로그인 정보는 브라우저의 HttpOnly cookie와 휴대폰의 보안 저장소에만 두고, 주소창이나 일반 저장소에 남기지 않는다. 구현 기준은 requirements §4.10(AUTH-001~005)이다.
+
 # 5. P형 사용자 친화 UX 규칙
 
 | **UX 규칙**            | **구현 의도**                                                                |
@@ -472,6 +488,8 @@ Version 0.1 · 2026-09-14
 
 | **엔티티**        | **핵심 필드**                                                                                 | **역할**                      |
 |-------------------|-----------------------------------------------------------------------------------------------|-------------------------------|
+| User              | id, email, displayName, avatarUrl?                                                            | 모든 계획 데이터의 주인        |
+| UserIdentity      | userId, provider(GOOGLE), providerSubject                                                     | 로그인 방식. Google `sub` 기준, 이메일로 병합하지 않음 |
 | Goal              | id, parentGoalId, type(year/quarter/month/week), title, why, status, period(startDate/endDate), progressMode, continuedFromGoalId? | 목표 계층의 뼈대. 기간은 calendar period에서 파생 |
 | Day               | id, goalId?(연결 시 WEEK), title, status, priority(0=NONE~3=HIGH), tagIds[], estimatedMinutes, plannedDate?, planningMode(FIXED/WINDOW/ANYTIME), coreDay, carriedFromDayId?, version | 사용자가 실제로 실행하는 모든 Task. Goal 연결은 선택 |
 | DayTag            | id, name, color, sortOrder                                                                    | 생활/업무 영역 Tag (Day와 다대다)  |
@@ -487,6 +505,8 @@ Version 0.1 · 2026-09-14
 | AppSelection      | id, label, opaqueTokens, mode, updatedAt                                                      | FamilyControls 토큰 저장      |
 
 **관계 핵심**
+
+- User 1:N Goal / Day / DayTag / Event / EventCategory / Review / Recovery 기록 (모든 연결은 같은 User 안에서만)
 
 - Goal 1:N Goal (self hierarchy)
 
@@ -636,12 +656,12 @@ Version 0.1 · 2026-09-14
 
 | **구분**         | **내용**                                                                                                        |
 |------------------|-----------------------------------------------------------------------------------------------------------------|
-| MVP 필수         | Goal 계층(연간/분기/월간/주간 View + drill-down), Day(Goal 연결 선택 + Tag + priority), Days Inbox, 주/3일/하루·리스트 Calendar, Focus Lock, 허용 앱, 시작 재촉, Recovery Mode(그대로 두기/줄이기/날짜 변경/이어가기/내려놓기 + 회복일 관리), 주간/일간 KPT, 로컬 데이터, Event(일정) + Events 화면 + Category + Calendar 통합 표시 + 최소 반복 + Goal 연결 + Event reminder(기기 알림 실행은 Mobile 단계) |
+| MVP 필수         | Google 로그인과 계정별 데이터 분리(Web/Mobile 같은 계정), Goal 계층(연간/분기/월간/주간 View + drill-down), Day(Goal 연결 선택 + Tag + priority), Days Inbox, 주/3일/하루·리스트 Calendar, Focus Lock, 허용 앱, 시작 재촉, Recovery Mode(그대로 두기/줄이기/날짜 변경/이어가기/내려놓기 + 회복일 관리), 주간/일간 KPT, 로컬 데이터, Event(일정) + Events 화면 + Category + Calendar 통합 표시 + 최소 반복 + Goal 연결 + Event reminder(기기 알림 실행은 Mobile 단계) |
 | MVP+             | 월/분기/연 회고, Morning Lock 루틴, 기본 통계, 코치 강도, 일정 기반 가용 시간 계산                               |
 | AI 1차           | 주간 AI Review Coach + 근거 + 추천 적용, Event를 고려한 Day 배치 추천                                            |
 | AI 2차           | 연간 Goal Breakdown, 개인화된 개입 간격/강도                                                                    |
 | 나중에           | Android, 소셜/친구 기능, PC 차단, 팀 목표, 공개 커뮤니티, Apple/Google Calendar 연동, 루틴/습관 도메인과 반복 Day, 우선순위 매트릭스 |
-| 이번 사이클 제외 | 로그인/멀티유저, 루틴·습관·반복 Day, 우선순위 매트릭스, AI 자동 스케줄링, 외부 캘린더 동기화 확장, Focus/재촉 구현 확장 (Event 반복은 기존대로 유지) |
+| 이번 사이클 제외 | Apple 로그인·비밀번호 가입·계정 병합, 루틴·습관·반복 Day, 우선순위 매트릭스, AI 자동 스케줄링, 외부 캘린더 동기화 확장, Focus/재촉 구현 확장 (Event 반복은 기존대로 유지) |
 | 지금 만들지 않기 | 복잡한 습관 트래커, 분 단위 라이프로그 강제, 지나치게 많은 뱃지/스트릭, 채팅형 AI를 홈의 중심으로 두기          |
 
 # 12. 핵심 지표

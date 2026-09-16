@@ -14,7 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-/** application-test.yml allows only http://localhost:3000 (dayflow.cors.allowed-origins). */
+/** application-test.yml allows only http://localhost:3000 (dayflow.web.allowed-origins). */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -26,20 +26,36 @@ class CorsIntegrationTest {
     @Autowired
     private MockMvc mvc;
 
+    @Autowired
+    private AuthTestSupport auth;
+
+    /** Preflight is answered before authentication; the Authorization header may be sent. */
     @Test
     void allowsPreflightFromConfiguredOriginWithoutCredentials() throws Exception {
         mvc.perform(options("/api/v1/days/00000000-0000-4000-8000-000000000000")
                         .header(HttpHeaders.ORIGIN, WEB_ORIGIN)
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "PATCH")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type"))
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization, content-type"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, WEB_ORIGIN))
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS));
     }
 
+    /** AUTH-004: only the auth endpoints receive the Web refresh cookie, so only they allow credentials. */
+    @Test
+    void allowsCredentialsOnlyForAuthEndpoints() throws Exception {
+        mvc.perform(options("/api/v1/auth/refresh")
+                        .header(HttpHeaders.ORIGIN, WEB_ORIGIN)
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, WEB_ORIGIN))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
+    }
+
     @Test
     void exposesLocationToConfiguredOrigin() throws Exception {
-        mvc.perform(get("/api/v1/goals").header(HttpHeaders.ORIGIN, WEB_ORIGIN))
+        auth.as(mvc, auth.newUser("cors")).perform(get("/api/v1/goals").header(HttpHeaders.ORIGIN, WEB_ORIGIN))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, WEB_ORIGIN))
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "Location"));

@@ -5,11 +5,16 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.util.UUID;
 
 /** REC-002: a date the user chose to rest on, with an optional date to come back. Not a failure record. */
 @Entity
 @Table(name = "recovery_days")
 public class RecoveryDay extends VersionedEntity {
+
+    /** The owner (AUTH-003); one Recovery Day per user and date. */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
 
     @Column(name = "recovery_date", nullable = false, updatable = false)
     private LocalDate date;
@@ -23,8 +28,13 @@ public class RecoveryDay extends VersionedEntity {
     protected RecoveryDay() {
     }
 
-    public RecoveryDay(LocalDate date) {
+    public RecoveryDay(UUID userId, LocalDate date) {
+        this.userId = userId;
         this.date = date;
+    }
+
+    public UUID getUserId() {
+        return userId;
     }
 
     public void update(LocalDate returnDate, String note) {

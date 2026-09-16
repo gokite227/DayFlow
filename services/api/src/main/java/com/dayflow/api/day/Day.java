@@ -21,6 +21,10 @@ import org.hibernate.annotations.BatchSize;
 @Table(name = "days")
 public class Day extends VersionedEntity {
 
+    /** The owner (AUTH-003). Its Goal, Tags and carried-from Day belong to the same user. */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
+
     /** The WEEK Goal this Day belongs to, or null when the Day has no Goal (DAY-001). */
     @Column(name = "goal_id")
     private UUID goalId;
@@ -73,8 +77,9 @@ public class Day extends VersionedEntity {
     protected Day() {
     }
 
-    public Day(UUID goalId, String title, DayStatus status, DayPriority priority, int estimatedMinutes,
+    public Day(UUID userId, UUID goalId, String title, DayStatus status, DayPriority priority, int estimatedMinutes,
             LocalDate plannedDate, DayPlanningMode planningMode, boolean coreDay) {
+        this.userId = userId;
         this.goalId = goalId;
         this.title = title;
         this.status = status;
@@ -83,6 +88,10 @@ public class Day extends VersionedEntity {
         this.plannedDate = plannedDate;
         this.planningMode = planningMode;
         this.coreDay = coreDay;
+    }
+
+    public UUID getUserId() {
+        return userId;
     }
 
     public UUID getGoalId() {

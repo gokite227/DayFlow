@@ -1,38 +1,61 @@
 package com.dayflow.api.event;
 
+import com.dayflow.api.auth.CurrentUser;
 import com.dayflow.api.common.ApiException;
 import com.dayflow.api.common.ErrorCode;
 import com.dayflow.api.event.EventCategoryDtos.CreateEventCategoryRequest;
 import com.dayflow.api.event.EventCategoryDtos.EventCategoryResponse;
 import com.dayflow.api.event.EventCategoryDtos.UpdateEventCategoryRequest;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** EVT-006 Event Category rules: trimmed names, case-insensitive uniqueness, palette colors, sort order. */
+/**
+ * EVT-006 Event Category rules: trimmed names, case-insensitive uniqueness, palette colors, sort order. All
+ * rules apply per user (AUTH-003).
+ */
 @Service
 @Transactional
 public class EventCategoryService {
 
     private final EventCategoryRepository categories;
+    private final CurrentUser currentUser;
 
-    public EventCategoryService(EventCategoryRepository categories) {
+    public EventCategoryService(EventCategoryRepository categories, CurrentUser currentUser) {
         this.categories = categories;
+        this.currentUser = currentUser;
     }
 
     @Transactional(readOnly = true)
     public List<EventCategoryResponse> list() {
-        return categories.findAllByOrderBySortOrderAscNameAsc().stream().map(EventCategoryResponse::from).toList();
+        return categories.findAllByUserIdOrderBySortOrderAscNameAsc(currentUser.id()).stream()
+                .map(EventCategoryResponse::from)
+                .toList();
     }
 
     public EventCategoryResponse create(CreateEventCategoryRequest request) {
         String name = requireName(request.name());
         requireUniqueName(name, null);
         int sortOrder = request.sortOrder() != null ? request.sortOrder() : nextSortOrder();
-        EventCategory category = new EventCategory(name, EventCategoryColors.normalize(request.color()), sortOrder);
+        EventCategory category = new EventCategory(currentUser.id(), name,
+                EventCategoryColors.normalize(request.color()), sortOrder);
         return EventCategoryResponse.from(categories.saveAndFlush(category));
+    }
+
+    /**
+     * AUTH-002: the six default Categories of a new user. Called while the user is created, before any access
+     * token exists, so the owner is passed in; it joins the caller's transaction.
+     */
+    public void createDefaults(UUID userId) {
+        List<EventCategory> defaults = new ArrayList<>();
+        for (int index = 0; index < EventCategoryColors.DEFAULT_NAMES.size(); index++) {
+            defaults.add(new EventCategory(userId, EventCategoryColors.DEFAULT_NAMES.get(index),
+                    EventCategoryColors.PALETTE.get(index), index));
+        }
+        categories.saveAllAndFlush(defaults);
     }
 
     public EventCategoryResponse update(UUID id, UpdateEventCategoryRequest request) {
@@ -58,25 +81,28 @@ public class EventCategoryService {
         return EventCategoryResponse.from(categories.saveAndFlush(category));
     }
 
-    /** The Events of the Category stay and become uncategorized (database ON DELETE SET NULL). */
+    /**
+     * The Events of the Category stay and become uncategorized (database ON DELETE SET NULL). A Category only
+     * ever has Events of its own user, so no other user's Event changes.
+     */
     public void delete(UUID id) {
         categories.delete(find(id));
         categories.flush();
     }
 
-    /** The Category an Event request refers to; null means uncategorized. */
+    /** The Category an Event request refers to; null means uncategorized. Another user's Category is unknown. */
     @Transactional(readOnly = true)
     public EventCategory resolve(UUID id) {
         if (id == null) {
             return null;
         }
-        return categories.findById(id)
+        return categories.findByIdAndUserId(id, currentUser.id())
                 .orElseThrow(() -> new ApiException(ErrorCode.INVALID_EVENT_CATEGORY,
                         "Event Category " + id + " was not found.", "categoryId"));
     }
 
     private EventCategory find(UUID id) {
-        return categories.findById(id)
+        return categories.findByIdAndUserId(id, currentUser.id())
                 .orElseThrow(() -> new ApiException(ErrorCode.EVENT_CATEGORY_NOT_FOUND,
                         "Event Category " + id + " was not found."));
     }
@@ -94,7 +120,7 @@ public class EventCategoryService {
     }
 
     private void requireUniqueName(String name, UUID selfId) {
-        categories.findFirstByNameIgnoreCase(name)
+        categories.findFirstByUserIdAndNameIgnoreCase(currentUser.id(), name)
                 .filter(existing -> !existing.getId().equals(selfId))
                 .ifPresent(existing -> {
                     throw new ApiException(ErrorCode.DUPLICATE_EVENT_CATEGORY_NAME,
@@ -103,7 +129,7 @@ public class EventCategoryService {
     }
 
     private int nextSortOrder() {
-        return categories.findAllByOrderBySortOrderAscNameAsc().stream()
+        return categories.findAllByUserIdOrderBySortOrderAscNameAsc(currentUser.id()).stream()
                 .mapToInt(EventCategory::getSortOrder)
                 .max()
                 .orElse(-1) + 1;

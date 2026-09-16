@@ -12,6 +12,7 @@ import com.jayway.jsonpath.JsonPath;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,7 +32,18 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class DayTagApiIntegrationTest {
 
     @Autowired
-    private MockMvc mvc;
+    private MockMvc mockMvc;
+
+    @Autowired
+    private AuthTestSupport auth;
+
+    /** Every request of this class runs as one freshly signed-in user. */
+    private AuthTestSupport.UserMvc mvc;
+
+    @BeforeEach
+    void signIn() {
+        mvc = auth.as(mockMvc, auth.newUser("day-tags"));
+    }
 
     @Test
     void day005CreatesRenamesRecolorsAndSortsTags() throws Exception {

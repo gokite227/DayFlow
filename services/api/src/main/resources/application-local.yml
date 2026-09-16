@@ -10,7 +10,14 @@ spring:
     password: ${POSTGRES_PASSWORD}
 
 dayflow:
-  cors:
-    # Next.js dev server. Override with DAYFLOW_CORS_ALLOWED_ORIGINS (comma-separated).
-    allowed-origins:
-      - http://localhost:3000
+  public-base-url: ${DAYFLOW_PUBLIC_BASE_URL:http://localhost:8080}
+  web:
+    # Next.js dev server.
+    url: ${DAYFLOW_WEB_URL:http://localhost:3000}
+    allowed-origins: ${DAYFLOW_ALLOWED_WEB_ORIGINS:http://localhost:3000}
+  auth:
+    # Local development only; the prod profile refuses this value.
+    jwt-secret: ${DAYFLOW_JWT_SECRET:local-development-only-jwt-secret-change-me}
+    refresh-cookie:
+      # http://localhost has no TLS.
+      secure: ${DAYFLOW_REFRESH_COOKIE_SECURE:false}

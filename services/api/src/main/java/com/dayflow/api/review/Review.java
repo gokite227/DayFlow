@@ -13,11 +13,16 @@ import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /** A KPT review of one period (REV-001, REV-003). Items are saved and versioned with the review. */
 @Entity
 @Table(name = "reviews")
 public class Review extends VersionedEntity {
+
+    /** The owner (AUTH-003); one review per (user, type, periodStart). Item Goal/Day links share the owner. */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, updatable = false)
@@ -43,10 +48,15 @@ public class Review extends VersionedEntity {
     protected Review() {
     }
 
-    public Review(ReviewType type, LocalDate periodStart, LocalDate periodEnd) {
+    public Review(UUID userId, ReviewType type, LocalDate periodStart, LocalDate periodEnd) {
+        this.userId = userId;
         this.type = type;
         this.periodStart = periodStart;
         this.periodEnd = periodEnd;
+    }
+
+    public UUID getUserId() {
+        return userId;
     }
 
     public ReviewType getType() {

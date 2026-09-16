@@ -60,6 +60,16 @@
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
       <version>${springdoc.version}</version>
     </dependency>
+    <!-- Google 로그인(OAuth2 Login)을 backend가 처리한다. Google secret은 서버에만 있다. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security-oauth2-client</artifactId>
+    </dependency>
+    <!-- DayFlow API는 DayFlow가 발급한 Bearer JWT(access token)로만 인증한다. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+    </dependency>
 
     <!-- 테스트에서만 사용: JUnit 5, AssertJ, Spring Boot 테스트 지원 -->
     <dependency>
@@ -80,6 +90,11 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers-postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security-test</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

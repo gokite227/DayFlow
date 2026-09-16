@@ -1,5 +1,6 @@
 package com.dayflow.api.recovery;
 
+import com.dayflow.api.auth.CurrentUser;
 import com.dayflow.api.common.ApiException;
 import com.dayflow.api.common.ErrorCode;
 import com.dayflow.api.day.Day;
@@ -43,7 +44,8 @@ import org.springframework.transaction.annotation.Transactional;
  * REC-003 / REC-004 Carry Over. The source Day and its Goals are never changed: new Goals (only for the
  * levels whose period changes, and only when no existing Goal fits) and new Days are created in the target
  * period, each pointing back at what it continues. Preview reads only; apply recomputes the same plan,
- * checks every previewed version and writes everything in one transaction.
+ * checks every previewed version and writes everything in one transaction. Source and destination Days and
+ * Goals all belong to the current user (AUTH-003): another user's Day or Goal is never found or offered.
  */
 @Service
 @Transactional
@@ -58,15 +60,17 @@ public class CarryOverService {
     private final GoalService goalService;
     private final DayService dayService;
     private final RecoveryEventRepository events;
+    private final CurrentUser currentUser;
 
     public CarryOverService(DayRepository days, DayScheduleRepository schedules, GoalRepository goals,
-            GoalService goalService, DayService dayService, RecoveryEventRepository events) {
+            GoalService goalService, DayService dayService, RecoveryEventRepository events, CurrentUser currentUser) {
         this.days = days;
         this.schedules = schedules;
         this.goals = goals;
         this.goalService = goalService;
         this.dayService = dayService;
         this.events = events;
+        this.currentUser = currentUser;
     }
 
     @Transactional(readOnly = true)
@@ -94,7 +98,7 @@ public class CarryOverService {
         Map<UUID, Long> goalVersions = new HashMap<>();
         if (request.goals() != null) {
             for (VersionedIdRequest ref : request.goals()) {
-                Goal goal = goals.findById(ref.id()).orElseThrow(() -> staleConflict("goals"));
+                Goal goal = goals.findByIdAndUserId(ref.id(), currentUser.id()).orElseThrow(() -> staleConflict("goals"));
                 if (!Objects.equals(goal.getVersion(), ref.version())) {
                     throw staleConflict("goals");
                 }
@@ -131,7 +135,7 @@ public class CarryOverService {
             }
         };
 
-        RecoveryEvent event = new RecoveryEvent(request.localDate());
+        RecoveryEvent event = new RecoveryEvent(currentUser.id(), request.localDate());
         List<CarriedDayResponse> carried = new ArrayList<>();
         for (Day source : plan.selectedDays()) {
             DayResponse destination = dayService.createCarriedOver(source, weekGoalId, request.targetDate());
@@ -148,7 +152,8 @@ public class CarryOverService {
 
     private Plan plan(LocalDate today, UUID sourceDayId, LocalDate targetDate, CarryOverMode mode,
             UUID chosenWeekGoalId, List<CarryOverLevelChoice> levelChoices, List<UUID> dayIds) {
-        Day source = days.findById(sourceDayId)
+        UUID userId = currentUser.id();
+        Day source = days.findByIdAndUserId(sourceDayId, userId)
                 .orElseThrow(() -> new ApiException(ErrorCode.DAY_NOT_FOUND,
                         "Day " + sourceDayId + " was not found.", "sourceDayId"));
         if (FINISHED.contains(source.getStatus())) {
@@ -161,7 +166,7 @@ public class CarryOverService {
             throw new ApiException(ErrorCode.ALREADY_CARRIED_OVER,
                     "This Day was already carried over to a later plan.", "sourceDayId");
         }
-        Goal week = goals.findById(source.getGoalId()).orElseThrow();
+        Goal week = goals.findByIdAndUserId(source.getGoalId(), userId).orElseThrow();
         if (targetDate.isBefore(today)) {
             throw invalid("targetDate", "Carry the plan over to today or a later date.");
         }
@@ -173,8 +178,8 @@ public class CarryOverService {
         plan.addDays(mode == CarryOverMode.WITH_PLAN
                 ? days.findByGoalIdOrderByPlannedDateAscCreatedAtAsc(week.getId())
                 : List.of(source), dayIds);
-        plan.targetWeekGoals = goals.findByTypeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByCreatedAt(
-                GoalType.WEEK, targetDate, targetDate);
+        plan.targetWeekGoals = goals.findByUserIdAndTypeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByCreatedAt(
+                userId, GoalType.WEEK, targetDate, targetDate);
 
         switch (mode) {
             case WITHOUT_GOAL -> plan.ready = true;
@@ -231,7 +236,8 @@ public class CarryOverService {
 
             Goal resolvedParent = parent;
             level.candidates = !parentExists ? List.of()
-                    : goals.findByTypeAndStartDateAndEndDateOrderByCreatedAt(type, period[0], period[1]).stream()
+                    : goals.findByUserIdAndTypeAndStartDateAndEndDateOrderByCreatedAt(currentUser.id(), type, period[0],
+                            period[1]).stream()
                             .filter(goal -> type == GoalType.YEAR
                                     || (resolvedParent != null && resolvedParent.getId().equals(goal.getParentGoalId())))
                             .toList();
@@ -278,7 +284,8 @@ public class CarryOverService {
         Goal current = week;
         while (current != null && path.size() < LEVELS.size()) {
             path.add(0, current);
-            current = current.getParentGoalId() == null ? null : goals.findById(current.getParentGoalId()).orElse(null);
+            current = current.getParentGoalId() == null ? null
+                    : goals.findByIdAndUserId(current.getParentGoalId(), currentUser.id()).orElse(null);
         }
         return path;
     }

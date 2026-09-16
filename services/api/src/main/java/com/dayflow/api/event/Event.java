@@ -32,6 +32,10 @@ import org.hibernate.annotations.BatchSize;
 @Table(name = "events")
 public class Event extends VersionedEntity {
 
+    /** The owner (AUTH-003). Its Category and linked Goal belong to the same user; reminders follow the Event. */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
+
     @Column(name = "title", nullable = false)
     private String title;
 
@@ -80,7 +84,8 @@ public class Event extends VersionedEntity {
     protected Event() {
     }
 
-    public Event(String title, EventCategory category, String timezone, EventRecurrence recurrence) {
+    public Event(UUID userId, String title, EventCategory category, String timezone, EventRecurrence recurrence) {
+        this.userId = userId;
         this.title = title;
         this.category = category;
         this.timezone = timezone;
@@ -121,6 +126,10 @@ public class Event extends VersionedEntity {
 
     public ZoneId zoneId() {
         return ZoneId.of(timezone);
+    }
+
+    public UUID getUserId() {
+        return userId;
     }
 
     public String getTitle() {

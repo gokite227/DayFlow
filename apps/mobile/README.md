@@ -2,9 +2,28 @@
 
 Expo SDK 57 + React Native 0.86 + Expo Router. Uses the same Spring API and generated client
 (`@dayflow/api-client`) as the Web. The target is a **Development Build** (the iOS Screen Time module
-planned next needs its own native project). Everything implemented so far — screens, Calendar gestures
-(react-native-gesture-handler + Reanimated), settings, theme and local notifications — uses only modules
-that ship with Expo Go, so it can also be tried in Expo Go on a phone.
+planned next needs its own native project). Google login needs the `dayflow://auth/callback` scheme of a
+development build, so the signed-in app is no longer usable in Expo Go.
+
+## Login (AUTH-001~005)
+
+- Signed out, the app shows only `login` (Expo Router `Stack.Protected`); every other screen needs a signed-in
+  user. **Google로 계속하기** opens the API's `/api/v1/auth/google/start` in the system browser
+  (`expo-web-browser` `openAuthSessionAsync`) with a PKCE challenge (`expo-crypto`). Google returns to the API,
+  the API returns to `dayflow://auth/callback?code=…`, and the app exchanges the code (with its verifier) for
+  DayFlow tokens.
+- Access token: memory only. Refresh token: `expo-secure-store` only (Keychain / Keystore, never AsyncStorage);
+  the PKCE verifier is kept there during the browser step. App start: SecureStore → refresh → `/me`. An
+  unreachable API keeps the token and shows 다시 연결.
+- Every API call goes through `src/features/auth/mobile-auth-session.ts`: `Authorization: Bearer`, on 401 one
+  single-flight refresh (the rotated refresh token is saved) and one retry, otherwise sign-out.
+- Settings → 계정: avatar, name, email, **로그아웃** (server revoke → SecureStore delete → query cache clear →
+  scheduled Event reminders of that user cancelled → login).
+- `app/auth/callback.tsx` handles Android delivering the redirect to the app as a link; the exchange runs once
+  per code. Notification deep links (`/events/[eventId]`) are unaffected and open after sign-in.
+- Needs a **development build** (`dayflow://` scheme, native modules). Google refuses private LAN IP redirect
+  URIs, so a phone can only finish Google login against a public HTTPS API (deployed server or HTTPS tunnel set
+  as `DAYFLOW_PUBLIC_BASE_URL`, see `infra/README.md`).
 
 ## Navigation and settings
 

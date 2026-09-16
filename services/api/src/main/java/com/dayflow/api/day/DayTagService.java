@@ -1,5 +1,6 @@
 package com.dayflow.api.day;
 
+import com.dayflow.api.auth.CurrentUser;
 import com.dayflow.api.common.ApiException;
 import com.dayflow.api.common.ErrorCode;
 import com.dayflow.api.day.DayTagDtos.CreateDayTagRequest;
@@ -26,14 +27,17 @@ public class DayTagService {
     public static final int MAX_TAGS_PER_DAY = 10;
 
     private final DayTagRepository tags;
+    private final CurrentUser currentUser;
 
-    public DayTagService(DayTagRepository tags) {
+    public DayTagService(DayTagRepository tags, CurrentUser currentUser) {
         this.tags = tags;
+        this.currentUser = currentUser;
     }
 
     @Transactional(readOnly = true)
     public List<DayTagResponse> list() {
-        return tags.findAllByOrderBySortOrderAscNameAsc().stream().map(DayTagResponse::from).toList();
+        return tags.findAllByUserIdOrderBySortOrderAscNameAsc(currentUser.id()).stream().map(DayTagResponse::from)
+                .toList();
     }
 
     public DayTagResponse create(CreateDayTagRequest request) {
@@ -41,7 +45,7 @@ public class DayTagService {
         requireUniqueName(name, null);
         int sortOrder = request.sortOrder() != null ? request.sortOrder() : nextSortOrder();
 
-        DayTag tag = new DayTag(name, DayTagColors.normalize(request.color()), sortOrder);
+        DayTag tag = new DayTag(currentUser.id(), name, DayTagColors.normalize(request.color()), sortOrder);
         return DayTagResponse.from(tags.saveAndFlush(tag));
     }
 
@@ -75,7 +79,7 @@ public class DayTagService {
     }
 
     /**
-     * Tags of a Day request, in the order they are stored. Unknown ids and more than
+     * Tags of a Day request, in the order they are stored. Unknown ids, another user's Tags and more than
      * MAX_TAGS_PER_DAY are rejected; duplicates in the request are ignored.
      */
     @Transactional(readOnly = true)
@@ -88,7 +92,7 @@ public class DayTagService {
             throw new ApiException(ErrorCode.TOO_MANY_DAY_TAGS,
                     "A Day can have at most " + MAX_TAGS_PER_DAY + " Tags.", "tagIds");
         }
-        Map<UUID, DayTag> found = tags.findAllById(wanted).stream()
+        Map<UUID, DayTag> found = tags.findByUserIdAndIdIn(currentUser.id(), wanted).stream()
                 .collect(Collectors.toMap(DayTag::getId, Function.identity()));
         Set<DayTag> resolved = new LinkedHashSet<>();
         for (UUID tagId : wanted) {
@@ -102,7 +106,7 @@ public class DayTagService {
     }
 
     private DayTag find(UUID id) {
-        return tags.findById(id)
+        return tags.findByIdAndUserId(id, currentUser.id())
                 .orElseThrow(() -> new ApiException(ErrorCode.DAY_TAG_NOT_FOUND, "Tag " + id + " was not found."));
     }
 
@@ -120,7 +124,7 @@ public class DayTagService {
     }
 
     private void requireUniqueName(String name, UUID selfId) {
-        tags.findFirstByNameIgnoreCase(name)
+        tags.findFirstByUserIdAndNameIgnoreCase(currentUser.id(), name)
                 .filter(existing -> !existing.getId().equals(selfId))
                 .ifPresent(existing -> {
                     throw new ApiException(ErrorCode.DUPLICATE_DAY_TAG_NAME,
@@ -129,7 +133,7 @@ public class DayTagService {
     }
 
     private int nextSortOrder() {
-        return tags.findAllByOrderBySortOrderAscNameAsc().stream()
+        return tags.findAllByUserIdOrderBySortOrderAscNameAsc(currentUser.id()).stream()
                 .mapToInt(DayTag::getSortOrder)
                 .max()
                 .orElse(-1) + 1;

@@ -1,20 +1,11 @@
-import { createDayFlowApiClient, type DayFlowApiClient } from "@dayflow/api-client";
-
-let client: DayFlowApiClient | undefined;
+import type { DayFlowApiClient } from "@dayflow/api-client";
+import { getWebAuthSession } from "./auth/session";
 
 /**
- * Shared DayFlow API client. The base URL comes from NEXT_PUBLIC_DAYFLOW_API_BASE_URL
- * (see apps/web/.env.example) and is read on first use, not at import time.
+ * Shared DayFlow API client. Every call goes through the auth session's fetch, which adds the access token and
+ * refreshes it once on 401 (lib/auth/web-auth-session.ts). The base URL comes from
+ * NEXT_PUBLIC_DAYFLOW_API_BASE_URL (see apps/web/.env.example).
  */
 export function getDayFlowApiClient(): DayFlowApiClient {
-  if (!client) {
-    const baseUrl = process.env.NEXT_PUBLIC_DAYFLOW_API_BASE_URL;
-    if (!baseUrl) {
-      throw new Error(
-        "NEXT_PUBLIC_DAYFLOW_API_BASE_URL is not set. Copy apps/web/.env.example to apps/web/.env.local.",
-      );
-    }
-    client = createDayFlowApiClient({ baseUrl });
-  }
-  return client;
+  return getWebAuthSession().api;
 }

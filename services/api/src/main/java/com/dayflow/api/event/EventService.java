@@ -1,5 +1,6 @@
 package com.dayflow.api.event;
 
+import com.dayflow.api.auth.CurrentUser;
 import com.dayflow.api.common.ApiException;
 import com.dayflow.api.common.ApiException.FieldViolation;
 import com.dayflow.api.common.ErrorCode;
@@ -42,11 +43,14 @@ public class EventService {
     private final EventRepository events;
     private final GoalRepository goals;
     private final EventCategoryService categories;
+    private final CurrentUser currentUser;
 
-    public EventService(EventRepository events, GoalRepository goals, EventCategoryService categories) {
+    public EventService(EventRepository events, GoalRepository goals, EventCategoryService categories,
+            CurrentUser currentUser) {
         this.events = events;
         this.goals = goals;
         this.categories = categories;
+        this.currentUser = currentUser;
     }
 
     public EventResponse create(CreateEventRequest request) {
@@ -54,8 +58,8 @@ public class EventService {
         validateReminders(request.reminders());
         validateGoal(request.linkedGoalId());
 
-        Event event = new Event(request.title().strip(), categories.resolve(request.categoryId()), request.timezone(),
-                request.recurrence());
+        Event event = new Event(currentUser.id(), request.title().strip(), categories.resolve(request.categoryId()),
+                request.timezone(), request.recurrence());
         place(event, request.allDay(), request.startAt(), request.endAt(), request.startDate(),
                 request.endDateExclusive(), null);
         event.setLocation(blankToNull(request.location()));
@@ -68,8 +72,10 @@ public class EventService {
     /** categoryId: one Category; hasCategory=false: uncategorized only (EVT-002, EVT-006). */
     @Transactional(readOnly = true)
     public List<EventResponse> list(UUID categoryId, Boolean hasCategory, UUID linkedGoalId) {
+        UUID userId = currentUser.id();
         Specification<Event> filter = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("userId"), userId));
             predicates.add(categoryFilter(root, cb, categoryId, hasCategory));
             if (linkedGoalId != null) {
                 predicates.add(cb.equal(root.get("linkedGoalId"), linkedGoalId));
@@ -151,7 +157,7 @@ public class EventService {
 
         record Found(Event event, EventOccurrences.Occurrence occurrence) {
         }
-        return events.findAll(candidates(from, to, categoryId, hasCategory)).stream()
+        return events.findAll(candidates(currentUser.id(), from, to, categoryId, hasCategory)).stream()
                 .flatMap(event -> EventOccurrences.between(event, from, to).stream()
                         .map(occurrence -> new Found(event, occurrence)))
                 .sorted(Comparator.comparing((Found found) -> localStart(found.event(), found.occurrence()))
@@ -166,7 +172,7 @@ public class EventService {
      * timezone offsets); recurring Events must start before the range ends. Exact overlap is
      * decided by {@link EventOccurrences}.
      */
-    private static Specification<Event> candidates(LocalDate from, LocalDate to, UUID categoryId,
+    private static Specification<Event> candidates(UUID userId, LocalDate from, LocalDate to, UUID categoryId,
             Boolean hasCategory) {
         Instant paddedStart = from.minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant paddedEnd = to.plusDays(2).atStartOfDay().toInstant(ZoneOffset.UTC);
@@ -182,7 +188,7 @@ public class EventService {
                     cb.and(allDay, cb.lessThanOrEqualTo(root.<LocalDate>get("startDate"), to)));
             Predicate match = cb.or(cb.and(once, cb.or(timedOverlap, allDayOverlap)),
                     cb.and(cb.not(once), startsBeforeEnd));
-            return cb.and(match, categoryFilter(root, cb, categoryId, hasCategory));
+            return cb.and(cb.equal(root.get("userId"), userId), match, categoryFilter(root, cb, categoryId, hasCategory));
         };
     }
 
@@ -198,7 +204,7 @@ public class EventService {
     }
 
     private Event find(UUID id) {
-        return events.findById(id)
+        return events.findByIdAndUserId(id, currentUser.id())
                 .orElseThrow(() -> new ApiException(ErrorCode.EVENT_NOT_FOUND, "Event " + id + " was not found."));
     }
 
@@ -288,8 +294,9 @@ public class EventService {
         }
     }
 
+    /** A linked Goal must be one of the current user's Goals; another user's Goal is reported as not found. */
     private void validateGoal(UUID goalId) {
-        if (goalId != null && !goals.existsById(goalId)) {
+        if (goalId != null && !goals.existsByIdAndUserId(goalId, currentUser.id())) {
             throw new ApiException(ErrorCode.INVALID_EVENT_GOAL, "Goal " + goalId + " was not found.",
                     "linkedGoalId");
         }

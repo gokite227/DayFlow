@@ -48,3 +48,16 @@ const { data, error, response } = await api.PUT("/api/v1/days/{dayId}/schedule",
 
 `baseUrl` has no default. Web reads `NEXT_PUBLIC_DAYFLOW_API_BASE_URL`
 (`apps/web/lib/api-client.ts`); mobile can pass its own value and `fetch`.
+
+## Auth helpers (`src/auth`)
+
+Hand-written, platform-neutral pieces shared by Web and Mobile (AUTH-001, AUTH-004). They wrap the generated
+client through its `fetch` option; generated code is never edited.
+
+- `createPkcePair` / `codeChallengeOf` — PKCE S256 with an injected crypto (WebCrypto or expo-crypto).
+- `googleLoginStartUrl`, `parseAuthCallback`, `safeReturnTo` — the browser start URL and the `?code=` callback.
+- `singleFlight` + `createAuthorizedFetch` — `Authorization: Bearer`, one shared refresh for concurrent 401s,
+  one retry of the original request, then `onSessionExpired`.
+
+Protected operations use the `bearerAuth` scheme; `/api/v1/auth/*` is public. `pnpm --filter @dayflow/api-client test`
+runs the Vitest checks of these helpers.

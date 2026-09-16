@@ -4,6 +4,7 @@ import com.dayflow.api.common.VersionedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import java.util.UUID;
 
 /**
  * DAY-005 user defined Day Tag (life/work area). Tags are a different axis from Goals and are kept
@@ -12,6 +13,10 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "day_tags")
 public class DayTag extends VersionedEntity {
+
+    /** The owner (AUTH-003); names are unique per user. */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
 
     @Column(name = "name", nullable = false)
     private String name;
@@ -26,10 +31,15 @@ public class DayTag extends VersionedEntity {
     protected DayTag() {
     }
 
-    public DayTag(String name, String color, int sortOrder) {
+    public DayTag(UUID userId, String name, String color, int sortOrder) {
+        this.userId = userId;
         this.name = name;
         this.color = color;
         this.sortOrder = sortOrder;
+    }
+
+    public UUID getUserId() {
+        return userId;
     }
 
     public String getName() {

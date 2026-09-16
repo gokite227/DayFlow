@@ -61,7 +61,7 @@
 | 시간 기준 | 2026-09-14 주간 및 Today 날짜 하드코딩 | 사용자 timezone·현재일·주 시작 규칙으로 일반화      | P0           |
 | Calendar  | 09~22시, 단일 주만 렌더링              | 24시간/가변 시간대/주 이동/충돌/접근성 처리         | P0           |
 | 진행률    | 재귀 평균, 동일 가중치                 | 가중치/수동 진행률 정책 또는 Day 기반 명확화        | P1           |
-| 인증      | 없음                                   | Apple/Google/이메일 또는 passkey + 세션/토큰 관리   | P0           |
+| 인증      | 없음                                   | Google 로그인 우선 + DayFlow access/refresh token, 사용자별 데이터 분리(§4.10). Apple은 같은 구조로 확장 | P0           |
 | 오프라인  | 없음                                   | Mobile SQLite + outbox sync                         | P0           |
 | Focus     | UI 없음                                | iOS Screen Time 네이티브 모듈 + 알림/개입 상태 머신 | P0           |
 | AI        | 없음                                   | AI input snapshot, structured output, 승인 후 적용  | P1           |
@@ -77,7 +77,7 @@
 
 # 2. 범위와 릴리스 기준
 ## 2.1 MVP (P0) — 사용자가 실제로 매일 쓸 수 있는 최소 서비스
-- 회원가입/로그인, timezone 및 코치 강도 설정.
+- Google 로그인(AUTH-001~005)과 사용자별 데이터 분리, timezone 및 코치 강도 설정. 비밀번호 회원가입은 두지 않는다.
 
 - Goal 계층 YEAR/QUARTER/MONTH/WEEK CRUD 및 Goal Path. Goals는 연간/분기/월간/주간 View + drill-down + YEAR 전체 흐름 보기.
 
@@ -130,7 +130,7 @@
 ## 2.4 이번 제품 개선 사이클에서 제외
 아래는 이번 사이클(Goal/Day/Calendar/Event/Review/Recovery 정비)에서 구현하지 않는다. 요구사항 자체를 삭제하지는 않고 이후 사이클로 미룬다.
 
-- 로그인/회원가입(AUTH-001)과 멀티유저. 현재 단계는 단일 사용자 로컬 환경을 전제로 한다.
+- Apple 로그인 실제 구현, 비밀번호 회원가입, 계정 병합 UI, 단일 사용자 시기 데이터의 보존·승계. Google 로그인과 멀티유저(AUTH-001~005)는 구현되었다(§4.10). 구조는 Apple provider를 추가할 수 있게 둔다.
 
 - Routine / Habit 전용 도메인과 반복 Day 구현(§4.6). Event recurrence(EVT-003)는 기존 기능을 그대로 유지한다.
 
@@ -147,7 +147,11 @@
 
 | **ID**    | **Pri** | **도메인** | **요구사항**                                                           | **Acceptance**                                                                           |
 |-----------|---------|------------|------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| AUTH-001  | P0      | 인증       | 사용자는 Apple/Google/이메일 중 지원 방식으로 로그인할 수 있다.        | 재로그인 시 데이터가 복구되고 다른 계정 데이터가 섞이지 않는다.                          |
+| AUTH-001  | P0      | 인증       | 사용자는 Google로 로그인한다(Google-first). Google 인증은 backend(Spring Security OAuth2 Login)가 처리하고, Web/Mobile은 PKCE(S256) + 1회용 exchange code로 DayFlow token을 받는다(§4.10). | 비로그인 상태에서는 Web/Mobile 모두 로그인 화면만 보인다. redirect URL에는 token이 없고 `code`만 있다. exchange code는 2~5분(기본 3분) 만료·1회용·DB에는 hash만 저장이며, 만료/재사용/잘못된 verifier/다른 platform은 `INVALID_AUTH_CODE`(400)로 거부된다. Google client secret은 서버에만 있다. |
+| AUTH-002  | P0      | 인증       | DayFlow User와 로그인 방식(UserIdentity)을 분리해 저장한다. 새 User에는 기본 Event Category 6개를 만든다. | 같은 Google `sub`는 항상 같은 User(이메일이 바뀌어도), 다른 `sub`는 다른 User다. 이메일이 같다는 이유로 자동 병합하지 않는다. User·Identity·기본 Category(일정/생일/면접/시험/마감/약속)는 한 transaction으로 만들고 실패 시 전부 rollback된다. `GET /api/v1/me`는 id/email/displayName/avatarUrl만 반환한다. |
+| AUTH-003  | P0      | 인증       | 모든 사용자 데이터는 User 소유이며 다른 User의 데이터를 조회·수정·삭제·연결할 수 없다(§8.7). | API 요청은 owner userId를 받지 않고 access token의 User를 쓴다. 다른 User의 id는 GET/PATCH/DELETE에서 없는 id와 같은 404, 관계 연결(Day↔Goal/Tag, Event↔Category/Goal, ReviewItem↔Goal, Try→Day, Carry Over)에서는 없는 id와 같은 400으로 거부된다. 두 User가 같은 이름의 Goal/Tag/Category와 같은 Review 기간·Recovery Day 날짜를 각각 가질 수 있다. |
+| AUTH-004  | P0      | 인증       | DayFlow access token(JWT, 약 15분)과 refresh token(opaque, 약 30일, rotation)으로 세션을 유지한다. | access token은 Web/Mobile 모두 memory에만 둔다. refresh token은 Web=HttpOnly cookie(production Secure), Mobile=expo-secure-store에만 저장하고 DB에는 hash만 둔다. refresh 시 rotation되고, 만료·revoke·logout된 token은 401이다. 이미 rotation된 token이 grace 시간 후 다시 쓰이면 family 전체를 revoke한다. 401을 받은 client는 refresh를 한 번(single-flight)만 하고 원래 요청을 한 번 재시도하며, 실패하면 로그아웃한다. |
+| AUTH-005  | P0      | 인증       | 로그아웃하면 서버 세션을 끝내고 기기의 사용자 데이터를 지운다.          | 서버 refresh token family revoke → Web cookie 삭제 / Mobile SecureStore 삭제 → access token 삭제 → TanStack Query cache clear → 로그인 화면. Mobile은 이전 User의 Event reminder 예약도 취소한다. Google 계정 자체는 로그아웃하지 않는다. 로그인/로그아웃/User 변경 뒤 이전 User 데이터가 잠깐도 보이지 않는다. |
 | SET-001   | P0      | 개인설정   | timezone, 주 시작 요일, 코치 강도, 기본 알림을 저장한다.               | 기기 변경 후 서버에서 복구된다. 현재 Mobile은 화면 모드(시스템/라이트/다크), Calendar 주 시작 요일, 하단 탭 구성을 기기 로컬에만 저장한다(서버 저장·복구 전). |
 | GOAL-001  | P0      | Goal       | YEAR→QUARTER→MONTH→WEEK 계층을 생성/수정/삭제한다. 직접 parent는 바로 위 단계만 허용하고 단계를 건너뛰지 않는다(YEAR만 parent 없음). Day를 Goal에 연결할 때는 WEEK Goal만 허용한다(연결 자체는 선택, DAY-001). | parent 기간 밖의 하위 Goal 생성 시 validation 오류 또는 사용자 확인을 요구한다. 계층 규칙은 UI와 무관하게 서버 validation이 최종 보장한다. |
 | GOAL-002  | P0      | Goal       | Goal에 title, why, 기간(calendar period), 우선순위/가중치를 저장한다.   | Today/Review에서 상위 path와 why를 조회할 수 있다. period label(`2026`, `3분기`, `9월 3주`)과 사용자가 입력한 title은 섞지 않는다. |
@@ -441,6 +445,51 @@
 
 - 기본 규칙: 미완료 Day는 승계 후보, DONE/SKIPPED Day는 복제하지 않는다. 기존 날짜/시간은 그대로 복사하지 않고, 기존 progress도 복사하지 않는다. 기존 계획을 자동 적용하지 않는다.
 
+## 4.10 계정과 로그인 (AUTH-001~005)
+| **Google-first, multi-user** DayFlow는 Google 로그인으로 시작하는 멀티유저 서비스다. 모든 계획 데이터는 로그인한 User의 것이고, 다른 User의 데이터는 존재 자체가 드러나지 않는다. |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+- **로그인 화면:** 비로그인 상태에서는 Web의 모든 route와 Mobile 앱이 로그인 화면만 보여준다. 버튼은 `Google로 계속하기` 하나이며 DayFlow pink/lavender 디자인을 쓴다. Web은 로그인 후 원래 route로 돌아간다.
+
+- **OAuth 흐름:** Google 인증은 backend가 담당한다(Spring Security OAuth2 Login). Google access token은 DayFlow API 인증에 쓰지 않는다.
+
+```
+Web/Mobile: codeVerifier 생성 → codeChallenge = base64url(SHA-256(verifier))
+→ 브라우저로 GET /api/v1/auth/google/start?platform=WEB|MOBILE&codeChallenge&codeChallengeMethod=S256&returnTo
+→ (backend 짧은 login session에 요청 보관) → Google → GET /login/oauth2/code/google (backend)
+→ User 조회/생성 → 1회용 exchange code(hash 저장, user·challenge·platform·returnTo와 묶음, 3분)
+→ Web: <DAYFLOW_WEB_URL>/auth/callback?code=…  /  Mobile: dayflow://auth/callback?code=…
+→ POST /api/v1/auth/exchange {code, codeVerifier, platform} → DayFlow access/refresh token
+→ GET /api/v1/me
+```
+
+- **Token 저장:**
+
+| **구분** | **Web** | **Mobile** |
+|----------|---------|------------|
+| Access token (JWT, 15분, `sub`=DayFlow userId) | memory | memory |
+| Refresh token (opaque, 30일, rotation) | HttpOnly cookie `dayflow_refresh`, `Path=/api/v1/auth`, production `Secure`, `SameSite=Lax` 기본 | expo-secure-store (Keychain/Keystore). AsyncStorage 금지 |
+| exchange/refresh 응답의 refreshToken | 항상 null (cookie로만 전달) | body로 받음 |
+| 새로고침/앱 시작 | refresh(cookie) → access → `/me` | SecureStore → refresh(body) → access → `/me`. API에 닿지 못하면 token을 지우지 않고 재연결 안내 |
+
+- **Platform 고정:** platform은 login 시작 시 정해져 exchange code와 refresh token에 저장된다. client가 exchange/refresh에서 WEB↔MOBILE을 바꿀 수 없다(WEB token을 body로 보내면 401).
+
+- **Web cookie 보호:** cookie를 쓰는 refresh/logout은 `Origin`이 허용된 Web origin일 때만 처리한다(CSRF). CORS credentials는 `/api/v1/auth/**`에만 허용한다.
+
+- **401 처리:** API wrapper가 `Authorization: Bearer`를 붙이고, 401이면 refresh를 한 번만(single-flight, 동시 401도 1회) 실행한 뒤 원래 요청을 한 번 재시도한다. refresh 실패나 재시도 401이면 로그아웃 상태가 된다. 생성된 API client 코드는 수정하지 않는다.
+
+- **로그아웃:** 서버 revoke(refresh token family) → Web cookie 삭제/Mobile SecureStore 삭제 → access token 삭제 → Query cache clear → 로그인 화면. Mobile은 이전 User의 Event reminder 예약을 취소한다. Google 계정 로그아웃은 하지 않는다.
+
+- **User 변경과 cache:** 로그인·로그아웃·다른 User로 바뀌는 순간 TanStack Query cache를 비운다. 이전 User 데이터가 잠깐도 보이면 안 된다.
+
+- **새 User:** 첫 로그인에서 User·Identity·기본 Event Category 6개(일정/생일/면접/시험/마감/약속, Event palette 앞 6색)를 한 transaction으로 만든다. Tag/Goal/Day/Review는 빈 상태로 시작한다.
+
+- **Mobile deep link:** callback은 `dayflow://auth/callback`이고 system browser(expo-web-browser `openAuthSessionAsync`)로 연다. Android가 같은 redirect를 app route로도 전달할 수 있으므로 exchange는 code마다 한 번만 실행한다. 알림 deep link(`/events/[eventId]`)와 겹치지 않으며, 로그아웃 상태에서 누른 알림은 로그인 후 열린다.
+
+- **개발용 로그인:** `DAYFLOW_DEV_LOGIN_ENABLED=true`인 로컬 API에서만 `/api/v1/auth/dev/login`이 Google 대신 가짜 Google identity(`dev-` subject)로 같은 callback/exchange 흐름을 태운다. OpenAPI에 노출하지 않고, `prod` profile은 켜진 설정으로 시작하지 않는다.
+
+- **확장:** provider는 `user_identities.provider`로 구분한다. Apple 로그인은 provider 값과 login entry point만 추가하고 User·token·소유권 구조는 그대로 쓴다. 계정 병합 UI는 이번 범위가 아니다.
+
 # 5. 크로스플랫폼 아키텍처
 DayFlow는 웹/모바일 기능을 같은 제품으로 제공하되 OS 통제 기능은 플랫폼 능력에 맞게 차등 제공한다. 서버는 플랫폼 중립적인 Goal/Day/Review/Coach 데이터를 관리하고, Lock 실행은 모바일 기기가 책임진다.
 
@@ -531,7 +580,7 @@ flowchart LR
 | API           | Spring MVC REST + OpenAPI                    | /api/v1 versioning, Problem Details 기반 오류 응답                          |
 | ORM           | Spring Data JPA / Hibernate                  | Goal hierarchy는 adjacency list(parent_id) + query 최적화                   |
 | Migration     | Flyway                                       | 모든 schema 변경 버전 관리                                                  |
-| Security      | Spring Security                              | OAuth2/social identity mapping + access/refresh token 또는 session strategy |
+| Security      | Spring Security                              | OAuth2 Login(Google) → DayFlow User/Identity mapping, HS256 JWT access token(resource server) + opaque refresh token rotation(§4.10) |
 | Validation    | Jakarta Validation                           | DTO 입력 검증                                                               |
 | Testing       | JUnit 5 + AssertJ + Testcontainers           | PostgreSQL 실제 컨테이너 통합 테스트                                        |
 | Observability | Actuator + Micrometer + Sentry/OpenTelemetry | API 오류/latency/AI 비용 추적                                               |
@@ -589,6 +638,10 @@ Android 일반 소비자 앱은 iOS Screen Time과 동일한 공식 사용자용
 # 8. 데이터 모델 및 저장 정책
 ```mermaid
 erDiagram
+  USER ||--o{ USER_IDENTITY : "signs in with"
+  USER ||--o{ AUTH_EXCHANGE_CODE : "login codes"
+  USER ||--o{ AUTH_REFRESH_TOKEN : sessions
+  USER ||--o{ RECOVERY_DAY : plans
   USER ||--o{ GOAL : owns
   USER ||--o{ REVIEW : writes
   USER ||--o{ RECOVERY_EVENT : has
@@ -625,7 +678,10 @@ erDiagram
 ## 8.1 핵심 테이블
 | **테이블**           | **역할**                                             | **설계 포인트**                                      |
 |----------------------|------------------------------------------------------|------------------------------------------------------|
-| users                | 사용자, timezone, coach_intensity, week_start_day    | timezone은 IANA ID(Asia/Seoul 등)                    |
+| users                | 사용자 프로필: email, display_name, avatar_url (timezone, coach_intensity, week_start_day는 SET-001 후속) | email은 provider 프로필 값일 뿐 identity가 아니며 unique가 아니다. 로그인마다 프로필 갱신. timezone은 IANA ID(Asia/Seoul 등) |
+| user_identities      | 로그인 방식: provider(GOOGLE), provider_subject, email_at_link_time | `(provider, provider_subject)` unique. Google은 `sub` 기준. Apple은 provider 값 추가로 확장 |
+| auth_exchange_codes  | OAuth callback 1회용 code                            | code_hash만 저장, user·code_challenge·platform·return_to와 묶음, expires_at(3분)/used_at |
+| auth_refresh_tokens  | refresh token 세션                                   | token_hash만 저장, family_id, platform, expires_at, revoked_at, replaced_by_token_id(rotation 추적), last_used_at |
 | goals                | Goal hierarchy, 기간, why, priority, progress policy, 승계 출처 | parent_goal_id self FK. start/end는 type별 canonical calendar period(GOAL-004), period label은 비저장 파생값. `continued_from_goal_id` nullable self FK(§8.6) |
 | days                 | 실행 단위(Task), 상태, planned_date, estimate, priority, core_day, 승계 출처 | task 대신 제품 용어 Day 유지. `goal_id`는 nullable이며 값이 있으면 WEEK Goal만(DAY-001). priority는 기존 integer 저장 유지(`0=NONE…3=HIGH`, DAY-004). `carried_from_day_id` nullable self FK(§8.6) |
 | day_tags             | 사용자 정의 Tag: 이름, 색상(palette), 정렬 순서      | Day와 many-to-many(§8.5). 이름 30자·대소문자 무시 유일. Event Category와 분리 |
@@ -638,7 +694,7 @@ erDiagram
 | focus_sessions       | 실제 집중 시작/종료                                  | Actual 분석의 핵심                                   |
 | intervention_events  | nudge 발송/응답/이유/선택 action                     | 개인화 학습 데이터                                   |
 | recovery_events      | 회복 진입/종료/트리거/결과, Day별 action 이력        | Recovery Time 계산, 재노출 판단(REC-005), Carry Over 승계 관계 추적(§8.6) |
-| reviews              | 기간 단위 회고                                       | type + period unique constraint                      |
+| reviews              | 기간 단위 회고                                       | user + type + period unique constraint               |
 | review_items         | KEEP/PROBLEM/TRY                                     | Goal/Day optional link                               |
 | ai_suggestions       | AI 관찰/근거/제안/적용 상태                          | 원본 prompt 전체보다 입력 snapshot hash/metrics 권장 |
 | activity_events      | 행동 이벤트 append-only log                          | analytics + 디버깅, 개인정보 최소화                  |
@@ -726,7 +782,7 @@ erDiagram
   - Day Tag와 Event Category는 별도 테이블로 유지한다(같은 테이블로 합치지 않는다). Routine/Habit 분류와도 합치지 않는다.
 
 ## 8.6 Event Category와 Carry Over 추적 (EVT-006, REC-003)
-- **Event Category:** Event 종류는 `event_categories` 참조(`events.category_id`)다. 과거의 고정 type 값은 migration(V7)에서 같은 의미의 기본 Category로 옮기고 컬럼을 제거했다(OTHER→일정, BIRTHDAY→생일, INTERVIEW→면접, EXAM→시험, DEADLINE→마감, APPOINTMENT→약속). 기본 Category(일정/생일/면접/시험/마감/약속)를 시드로 제공하되, 기본 Category도 사용자가 이름·색상을 바꾸거나 삭제할 수 있다. 삭제할 수 없는 강제 default Category는 두지 않는다.
+- **Event Category:** Event 종류는 `event_categories` 참조(`events.category_id`)다. 과거의 고정 type 값은 migration(V7)에서 같은 의미의 기본 Category로 옮기고 컬럼을 제거했다(OTHER→일정, BIRTHDAY→생일, INTERVIEW→면접, EXAM→시험, DEADLINE→마감, APPOINTMENT→약속). 기본 Category(일정/생일/면접/시험/마감/약속)를 제공하되(V8 이후에는 migration seed가 아니라 새 User 생성 시 그 User의 Category로 만든다, AUTH-002), 기본 Category도 사용자가 이름·색상을 바꾸거나 삭제할 수 있다. 삭제할 수 없는 강제 default Category는 두지 않는다.
   - `events.category_id`는 nullable이고 FK는 `ON DELETE SET NULL`로 둔다. Category를 지워도 Event는 남고 `미분류`로 표시한다.
   - API에 legacy `type` 필드·필터는 없다. Event 요청은 `categoryId`(nullable, PATCH에서 생략 시 유지·null이면 미분류), 응답은 `category` 요약을 쓴다.
 
@@ -737,12 +793,30 @@ erDiagram
 
 - 승계로 만든 Day는 새 period의 날짜만 갖고, 원본의 시간 배치·상태·진행 정보를 복사하지 않는다. 원본 Day는 SKIPPED/미완료 기록 그대로 남는다.
 
+## 8.7 User 소유권 (AUTH-003)
+- **Top-level aggregate에 `user_id NOT NULL`:** `goals`, `days`, `day_tags`, `event_categories`, `events`, `reviews`, `recovery_days`, `recovery_events`. 하위 테이블(`day_schedules`, `day_tag_links`, `event_reminders`, `review_items`, `recovery_event_items`)은 parent의 소유를 따른다.
+
+- **User 범위 unique:** Day Tag `unique(user_id, lower(name))`, Event Category `unique(user_id, lower(name))`, Review `unique(user_id, type, period_start)`, Recovery Day `unique(user_id, recovery_date)`. Goal canonical period 정책(GOAL-004)은 그대로이고 조회 index만 `(user_id, type, start_date, end_date)`로 바꾼다.
+
+- **조회 범위:** repository 단계에서 `findByIdAndUserId`, `findAllByUserId…`, specification의 user 조건으로 범위를 제한한다. id로 찾은 뒤 소유를 따로 검사하는 구조를 쓰지 않는다. current User는 access token(SecurityContext)에서 가져오고 API 요청 body/query로 받지 않는다.
+
+- **Cross-user 관계 금지:** parent/child/continuedFrom Goal, Day의 Goal·Tag·carriedFromDay, Event의 Category·linkedGoal, ReviewItem의 goalId·targetGoalId·convertedDayId, Carry Over의 source/destination Day·Goal은 모두 같은 User여야 한다. 서비스는 다른 User의 id를 "없는 id"와 똑같이 거부한다(직접 조회/수정/삭제는 404, 관계 연결은 해당 규칙의 400). DB는 user_id FK와 user 범위 unique까지 보장하고 cross-user 관계 검증은 서비스 테스트로 보장한다.
+
+- **기존 데이터:** 단일 사용자 시기의 개발 데이터는 보존하지 않는다. `V8__users_auth_and_ownership.sql`이 계획 테이블을 비운 뒤 `user_id`를 추가하며, 빈 DB에서도 V1→V8이 그대로 적용된다. legacy owner claim/backfill은 없다. 기본 Event Category는 migration seed가 아니라 User 생성 시 만든다(AUTH-002).
+
 # 9. API 설계
 REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며, Spring OpenAPI 문서를 기준으로 TypeScript client를 자동 생성한다. 날짜/시간은 ISO-8601 형식을 사용한다.
 
+인증(§4.10): 아래 `/api/v1/auth/*`와 `/actuator/health`, 개발용 OpenAPI 문서만 공개다. 나머지 `/api/v1/**`는 `Authorization: Bearer <access token>`이 필요하고, 없거나 만료·변조된 token은 401 `UNAUTHORIZED`다. OpenAPI는 `bearerAuth`(HTTP bearer, JWT) scheme과 보호 operation의 security requirement·401 응답을 문서화한다.
+
 | **Method**       | **Endpoint**                      | **역할**                              |
 |------------------|-----------------------------------|---------------------------------------|
-| POST             | /api/v1/auth/...                  | 로그인/토큰 갱신 또는 identity 연동   |
+| GET              | /api/v1/auth/google/start         | 브라우저 redirect 전용. `platform`, `codeChallenge`, `codeChallengeMethod=S256`, `returnTo`를 보관하고 Google로 보낸다. Google 미설정 서버는 503 |
+| GET              | /login/oauth2/code/google         | Google callback(Spring Security). client callback으로 `?code=` 또는 `?error=` redirect |
+| POST             | /api/v1/auth/exchange             | `{code, codeVerifier, platform}` → access token(+ MOBILE만 body refresh token, WEB은 HttpOnly cookie). 실패 400 `INVALID_AUTH_CODE` |
+| POST             | /api/v1/auth/refresh              | MOBILE `{refreshToken}` body, WEB cookie(Origin 확인). rotation. 실패 401 `INVALID_REFRESH_TOKEN` |
+| POST             | /api/v1/auth/logout               | refresh token family revoke, WEB cookie 삭제. 항상 204 |
+| GET              | /api/v1/me                        | 로그인 User의 id/email/displayName/avatarUrl |
 | GET/POST         | /api/v1/goals                     | 기간/타입별 조회, Goal 생성           |
 | GET/PATCH/DELETE | /api/v1/goals/{goalId}            | Goal 상세/수정/삭제                   |
 | GET/POST         | /api/v1/days                      | from/to/status/goalId(있음·없음 포함)/tag/priority 필터, Day 생성 |
@@ -891,7 +965,11 @@ notificationId, dayId, interventionStage, deepLink만 포함하고 민감한 앱
 # 12. 보안 · 개인정보 · 권한
 | **영역**      | **정책**                                              | **금지/주의**                                    |
 |---------------|-------------------------------------------------------|--------------------------------------------------|
-| 인증 토큰     | Mobile SecureStore/Keychain, Web HttpOnly cookie 권장 | localStorage에 장기 토큰 금지                    |
+| 인증 토큰     | access token은 memory. refresh token은 Mobile expo-secure-store, Web HttpOnly(production Secure) cookie. 서버 DB에는 refresh token·exchange code의 SHA-256 hash만 저장(§4.10) | localStorage/sessionStorage/AsyncStorage에 token 금지. URL에 access/refresh token 금지(callback은 1회용 code만) |
+| OAuth client  | Google client secret·JWT secret은 서버 환경변수(secret)만 | Web/Mobile bundle과 저장소에 secret 금지. `.env.example`은 placeholder만 |
+| 사용자 격리   | 모든 조회·변경을 access token의 User로 범위 제한(§8.7) | 요청으로 owner userId를 받지 않음. 다른 User id는 없는 id와 같게 응답 |
+| CORS/CSRF     | 허용 Web origin만(`DAYFLOW_ALLOWED_WEB_ORIGINS`), credentials는 `/api/v1/auth/**`만. cookie refresh/logout은 Origin 검사 | 와일드카드 origin + credentials 금지 |
+| 서버 설정     | `prod` profile은 https URL·Google 설정·강한 JWT secret·Secure cookie·dev login off가 아니면 시작하지 않음(infra/README.md) | 개발용 로그인(`DAYFLOW_DEV_LOGIN_ENABLED`)을 서버에서 켜지 않음 |
 | App selection | 기기 로컬/App Group                                   | 서버 업로드 금지                                 |
 | AI API key    | Backend secret                                        | client bundle 포함 금지                          |
 | 행동 이벤트   | 최소 수집 + retention 정책                            | 원시 콘텐츠 수집 금지                            |

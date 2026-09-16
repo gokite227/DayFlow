@@ -1,5 +1,6 @@
 package com.dayflow.api.goal;
 
+import com.dayflow.api.auth.CurrentUser;
 import com.dayflow.api.common.ApiException;
 import com.dayflow.api.common.ApiException.FieldViolation;
 import com.dayflow.api.common.ErrorCode;
@@ -18,17 +19,22 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Server-side enforcement of the Goal rules in packages/domain (GOAL-001, GOAL-002). */
+/**
+ * Server-side enforcement of the Goal rules in packages/domain (GOAL-001, GOAL-002). Every Goal read or
+ * written belongs to the current user (AUTH-003); another user's Goal id behaves like an unknown id.
+ */
 @Service
 @Transactional
 public class GoalService {
 
     private final GoalRepository goals;
     private final DayRepository days;
+    private final CurrentUser currentUser;
 
-    public GoalService(GoalRepository goals, DayRepository days) {
+    public GoalService(GoalRepository goals, DayRepository days, CurrentUser currentUser) {
         this.goals = goals;
         this.days = days;
+        this.currentUser = currentUser;
     }
 
     public GoalResponse create(CreateGoalRequest request) {
@@ -36,8 +42,9 @@ public class GoalService {
         validateParent(request.type(), request.parentGoalId(), request.startDate(), request.endDate());
         validateCanonicalPeriod(request.type(), request.startDate(), request.endDate());
 
-        Goal goal = new Goal(request.parentGoalId(), request.type(), request.title().strip(), request.why().strip(),
-                request.startDate(), request.endDate(), request.priority(), request.progressPolicy());
+        Goal goal = new Goal(currentUser.id(), request.parentGoalId(), request.type(), request.title().strip(),
+                request.why().strip(), request.startDate(), request.endDate(), request.priority(),
+                request.progressPolicy());
         return GoalResponse.from(goals.saveAndFlush(goal));
     }
 
@@ -52,8 +59,8 @@ public class GoalService {
         validateParent(type, parentGoalId, startDate, endDate);
         validateCanonicalPeriod(type, startDate, endDate);
 
-        Goal goal = new Goal(parentGoalId, type, template.getTitle(), template.getWhy(), startDate, endDate,
-                template.getPriority(), template.getProgressPolicy());
+        Goal goal = new Goal(currentUser.id(), parentGoalId, type, template.getTitle(), template.getWhy(), startDate,
+                endDate, template.getPriority(), template.getProgressPolicy());
         goal.setContinuedFromGoalId(continuedFrom);
         return goals.saveAndFlush(goal);
     }
@@ -64,8 +71,10 @@ public class GoalService {
         if (from != null && to != null && from.isAfter(to)) {
             throw new ApiException(ErrorCode.VALIDATION_ERROR, "from must be on or before to.", "from");
         }
+        UUID userId = currentUser.id();
         Specification<Goal> filter = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("userId"), userId));
             if (type != null) {
                 predicates.add(cb.equal(root.get("type"), type));
             }
@@ -132,7 +141,7 @@ public class GoalService {
     }
 
     public Goal find(UUID id) {
-        return goals.findById(id)
+        return goals.findByIdAndUserId(id, currentUser.id())
                 .orElseThrow(() -> new ApiException(ErrorCode.GOAL_NOT_FOUND, "Goal " + id + " was not found."));
     }
 
@@ -172,7 +181,8 @@ public class GoalService {
         if (parentGoalId == null) {
             throw new ApiException(ErrorCode.INVALID_GOAL_PARENT, wrongParent, "parentGoalId");
         }
-        Goal parent = goals.findById(parentGoalId)
+        // Another user's Goal is not a possible parent: it is reported like an unknown parent.
+        Goal parent = goals.findByIdAndUserId(parentGoalId, currentUser.id())
                 .filter(candidate -> candidate.getType() == expectedParentType)
                 .orElseThrow(() -> new ApiException(ErrorCode.INVALID_GOAL_PARENT, wrongParent, "parentGoalId"));
 

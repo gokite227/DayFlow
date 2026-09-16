@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AuthGate } from "@/features/auth/auth-provider";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -16,7 +16,7 @@ export default function RootLayout({
     <html lang="ko">
       <body>
         <Providers>
-          <AppShell>{children}</AppShell>
+          <AuthGate>{children}</AuthGate>
         </Providers>
       </body>
     </html>

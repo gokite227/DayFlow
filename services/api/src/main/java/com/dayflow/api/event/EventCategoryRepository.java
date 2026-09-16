@@ -5,10 +5,13 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/** Every lookup is scoped to the owner (AUTH-003). */
 public interface EventCategoryRepository extends JpaRepository<EventCategory, UUID> {
 
-    List<EventCategory> findAllByOrderBySortOrderAscNameAsc();
+    List<EventCategory> findAllByUserIdOrderBySortOrderAscNameAsc(UUID userId);
 
-    /** EVT-006: names are unique regardless of case. */
-    Optional<EventCategory> findFirstByNameIgnoreCase(String name);
+    Optional<EventCategory> findByIdAndUserId(UUID id, UUID userId);
+
+    /** EVT-006: names are unique regardless of case, per user. */
+    Optional<EventCategory> findFirstByUserIdAndNameIgnoreCase(UUID userId, String name);
 }

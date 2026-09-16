@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,24 +33,35 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class EventCategoryApiIntegrationTest {
 
     @Autowired
-    private MockMvc mvc;
+    private MockMvc mockMvc;
 
+    @Autowired
+    private AuthTestSupport auth;
+
+    /** Every request of this class runs as one freshly signed-in user. */
+    private AuthTestSupport.UserMvc mvc;
+
+    @BeforeEach
+    void signIn() {
+        mvc = auth.as(mockMvc, auth.newUser("event-categories"));
+    }
+
+    /** AUTH-002: a new user starts with exactly the six default Categories, as ordinary editable rows. */
     @Test
-    void evt006MigrationSeedsTheFormerEventTypesAsEditableCategories() throws Exception {
+    void evt006NewUserStartsWithTheDefaultCategories() throws Exception {
         String body = mvc.perform(get("/api/v1/event-categories"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         List<Map<String, Object>> categories = JsonPath.read(body, "$");
         List<String> defaults = List.of("일정", "생일", "면접", "시험", "마감", "약속");
         List<String> colors = List.of("#66707a", "#d9822b", "#3a78b8", "#7453c2", "#cf3f5c", "#2a927f");
+        assertThat(categories).hasSize(defaults.size());
         for (int i = 0; i < defaults.size(); i++) {
-            String name = defaults.get(i);
-            List<Map<String, Object>> matches = categories.stream().filter(c -> name.equals(c.get("name"))).toList();
-            assertThat(matches).as(name).hasSize(1);
-            assertThat(matches.get(0)).containsEntry("color", colors.get(i)).containsEntry("sortOrder", i);
+            assertThat(categories.get(i)).containsEntry("name", defaults.get(i))
+                    .containsEntry("color", colors.get(i))
+                    .containsEntry("sortOrder", i)
+                    .containsEntry("version", 0);
         }
-        List<Integer> sortOrders = JsonPath.read(body, "$[*].sortOrder");
-        assertThat(sortOrders).isSorted();
     }
 
     @Test

@@ -4,6 +4,71 @@
  */
 
 export interface paths {
+    "/api/v1/auth/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["exchangeLoginCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/google/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Start Google login (browser redirect) */
+        get: operations["startGoogleLogin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["refreshSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/day-tags": {
         parameters: {
             query?: never;
@@ -196,6 +261,22 @@ export interface paths {
         patch: operations["updateGoal"];
         trace?: never;
     };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/recovery-days": {
         parameters: {
             query?: never;
@@ -385,6 +466,20 @@ export interface components {
             eventId: string;
             /** Format: date */
             localDate: string;
+        };
+        AuthTokenResponse: {
+            accessToken: string;
+            /**
+             * Format: int64
+             * @description Access token lifetime in seconds
+             */
+            expiresIn: number;
+            /** @description MOBILE: the new refresh token; always null for WEB */
+            refreshToken: string | null;
+            /** @description Exchange only: the app route the login started from, or null */
+            returnTo: string | null;
+            /** @enum {string} */
+            tokenType: "Bearer";
         };
         CarriedDayResponse: {
             destination: components["schemas"]["DayResponse"];
@@ -740,6 +835,12 @@ export interface components {
             /** Format: int64 */
             version: number;
         };
+        ExchangeCodeRequest: {
+            code: string;
+            codeVerifier: string;
+            /** @enum {string} */
+            platform: "WEB" | "MOBILE";
+        };
         FieldViolation: {
             field: string;
             message: string;
@@ -775,6 +876,17 @@ export interface components {
             /** Format: int64 */
             version: number;
             why: string;
+        };
+        LogoutRequest: {
+            /** @description MOBILE only; WEB uses the refresh cookie */
+            refreshToken?: string | null;
+        };
+        MeResponse: {
+            avatarUrl: string | null;
+            displayName: string;
+            email: string;
+            /** Format: uuid */
+            id: string;
         };
         /** @description Error response for every API failure (RFC 9457 Problem Details) */
         ProblemResponse: {
@@ -880,6 +992,10 @@ export interface components {
             items: components["schemas"]["RecoveryEventItemResponse"][];
             /** Format: date */
             localDate: string;
+        };
+        RefreshTokenRequest: {
+            /** @description MOBILE only; WEB uses the refresh cookie */
+            refreshToken?: string | null;
         };
         ReviewItemRequest: {
             content: string;
@@ -1105,6 +1221,156 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    exchangeLoginCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExchangeCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokenResponse"];
+                };
+            };
+            /** @description Unknown, used or expired code, wrong verifier or platform (INVALID_AUTH_CODE) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    startGoogleLogin: {
+        parameters: {
+            query: {
+                platform: "WEB" | "MOBILE";
+                /** @description base64url(SHA-256(codeVerifier)) */
+                codeChallenge: string;
+                /** @description Always S256 */
+                codeChallengeMethod: string;
+                /** @description App route to return to after login, e.g. /goals */
+                returnTo?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to Google; afterwards to the client callback with ?code= */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid platform, PKCE challenge or returnTo (INVALID_AUTH_REQUEST) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Google login is not configured on this server */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LogoutRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cookie logout from an origin that is not allowed (INVALID_AUTH_REQUEST) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    refreshSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokenResponse"];
+                };
+            };
+            /** @description Cookie refresh from an origin that is not allowed (INVALID_AUTH_REQUEST) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired, revoked or reused refresh token (INVALID_REFRESH_TOKEN) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
     listDayTags: {
         parameters: {
             query?: never;
@@ -1125,6 +1391,15 @@ export interface operations {
             };
             /** @description Invalid request or Tag rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1165,6 +1440,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     deleteDayTag: {
@@ -1187,6 +1471,15 @@ export interface operations {
             };
             /** @description Invalid request or Tag rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1231,6 +1524,15 @@ export interface operations {
             };
             /** @description Invalid request or Tag rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1293,6 +1595,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     createDay: {
@@ -1326,6 +1637,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     getDay: {
@@ -1350,6 +1670,15 @@ export interface operations {
             };
             /** @description Invalid request or Day/Schedule rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1395,6 +1724,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
             /** @description Day not found */
             404: {
                 headers: {
@@ -1432,6 +1770,15 @@ export interface operations {
             };
             /** @description Invalid request or Day/Schedule rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1492,6 +1839,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
             /** @description Day not found */
             404: {
                 headers: {
@@ -1539,6 +1895,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
             /** @description Day or schedule not found */
             404: {
                 headers: {
@@ -1570,6 +1935,15 @@ export interface operations {
             };
             /** @description Invalid request or Category rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1610,6 +1984,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     deleteEventCategory: {
@@ -1632,6 +2015,15 @@ export interface operations {
             };
             /** @description Invalid request or Category rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1676,6 +2068,15 @@ export interface operations {
             };
             /** @description Invalid request or Category rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1737,6 +2138,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     listEvents: {
@@ -1765,6 +2175,15 @@ export interface operations {
             };
             /** @description Invalid request or Event rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1805,6 +2224,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     getEvent: {
@@ -1829,6 +2257,15 @@ export interface operations {
             };
             /** @description Invalid request or Event rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1870,6 +2307,15 @@ export interface operations {
             };
             /** @description Invalid request or Event rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1930,6 +2376,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
             /** @description Event not found */
             404: {
                 headers: {
@@ -1981,6 +2436,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     createGoal: {
@@ -2007,6 +2471,15 @@ export interface operations {
             };
             /** @description Invalid request or Goal rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2045,6 +2518,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
             /** @description Goal not found */
             404: {
                 headers: {
@@ -2076,6 +2558,15 @@ export interface operations {
             };
             /** @description Invalid request or Goal rule violation */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2136,6 +2627,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
             /** @description Goal not found */
             404: {
                 headers: {
@@ -2147,6 +2647,35 @@ export interface operations {
             };
             /** @description Stale version (VERSION_CONFLICT) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2186,6 +2715,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     saveRecoveryDay: {
@@ -2214,6 +2752,15 @@ export interface operations {
             };
             /** @description Invalid request or recovery decision */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2259,6 +2806,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
             /** @description Not a recovery day */
             404: {
                 headers: {
@@ -2294,6 +2850,15 @@ export interface operations {
             };
             /** @description Invalid request or recovery decision */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2351,6 +2916,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     applyCarryOver: {
@@ -2377,6 +2951,15 @@ export interface operations {
             };
             /** @description Invalid request or recovery decision */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2435,6 +3018,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
             /** @description The source Day was not found */
             404: {
                 headers: {
@@ -2484,6 +3076,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
         };
     };
     convertReviewItem: {
@@ -2512,6 +3113,15 @@ export interface operations {
             };
             /** @description Invalid request or period */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2560,6 +3170,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemResponse"];
                 };
             };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
             /** @description No review saved for this period (REVIEW_NOT_FOUND) */
             404: {
                 headers: {
@@ -2598,6 +3217,15 @@ export interface operations {
             };
             /** @description Invalid request or period */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -6,4 +6,5 @@ export const NAV_ITEMS = [
   { href: "/events", label: "Events", mobile: "tab" },
   { href: "/days", label: "Days", mobile: "more" },
   { href: "/review", label: "Review", mobile: "tab" },
+  { href: "/settings", label: "Settings", mobile: "more" },
 ] as const;

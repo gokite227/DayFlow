@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.dayflow.api.common.OpenApiConfig;
 import com.jayway.jsonpath.JsonPath;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,19 +42,55 @@ class OpenApiContractTest {
     private static final String SCHEMAS = "$.components.schemas.";
 
     @Autowired
-    private MockMvc mvc;
+    private MockMvc mockMvc;
+
+    @Autowired
+    private AuthTestSupport auth;
+
+    /** The document is public; the runtime body checks call the API as a signed-in user. */
+    private AuthTestSupport.UserMvc mvc;
 
     private String spec;
 
     @BeforeEach
-    void loadSpec() throws Exception {
-        spec = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse()
+    void signInAndLoadSpec() throws Exception {
+        mvc = auth.as(mockMvc, auth.newUser("openapi-contract"));
+        spec = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse()
                 .getContentAsString();
+    }
+
+    /** AUTH-003: protected operations declare the Bearer JWT scheme and a 401; the public auth endpoints do not. */
+    @Test
+    void documentsBearerAuthenticationOnProtectedOperations() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.type").value("http"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat").value("JWT"))
+                .andExpect(jsonPath("$.paths['/api/v1/goals'].get.security[0].bearerAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/me'].get.security[0].bearerAuth").exists())
+                .andExpect(problemResponse("/api/v1/goals", "get", "401"))
+                .andExpect(problemResponse("/api/v1/recovery/carry-over/apply", "post", "401"))
+                .andExpect(problemResponse("/api/v1/auth/refresh", "post", "401"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/exchange'].post.security").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.security").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.security").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/google/start'].get.security").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/dev/login']").doesNotExist());
+
+        Map<String, Map<String, Map<String, Object>>> paths = JsonPath.read(spec, "$.paths");
+        paths.forEach((path, operations) -> operations.forEach((method, operation) -> {
+            boolean isPublic = OpenApiConfig.PUBLIC_PATHS.contains(path);
+            assertThat(operation.containsKey("security")).as(method + " " + path + " security").isEqualTo(!isPublic);
+        }));
+        for (String schema : List.of("AuthTokenResponse", "MeResponse")) {
+            assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(propertiesOf(schema));
+        }
+        assertThat(propertiesOf("MeResponse")).containsExactlyInAnyOrder("id", "email", "displayName", "avatarUrl");
     }
 
     @Test
     void documentsCreatedAndNoContentStatusCodes() throws Exception {
-        ResultActions docs = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
+        ResultActions docs = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
 
         expectOnlySuccessStatus(docs, "/api/v1/goals", "post", "201");
         expectOnlySuccessStatus(docs, "/api/v1/days", "post", "201");

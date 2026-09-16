@@ -13,6 +13,10 @@ import java.util.UUID;
 @Table(name = "goals")
 public class Goal extends VersionedEntity {
 
+    /** The owner (AUTH-003). Parent, child and continued Goals always have the same owner. */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
+
     /** Plain id instead of an association: the hierarchy is navigated by queries. */
     @Column(name = "parent_goal_id")
     private UUID parentGoalId;
@@ -50,8 +54,9 @@ public class Goal extends VersionedEntity {
     protected Goal() {
     }
 
-    public Goal(UUID parentGoalId, GoalType type, String title, String why, LocalDate startDate,
+    public Goal(UUID userId, UUID parentGoalId, GoalType type, String title, String why, LocalDate startDate,
             LocalDate endDate, int priority, ProgressPolicy progressPolicy) {
+        this.userId = userId;
         this.parentGoalId = parentGoalId;
         this.type = type;
         this.title = title;
@@ -60,6 +65,10 @@ public class Goal extends VersionedEntity {
         this.endDate = endDate;
         this.priority = priority;
         this.progressPolicy = progressPolicy;
+    }
+
+    public UUID getUserId() {
+        return userId;
     }
 
     public UUID getParentGoalId() {
