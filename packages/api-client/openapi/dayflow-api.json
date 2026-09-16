@@ -1,6 +1,85 @@
 {
   "components" : {
     "schemas" : {
+      "ApplyCarryOverRequest" : {
+        "properties" : {
+          "days" : {
+            "description" : "The Days to carry over (the source Day included) with their previewed versions",
+            "items" : {
+              "$ref" : "#/components/schemas/VersionedIdRequest"
+            },
+            "maxItems" : 100,
+            "minItems" : 0,
+            "type" : "array"
+          },
+          "goals" : {
+            "description" : "WITH_PLAN: the source Goal path and reused Goals with their previewed versions",
+            "items" : {
+              "$ref" : "#/components/schemas/VersionedIdRequest"
+            },
+            "maxItems" : 10,
+            "minItems" : 0,
+            "type" : "array"
+          },
+          "levels" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CarryOverLevelChoice"
+            },
+            "maxItems" : 4,
+            "minItems" : 0,
+            "type" : "array"
+          },
+          "localDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "mode" : {
+            "enum" : [ "DAY_ONLY", "WITH_PLAN", "WITHOUT_GOAL" ],
+            "type" : "string"
+          },
+          "sourceDayId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "targetDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "targetWeekGoalId" : {
+            "description" : "DAY_ONLY: the WEEK Goal to use",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "days", "localDate", "mode", "sourceDayId", "targetDate" ],
+        "type" : "object"
+      },
+      "ApplyCarryOverResponse" : {
+        "properties" : {
+          "appliedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdGoals" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GoalResponse"
+            },
+            "type" : "array"
+          },
+          "days" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CarriedDayResponse"
+            },
+            "type" : "array"
+          },
+          "eventId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "appliedAt", "createdGoals", "days", "eventId" ],
+        "type" : "object"
+      },
       "ApplyRecoveryRequest" : {
         "properties" : {
           "decisions" : {
@@ -41,6 +120,205 @@
           }
         },
         "required" : [ "appliedAt", "days", "eventId", "localDate" ],
+        "type" : "object"
+      },
+      "CarriedDayResponse" : {
+        "properties" : {
+          "destination" : {
+            "$ref" : "#/components/schemas/DayResponse"
+          },
+          "source" : {
+            "$ref" : "#/components/schemas/DayResponse"
+          }
+        },
+        "required" : [ "destination", "source" ],
+        "type" : "object"
+      },
+      "CarryOverDayPreview" : {
+        "properties" : {
+          "day" : {
+            "$ref" : "#/components/schemas/DayResponse"
+          },
+          "exclusion" : {
+            "enum" : [ "FINISHED", "ALREADY_CARRIED" ],
+            "type" : [ "string", "null" ]
+          },
+          "selectable" : {
+            "type" : "boolean"
+          },
+          "selected" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "day", "exclusion", "selectable", "selected" ],
+        "type" : "object"
+      },
+      "CarryOverLevelChoice" : {
+        "properties" : {
+          "create" : {
+            "description" : "true to create a new Goal instead of reusing one",
+            "type" : "boolean"
+          },
+          "goalId" : {
+            "description" : "Reuse this existing Goal",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "type" : {
+            "enum" : [ "YEAR", "QUARTER", "MONTH", "WEEK" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "type" ],
+        "type" : "object"
+      },
+      "CarryOverLevelPreview" : {
+        "properties" : {
+          "action" : {
+            "enum" : [ "KEEP_SOURCE", "REUSE", "CREATE", "CHOOSE" ],
+            "type" : "string"
+          },
+          "candidates" : {
+            "description" : "Existing Goals of the target period that could be reused",
+            "items" : {
+              "$ref" : "#/components/schemas/GoalResponse"
+            },
+            "type" : "array"
+          },
+          "endDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "goal" : {
+            "description" : "KEEP_SOURCE/REUSE: the Goal that will be used",
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/GoalResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "newTitle" : {
+            "description" : "CREATE: the new Goal's title",
+            "type" : [ "string", "null" ]
+          },
+          "sourceGoal" : {
+            "description" : "The Goal of this level above the source Day",
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/GoalResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "startDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "YEAR", "QUARTER", "MONTH", "WEEK" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "action", "candidates", "endDate", "goal", "newTitle", "sourceGoal", "startDate", "type" ],
+        "type" : "object"
+      },
+      "CarryOverPreviewRequest" : {
+        "properties" : {
+          "dayIds" : {
+            "description" : "WITH_PLAN: the Days of the source WEEK Goal to carry along; null selects only the source Day",
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "maxItems" : 100,
+            "minItems" : 0,
+            "type" : "array"
+          },
+          "levels" : {
+            "description" : "WITH_PLAN: choices per Goal level",
+            "items" : {
+              "$ref" : "#/components/schemas/CarryOverLevelChoice"
+            },
+            "maxItems" : 4,
+            "minItems" : 0,
+            "type" : "array"
+          },
+          "localDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "mode" : {
+            "enum" : [ "DAY_ONLY", "WITH_PLAN", "WITHOUT_GOAL" ],
+            "type" : "string"
+          },
+          "sourceDayId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "targetDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "targetWeekGoalId" : {
+            "description" : "DAY_ONLY: the chosen WEEK Goal of the target date; null uses the suggestion",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "localDate", "mode", "sourceDayId", "targetDate" ],
+        "type" : "object"
+      },
+      "CarryOverPreviewResponse" : {
+        "properties" : {
+          "days" : {
+            "description" : "Days of the source WEEK Goal; DAY_ONLY/WITHOUT_GOAL list only the source",
+            "items" : {
+              "$ref" : "#/components/schemas/CarryOverDayPreview"
+            },
+            "type" : "array"
+          },
+          "levels" : {
+            "description" : "WITH_PLAN: YEAR → WEEK levels of the target date",
+            "items" : {
+              "$ref" : "#/components/schemas/CarryOverLevelPreview"
+            },
+            "type" : "array"
+          },
+          "mode" : {
+            "enum" : [ "DAY_ONLY", "WITH_PLAN", "WITHOUT_GOAL" ],
+            "type" : "string"
+          },
+          "ready" : {
+            "description" : "false while a Goal still has to be chosen or is missing",
+            "type" : "boolean"
+          },
+          "sourceDay" : {
+            "$ref" : "#/components/schemas/DayResponse"
+          },
+          "sourceGoalPath" : {
+            "description" : "YEAR → WEEK Goals above the source Day",
+            "items" : {
+              "$ref" : "#/components/schemas/GoalResponse"
+            },
+            "type" : "array"
+          },
+          "targetDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "targetWeekGoalId" : {
+            "description" : "DAY_ONLY: the WEEK Goal that will be used, or null when none is available",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "targetWeekGoals" : {
+            "description" : "Existing WEEK Goals containing the target date",
+            "items" : {
+              "$ref" : "#/components/schemas/GoalResponse"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "days", "levels", "mode", "ready", "sourceDay", "sourceGoalPath", "targetDate", "targetWeekGoalId", "targetWeekGoals" ],
         "type" : "object"
       },
       "ConvertReviewItemResponse" : {
@@ -245,6 +523,11 @@
       },
       "DayResponse" : {
         "properties" : {
+          "carriedFromDayId" : {
+            "description" : "The Day this one continues after a Carry Over (REC-003), or null",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
           "coreDay" : {
             "type" : "boolean"
           },
@@ -308,7 +591,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "coreDay", "createdAt", "estimatedMinutes", "goalId", "id", "plannedDate", "planningMode", "priority", "schedule", "status", "tags", "title", "updatedAt", "version" ],
+        "required" : [ "carriedFromDayId", "coreDay", "createdAt", "estimatedMinutes", "goalId", "id", "plannedDate", "planningMode", "priority", "schedule", "status", "tags", "title", "updatedAt", "version" ],
         "type" : "object"
       },
       "DayScheduleResponse" : {
@@ -529,6 +812,11 @@
       },
       "GoalResponse" : {
         "properties" : {
+          "continuedFromGoalId" : {
+            "description" : "The earlier-period Goal this Goal continues (REC-003), or null",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
           "createdAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -577,7 +865,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "createdAt", "endDate", "id", "parentGoalId", "priority", "progressPolicy", "startDate", "title", "type", "updatedAt", "version", "why" ],
+        "required" : [ "continuedFromGoalId", "createdAt", "endDate", "id", "parentGoalId", "priority", "progressPolicy", "startDate", "title", "type", "updatedAt", "version", "why" ],
         "type" : "object"
       },
       "ProblemResponse" : {
@@ -613,6 +901,24 @@
           }
         },
         "required" : [ "code", "detail", "fieldErrors", "instance", "status", "title", "traceId" ],
+        "type" : "object"
+      },
+      "RecoveryCandidateResponse" : {
+        "properties" : {
+          "day" : {
+            "$ref" : "#/components/schemas/DayResponse"
+          },
+          "lastAction" : {
+            "description" : "The last decision for this Day if it was handled before and its plan changed since",
+            "enum" : [ "KEEP", "REDUCE", "MOVE", "CARRY_OVER", "DROP" ],
+            "type" : [ "string", "null" ]
+          },
+          "reason" : {
+            "enum" : [ "PAST_DATE", "TIME_PASSED" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "day", "lastAction", "reason" ],
         "type" : "object"
       },
       "RecoveryDayResponse" : {
@@ -651,7 +957,7 @@
       "RecoveryDecisionRequest" : {
         "properties" : {
           "action" : {
-            "enum" : [ "KEEP", "REDUCE", "MOVE", "DROP" ],
+            "enum" : [ "KEEP", "REDUCE", "MOVE", "CARRY_OVER", "DROP" ],
             "type" : "string"
           },
           "dayId" : {
@@ -665,7 +971,7 @@
             "type" : [ "integer", "null" ]
           },
           "plannedDate" : {
-            "description" : "MOVE: the new date inside the Day's WEEK Goal",
+            "description" : "MOVE: today or later; inside the Day's WEEK Goal when it has one",
             "format" : "date",
             "type" : [ "string", "null" ]
           },
@@ -683,6 +989,88 @@
           }
         },
         "required" : [ "action", "dayId", "version" ],
+        "type" : "object"
+      },
+      "RecoveryEventItemResponse" : {
+        "properties" : {
+          "action" : {
+            "enum" : [ "KEEP", "REDUCE", "MOVE", "CARRY_OVER", "DROP" ],
+            "type" : "string"
+          },
+          "dayId" : {
+            "description" : "null when the Day was deleted later",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "dayTitle" : {
+            "type" : [ "string", "null" ]
+          },
+          "destinationDayId" : {
+            "description" : "CARRY_OVER: the Day created in the later period",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "destinationDayTitle" : {
+            "type" : [ "string", "null" ]
+          },
+          "destinationPlannedDate" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "newEstimatedMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "newPlannedDate" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "newStatus" : {
+            "enum" : [ "NOT_STARTED", "IN_PROGRESS", "DONE", "DEFERRED", "SKIPPED" ],
+            "type" : "string"
+          },
+          "previousEstimatedMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "previousPlannedDate" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "previousStatus" : {
+            "enum" : [ "NOT_STARTED", "IN_PROGRESS", "DONE", "DEFERRED", "SKIPPED" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "action", "dayId", "dayTitle", "destinationDayId", "destinationDayTitle", "destinationPlannedDate", "id", "newEstimatedMinutes", "newPlannedDate", "newStatus", "previousEstimatedMinutes", "previousPlannedDate", "previousStatus" ],
+        "type" : "object"
+      },
+      "RecoveryEventResponse" : {
+        "properties" : {
+          "appliedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RecoveryEventItemResponse"
+            },
+            "type" : "array"
+          },
+          "localDate" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "appliedAt", "id", "items", "localDate" ],
         "type" : "object"
       },
       "ReviewItemRequest" : {
@@ -806,6 +1194,15 @@
             "maxLength" : 500,
             "minLength" : 0,
             "type" : "string"
+          },
+          "releaseCoreDays" : {
+            "description" : "Core Days planned on this date to un-mark, with the versions the user saw",
+            "items" : {
+              "$ref" : "#/components/schemas/VersionedIdRequest"
+            },
+            "maxItems" : 50,
+            "minItems" : 0,
+            "type" : "array"
           },
           "returnDate" : {
             "description" : "The date to come back, after the recovery day",
@@ -1078,6 +1475,21 @@
           }
         },
         "required" : [ "version" ],
+        "type" : "object"
+      },
+      "VersionedIdRequest" : {
+        "properties" : {
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        },
+        "required" : [ "id", "version" ],
         "type" : "object"
       }
     }
@@ -2395,6 +2807,211 @@
               }
             },
             "description" : "A Day version is stale (VERSION_CONFLICT); nothing was applied"
+          }
+        },
+        "tags" : [ "recovery-controller" ]
+      }
+    },
+    "/api/v1/recovery/candidates" : {
+      "get" : {
+        "operationId" : "listRecoveryCandidates",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "today",
+          "required" : true,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "now",
+          "required" : true,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RecoveryCandidateResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or recovery decision"
+          }
+        },
+        "tags" : [ "recovery-controller" ]
+      }
+    },
+    "/api/v1/recovery/carry-over/apply" : {
+      "post" : {
+        "operationId" : "applyCarryOver",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApplyCarryOverRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplyCarryOverResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or recovery decision"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "The source Day was not found"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "A Day or Goal changed after the preview (VERSION_CONFLICT) or the Day was already carried over; nothing was applied"
+          }
+        },
+        "tags" : [ "recovery-controller" ]
+      }
+    },
+    "/api/v1/recovery/carry-over/preview" : {
+      "post" : {
+        "operationId" : "previewCarryOver",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CarryOverPreviewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CarryOverPreviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or recovery decision"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "The source Day was not found"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "The Day was already carried over (ALREADY_CARRIED_OVER)"
+          }
+        },
+        "tags" : [ "recovery-controller" ]
+      }
+    },
+    "/api/v1/recovery/events" : {
+      "get" : {
+        "operationId" : "listRecoveryEvents",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 30,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RecoveryEventResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid request or recovery decision"
           }
         },
         "tags" : [ "recovery-controller" ]

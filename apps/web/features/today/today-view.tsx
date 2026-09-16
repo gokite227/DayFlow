@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
-import { addDays, formatKoreanDate } from "@/features/calendar/calendar-time";
+import { formatKoreanDate } from "@/features/calendar/calendar-time";
 import { DayFormModal } from "@/features/days/day-form-modal";
 import { DayItem } from "@/features/days/day-item";
 import { useDays, useUpdateDay } from "@/features/days/day-queries";
@@ -14,8 +14,7 @@ import { useGoals } from "@/features/goals/goal-queries";
 import { GOAL_TYPE_LABEL, goalPath, sortGoals } from "@/features/goals/goal-tree";
 import { shortDate } from "@/features/recovery/recovery-plan";
 import { TodayWeekGoals } from "./today-goals";
-import { useRecoveryDays } from "@/features/recovery/recovery-queries";
-import { isOpen } from "@/features/review/review-summary";
+import { useRecoveryCandidates, useRecoveryDays } from "@/features/recovery/recovery-queries";
 import { useToday } from "@/lib/use-today";
 
 export function TodayView() {
@@ -130,11 +129,16 @@ function TodayContent({ today }: { today: string }) {
   );
 }
 
-/** Recovery entry: shown only when a past Day is still open, or when today is a Recovery Day. */
+/**
+ * Recovery entry: shown when there are missed plans (REC-001: past open Days and today's Days whose time
+ * has passed, minus the ones already handled in the same planning state, REC-005), or when today is a
+ * Recovery Day.
+ */
 function RecoveryEntry({ today }: { today: string }) {
-  const pastDaysQuery = useDays({ to: addDays(today, -1) });
+  const candidatesQuery = useRecoveryCandidates(today);
   const recoveryQuery = useRecoveryDays(today, today);
-  const hasMissed = (pastDaysQuery.data ?? []).some(isOpen);
+  const missedCount = candidatesQuery.data?.length ?? 0;
+  const hasMissed = missedCount > 0;
   const recoveryDay = recoveryQuery.data?.[0];
 
   if (!hasMissed && !recoveryDay) return null;
@@ -154,7 +158,7 @@ function RecoveryEntry({ today }: { today: string }) {
       {hasMissed && (
         <div className="recovery-banner">
           <span>
-            <strong>놓친 계획이 있어요</strong> · 오늘 기준으로 다시 정리할 수 있어요.
+            <strong>놓친 계획이 있어요</strong> · {missedCount}개를 오늘 기준으로 다시 정리할 수 있어요.
           </span>
           <Link href="/recovery" className="btn ghost small">
             다시 정리하기

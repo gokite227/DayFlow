@@ -52,6 +52,13 @@ public class Day extends VersionedEntity {
     private boolean coreDay;
 
     /**
+     * REC-003: the Day this one continues after a Carry Over, or null. The source keeps its own date and
+     * status as the record of the earlier plan; deleting it only clears this link.
+     */
+    @Column(name = "carried_from_day_id", updatable = false)
+    private UUID carriedFromDayId;
+
+    /**
      * DAY-005 Tags. BatchSize loads the Tags of a Day list in a few queries instead of one per Day,
      * so the Days screen stays a single request.
      */
@@ -108,6 +115,14 @@ public class Day extends VersionedEntity {
 
     public void setPriority(DayPriority priority) {
         this.priority = priority;
+    }
+
+    public UUID getCarriedFromDayId() {
+        return carriedFromDayId;
+    }
+
+    public void setCarriedFromDayId(UUID carriedFromDayId) {
+        this.carriedFromDayId = carriedFromDayId;
     }
 
     public Set<DayTag> getTags() {

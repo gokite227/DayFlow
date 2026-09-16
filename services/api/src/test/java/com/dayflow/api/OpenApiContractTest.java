@@ -11,8 +11,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -144,7 +150,10 @@ class OpenApiContractTest {
     void documentsResponseFieldsAsRequiredWithExplicitNulls() throws Exception {
         for (String schema : List.of("GoalResponse", "DayResponse", "DayTagResponse", "DayScheduleResponse",
                 "ProblemResponse", "FieldViolation", "ReviewResponse", "ReviewItemResponse",
-                "ConvertReviewItemResponse", "RecoveryDayResponse", "ApplyRecoveryResponse")) {
+                "ConvertReviewItemResponse", "RecoveryDayResponse", "ApplyRecoveryResponse",
+                "RecoveryCandidateResponse", "RecoveryEventResponse", "RecoveryEventItemResponse",
+                "CarryOverPreviewResponse", "CarryOverLevelPreview", "CarryOverDayPreview", "ApplyCarryOverResponse",
+                "CarriedDayResponse")) {
             assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(
                     propertiesOf(schema));
         }
@@ -153,6 +162,11 @@ class OpenApiContractTest {
                 .andExpect(jsonPath(SCHEMAS + "GoalResponse.properties.parentGoalId.type",
                         containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath(SCHEMAS + "DayResponse.properties.plannedDate.type",
+                        containsInAnyOrder("string", "null")))
+                // REC-003: continuation links are always sent, null when there is none.
+                .andExpect(jsonPath(SCHEMAS + "DayResponse.properties.carriedFromDayId.type",
+                        containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath(SCHEMAS + "GoalResponse.properties.continuedFromGoalId.type",
                         containsInAnyOrder("string", "null")))
                 // REV-003/REV-004: review lines always send both Goal links, null when unlinked.
                 .andExpect(jsonPath(SCHEMAS + "ReviewItemResponse.properties.goalId.type",
@@ -191,6 +205,33 @@ class OpenApiContractTest {
                         containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath(SCHEMAS + "UpdateGoalRequest.required", not(hasItem("parentGoalId"))))
                 .andExpect(jsonPath(SCHEMAS + "UpdateDayRequest.properties.title.type").value("string"));
+    }
+
+    /** docs/requirements.md §9 is the Source of Truth for the API table: its Recovery rows match the runtime spec. */
+    @Test
+    void recoveryEndpointsInTheRequirementsMatchTheRuntimeSpec() throws Exception {
+        Pattern row = Pattern.compile(
+                "^\\|\\s*([A-Z/]+)\\s*\\|\\s*(/api/v1/recovery[^\\s|]*)\\s*\\|");
+        Set<String> documented = new TreeSet<>();
+        // The test JVM runs in services/api.
+        for (String line : Files.readAllLines(Path.of("../../docs/requirements.md"))) {
+            Matcher matcher = row.matcher(line);
+            if (matcher.find()) {
+                for (String method : matcher.group(1).split("/")) {
+                    documented.add(method.toLowerCase() + " " + matcher.group(2));
+                }
+            }
+        }
+
+        Map<String, Map<String, Object>> paths = JsonPath.read(spec, "$.paths");
+        Set<String> runtime = new TreeSet<>();
+        paths.forEach((path, operations) -> {
+            if (path.startsWith("/api/v1/recovery")) {
+                operations.keySet().forEach(method -> runtime.add(method + " " + path));
+            }
+        });
+
+        assertThat(documented).isEqualTo(runtime);
     }
 
     @Test

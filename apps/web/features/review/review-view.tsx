@@ -22,7 +22,8 @@ import {
 } from "./review-period";
 import { goalChipLabel, nextGoalCandidates, reviewGoalCandidates, toItemRequest } from "./review-goals";
 import { useReview, useSaveReview } from "./review-queries";
-import { formatRate, isOpen, summarizeDays, summarizeGoal } from "./review-summary";
+import { formatRate, summarizeDays, summarizeGoal } from "./review-summary";
+import { useRecoveryCandidates } from "@/features/recovery/recovery-queries";
 import { TryToDayModal } from "./try-to-day-modal";
 
 type ItemKind = ReviewItemResponse["kind"];
@@ -90,7 +91,11 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
   const days = daysQuery.data ?? [];
   const periodGoals = reviewGoalCandidates(goals, period);
   const summary = summarizeDays(days);
-  const missedCount = days.filter((day) => day.plannedDate !== null && day.plannedDate < today && isOpen(day)).length;
+  // Same rule as the Today banner (REC-001/REC-005): missed and not yet handled in this planning state.
+  const candidatesQuery = useRecoveryCandidates(today);
+  const missedCount = (candidatesQuery.data ?? []).filter(
+    ({ day }) => day.plannedDate !== null && period.start <= day.plannedDate && day.plannedDate <= period.end,
+  ).length;
   const weekGoals = sortGoals(goals.filter((goal) => goal.type === "WEEK"));
   // Converted Days can be planned outside this period, so they are looked up in the full list.
   const allDaysQuery = useDays();

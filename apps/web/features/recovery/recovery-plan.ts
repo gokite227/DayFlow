@@ -1,20 +1,53 @@
-import type { ApplyRecoveryRequest, DayResponse, GoalResponse } from "@dayflow/api-client";
-import { weekdayShort } from "../calendar/calendar-time";
+import type {
+  ApplyCarryOverRequest,
+  ApplyRecoveryRequest,
+  CarryOverPreviewResponse,
+  DayResponse,
+  GoalResponse,
+  RecoveryDayResponse,
+  RecoveryEventItemResponse,
+} from "@dayflow/api-client";
+import { addDays, koreanShortDate } from "../calendar/calendar-time";
 
 export type RecoveryAction = ApplyRecoveryRequest["decisions"][number]["action"];
+export type CarryOverMode = CarryOverPreviewResponse["mode"];
+export type CarryOverLevel = CarryOverPreviewResponse["levels"][number];
 
-export const RECOVERY_ACTIONS: readonly RecoveryAction[] = ["KEEP", "REDUCE", "MOVE", "DROP"];
+/** REC-001: the five decisions, in the order they are offered. */
+export const RECOVERY_ACTIONS: readonly RecoveryAction[] = ["KEEP", "REDUCE", "MOVE", "CARRY_OVER", "DROP"];
 
 export const RECOVERY_ACTION_LABEL: Record<RecoveryAction, string> = {
   KEEP: "그대로 두기",
   REDUCE: "작게 줄이기",
-  MOVE: "다른 날로",
-  DROP: "이번엔 내려놓기",
+  MOVE: "날짜 바꾸기",
+  CARRY_OVER: "다음 계획으로 이어가기",
+  DROP: "이번에는 내려놓기",
 };
+
+export const CARRY_OVER_MODES: readonly CarryOverMode[] = ["DAY_ONLY", "WITH_PLAN", "WITHOUT_GOAL"];
+
+export const CARRY_OVER_MODE_LABEL: Record<CarryOverMode, string> = {
+  DAY_ONLY: "이 Day만 넘기기",
+  WITH_PLAN: "계획 구조와 함께 이어가기",
+  WITHOUT_GOAL: "Goal 연결 없이 넘기기",
+};
+
+/**
+ * "이번엔 건너뛰기": a UI-only choice, not a Recovery action. The Day is left out of this apply, so it is
+ * not changed and no decision is recorded; while it still meets the candidate rule it shows up again.
+ */
+export const SKIP_THIS_TIME = "SKIP_THIS_TIME";
+export const SKIP_THIS_TIME_LABEL = "이번엔 건너뛰기";
+
+export type RecoveryChoice = RecoveryAction | typeof SKIP_THIS_TIME;
+
+export function isRecoveryAction(choice: RecoveryChoice): choice is RecoveryAction {
+  return choice !== SKIP_THIS_TIME;
+}
 
 /** What the user picked for one Day. Unused fields are ignored for other actions. */
 export interface RecoveryDraft {
-  action: RecoveryAction;
+  action: RecoveryChoice;
   estimatedMinutes: number;
   title: string;
   plannedDate: string;
@@ -37,7 +70,7 @@ export interface MoveRange {
 
 /**
  * Dates a Day can MOVE to: from today (or the Goal start) to its WEEK Goal end. Null when the
- * Goal period is already over — moving to another week is a separate replan use case.
+ * Goal period is already over — another week is a CARRY_OVER.
  * A Day without a Goal (DAY-001) can move to today or any later date, never to the past.
  */
 export function moveRange(
@@ -74,27 +107,46 @@ export interface PreviewLine {
   detail: string;
 }
 
-/** "THU 9/17" */
+/** "9월 17일 (목)" */
 export function shortDate(date: string) {
-  return `${weekdayShort(date)} ${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+  return koreanShortDate(date);
+}
+
+/**
+ * Days that go into the one-request KEEP/REDUCE/MOVE/DROP apply. CARRY_OVER has its own preview and
+ * apply, and "이번엔 건너뛰기" Days are not decided at all, so both are left out.
+ */
+export function batchDays(days: readonly DayResponse[], drafts: Record<string, RecoveryDraft>): DayResponse[] {
+  return days.filter((day) => {
+    const action = drafts[day.id]?.action;
+    return action !== "CARRY_OVER" && action !== SKIP_THIS_TIME;
+  });
+}
+
+/** Days the user set aside with "이번엔 건너뛰기": not sent, not recorded, offered again later. */
+export function skippedDays(days: readonly DayResponse[], drafts: Record<string, RecoveryDraft>): DayResponse[] {
+  return days.filter((day) => drafts[day.id]?.action === SKIP_THIS_TIME);
 }
 
 /** Human-readable lines for the confirmation step. KEEP lines are summarized separately. */
 export function previewLines(days: readonly DayResponse[], drafts: Record<string, RecoveryDraft>): PreviewLine[] {
-  return days.flatMap((day) => {
+  return batchDays(days, drafts).flatMap((day) => {
     const draft = drafts[day.id];
     if (!draft || draft.action === "KEEP") return [];
     const detail =
       draft.action === "REDUCE"
         ? `${day.estimatedMinutes}분 → ${draft.estimatedMinutes}분${draft.title.trim() !== day.title ? ` · "${draft.title.trim()}"` : ""}`
         : draft.action === "MOVE"
-          ? `${shortDate(draft.plannedDate)}로 이동 (시간 배치 없이)`
+          ? `${shortDate(draft.plannedDate)}로 옮기기 (시간 배치 없이)`
           : "이번 계획에서 내려놓기 (기록은 남아요)";
-    return [{ dayId: day.id, title: day.title, action: draft.action, detail }];
+    return isRecoveryAction(draft.action) ? [{ dayId: day.id, title: day.title, action: draft.action, detail }] : [];
   });
 }
 
-/** Every listed Day is sent, KEEP included, so the applied plan is recorded as a whole. */
+/**
+ * Every decided Day is sent, KEEP included, so the decision is recorded (REC-005). Carry Over and
+ * skipped Days are not part of the request. An empty batch must not be sent (see hasChangesToApply).
+ */
 export function toApplyRequest(
   localDate: string,
   days: readonly DayResponse[],
@@ -102,9 +154,11 @@ export function toApplyRequest(
 ): ApplyRecoveryRequest {
   return {
     localDate,
-    decisions: days.map((day) => {
+    decisions: batchDays(days, drafts).map((day) => {
       const draft = drafts[day.id] ?? { action: "KEEP" as const, estimatedMinutes: 0, title: "", plannedDate: "" };
-      const base = { dayId: day.id, version: day.version, action: draft.action };
+      // batchDays already removed skipped Days, so the choice is a real action here.
+      const action: RecoveryAction = isRecoveryAction(draft.action) ? draft.action : "KEEP";
+      const base = { dayId: day.id, version: day.version, action };
       switch (draft.action) {
         case "REDUCE":
           return {
@@ -119,4 +173,111 @@ export function toApplyRequest(
       }
     }),
   };
+}
+
+/** Whether a batch apply has anything to send; all skipped (or carried separately) means no request. */
+export function hasChangesToApply(days: readonly DayResponse[], drafts: Record<string, RecoveryDraft>): boolean {
+  return batchDays(days, drafts).length > 0;
+}
+
+/** The first suggested Carry Over date: the day after the source week, but never before today. */
+export function defaultCarryOverDate(weekGoal: Pick<GoalResponse, "endDate"> | undefined, today: string): string {
+  const afterWeek = weekGoal ? addDays(weekGoal.endDate, 1) : addDays(today, 1);
+  return afterWeek > today ? afterWeek : today;
+}
+
+/** The user's choice for one WITH_PLAN level: an existing Goal id, or "new". */
+export type LevelChoice = string | "new";
+
+/**
+ * WITH_PLAN levels as explicit choices for preview/apply. KEEP_SOURCE levels need none; the others send
+ * the user's override or what the preview resolved, so apply does exactly what the preview showed.
+ */
+export function toLevelChoices(
+  levels: readonly CarryOverLevel[],
+  overrides: Partial<Record<CarryOverLevel["type"], LevelChoice>>,
+): NonNullable<ApplyCarryOverRequest["levels"]> {
+  return levels.flatMap((level) => {
+    if (level.action === "KEEP_SOURCE") return [];
+    const choice = overrides[level.type] ?? (level.action === "REUSE" ? level.goal?.id : level.action === "CREATE" ? "new" : undefined);
+    if (choice === undefined) return [];
+    return [choice === "new" ? { type: level.type, goalId: null, create: true } : { type: level.type, goalId: choice, create: false }];
+  });
+}
+
+/** Only the overrides the user made, for the next preview request. */
+export function overridesToChoices(
+  overrides: Partial<Record<CarryOverLevel["type"], LevelChoice>>,
+): NonNullable<ApplyCarryOverRequest["levels"]> {
+  return (Object.entries(overrides) as [CarryOverLevel["type"], LevelChoice][]).map(([type, choice]) =>
+    choice === "new" ? { type, goalId: null, create: true } : { type, goalId: choice, create: false },
+  );
+}
+
+/** The apply body for a preview: selected Days and the Goals it relies on, with the versions seen. */
+export function toApplyCarryOverRequest(localDate: string, preview: CarryOverPreviewResponse): ApplyCarryOverRequest {
+  const reused = preview.levels.flatMap((level) => (level.action === "REUSE" && level.goal ? [level.goal] : []));
+  const goals = preview.mode === "WITH_PLAN" ? [...preview.sourceGoalPath, ...reused] : [];
+  return {
+    localDate,
+    sourceDayId: preview.sourceDay.id,
+    targetDate: preview.targetDate,
+    mode: preview.mode,
+    targetWeekGoalId: preview.mode === "DAY_ONLY" ? preview.targetWeekGoalId : null,
+    levels: preview.mode === "WITH_PLAN" ? toLevelChoices(preview.levels, {}) : [],
+    days: preview.days.filter((entry) => entry.selected).map((entry) => ({ id: entry.day.id, version: entry.day.version })),
+    goals: goals.map((goal) => ({ id: goal.id, version: goal.version })),
+  };
+}
+
+export interface CarryOverSummary {
+  newGoals: CarryOverLevel[];
+  reusedGoals: CarryOverLevel[];
+  days: DayResponse[];
+  withoutGoal: boolean;
+}
+
+/** What "확인하고 적용" will create, for the preview card. */
+export function summarizeCarryOver(preview: CarryOverPreviewResponse): CarryOverSummary {
+  const planned = preview.mode === "WITH_PLAN" ? preview.levels : [];
+  return {
+    newGoals: planned.filter((level) => level.action === "CREATE"),
+    reusedGoals: planned.filter((level) => level.action === "REUSE" || level.action === "KEEP_SOURCE"),
+    days: preview.days.filter((entry) => entry.selected).map((entry) => entry.day),
+    withoutGoal: preview.mode === "WITHOUT_GOAL",
+  };
+}
+
+export interface RecoveryDayGroups {
+  today: RecoveryDayResponse[];
+  upcoming: RecoveryDayResponse[];
+  past: RecoveryDayResponse[];
+}
+
+/** REC-002 list: today, the ones ahead (nearest first) and the past ones (latest first). */
+export function groupRecoveryDays(days: readonly RecoveryDayResponse[], today: string): RecoveryDayGroups {
+  return {
+    today: days.filter((day) => day.date === today),
+    upcoming: days.filter((day) => day.date > today).sort((a, b) => a.date.localeCompare(b.date)),
+    past: days.filter((day) => day.date < today).sort((a, b) => b.date.localeCompare(a.date)),
+  };
+}
+
+/** A history line such as "9월 14일 → 9월 17일" or "→ 10월 8일 새 계획". */
+export function historyDetail(item: RecoveryEventItemResponse): string {
+  const from = item.previousPlannedDate ? shortDate(item.previousPlannedDate) : "날짜 미정";
+  switch (item.action) {
+    case "MOVE":
+      return `${from} → ${item.newPlannedDate ? shortDate(item.newPlannedDate) : "날짜 미정"}`;
+    case "REDUCE":
+      return `${from} · ${item.previousEstimatedMinutes}분 → ${item.newEstimatedMinutes}분`;
+    case "CARRY_OVER":
+      return item.destinationPlannedDate
+        ? `${from} 계획 → ${shortDate(item.destinationPlannedDate)} 새 계획${item.destinationDayTitle ? ` · ${item.destinationDayTitle}` : ""}`
+        : `${from} 계획 → 새 계획 (지금은 삭제됨)`;
+    case "DROP":
+      return `${from} · 이번에는 내려놓음`;
+    case "KEEP":
+      return `${from} · 그대로 두기`;
+  }
 }

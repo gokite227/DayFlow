@@ -15,6 +15,14 @@ export const queryKeys = {
   days: {
     all: ["days"] as const,
     list: (filters: DayListFilters = {}) => ["days", "list", filters] as const,
+    /** Derived from Days, so any Day mutation (which invalidates "days") refreshes it too. */
+    recoveryCandidates: (today: string) => ["days", "recovery-candidates", today] as const,
+  },
+  /** Carry Over previews read Days and Goals; they are refetched on demand and after an apply. */
+  carryOverPreview: (body: unknown) => ["carry-over-preview", body] as const,
+  recoveryEvents: {
+    all: ["recovery-events"] as const,
+    list: (limit: number) => ["recovery-events", limit] as const,
   },
   dayTags: {
     all: ["day-tags"] as const,

@@ -29,6 +29,7 @@ const day: DayResponse = {
   estimatedMinutes: 60,
   plannedDate: "2026-09-15",
   planningMode: "ANYTIME",
+  carriedFromDayId: null,
   coreDay: true,
   tags: [tag],
   createdAt: "2026-09-01T00:00:00Z",

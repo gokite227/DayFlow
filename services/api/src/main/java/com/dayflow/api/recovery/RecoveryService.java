@@ -6,32 +6,49 @@ import com.dayflow.api.day.Day;
 import com.dayflow.api.day.DayDtos.DayResponse;
 import com.dayflow.api.day.DayDtos.UpdateDayRequest;
 import com.dayflow.api.day.DayRepository;
+import com.dayflow.api.day.DaySchedule;
 import com.dayflow.api.day.DayScheduleRepository;
 import com.dayflow.api.day.DayService;
 import com.dayflow.api.day.DayStatus;
 import com.dayflow.api.recovery.RecoveryDtos.ApplyRecoveryRequest;
 import com.dayflow.api.recovery.RecoveryDtos.ApplyRecoveryResponse;
+import com.dayflow.api.recovery.RecoveryDtos.RecoveryCandidateReason;
+import com.dayflow.api.recovery.RecoveryDtos.RecoveryCandidateResponse;
 import com.dayflow.api.recovery.RecoveryDtos.RecoveryDayResponse;
 import com.dayflow.api.recovery.RecoveryDtos.RecoveryDecisionRequest;
+import com.dayflow.api.recovery.RecoveryDtos.RecoveryEventItemResponse;
+import com.dayflow.api.recovery.RecoveryDtos.RecoveryEventResponse;
 import com.dayflow.api.recovery.RecoveryDtos.SaveRecoveryDayRequest;
+import com.dayflow.api.recovery.RecoveryDtos.VersionedIdRequest;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * REC-001 recovery plans and REC-002 recovery days. Day changes go through DayService, so the
- * same rules as PATCH /days apply (versions, WEEK Goal period, schedule handling).
+ * REC-001 recovery plans, REC-002 recovery days and REC-005 history/re-surfacing. Day changes go through
+ * DayService, so the same rules as PATCH /days apply (versions, WEEK Goal period, schedule handling).
+ * CARRY_OVER lives in {@link CarryOverService} because it needs its own preview.
  */
 @Service
 @Transactional
 public class RecoveryService {
 
     private static final Set<DayStatus> FINISHED = Set.of(DayStatus.DONE, DayStatus.SKIPPED);
+    private static final Set<DayStatus> OPEN = Set.of(DayStatus.NOT_STARTED, DayStatus.IN_PROGRESS, DayStatus.DEFERRED);
+    private static final int MAX_HISTORY = 100;
 
     private final DayService dayService;
     private final DayRepository days;
@@ -46,6 +63,48 @@ public class RecoveryService {
         this.schedules = schedules;
         this.events = events;
         this.recoveryDays = recoveryDays;
+    }
+
+    /**
+     * REC-001 missed Days as of the user's {@code today} and the instant {@code now}: unfinished Days planned
+     * before today, and unfinished Days of today whose time placement has already ended. Date-only Days of
+     * today are not missed yet. A Day whose latest decision recorded its current planning state is left out
+     * (REC-005); any later change of that state makes it a candidate again.
+     */
+    @Transactional(readOnly = true)
+    public List<RecoveryCandidateResponse> candidates(LocalDate today, Instant now) {
+        List<Day> open = days.findByStatusInAndPlannedDateLessThanEqual(OPEN, today);
+        Map<UUID, DaySchedule> scheduleByDay = schedules.findByDayIdIn(open.stream().map(Day::getId).toList()).stream()
+                .collect(Collectors.toMap(DaySchedule::getDayId, Function.identity()));
+
+        Map<UUID, RecoveryCandidateReason> reasons = new HashMap<>();
+        for (Day day : open) {
+            DaySchedule schedule = scheduleByDay.get(day.getId());
+            if (day.getPlannedDate().isBefore(today)) {
+                reasons.put(day.getId(), RecoveryCandidateReason.PAST_DATE);
+            } else if (schedule != null && schedule.getEndAt().isBefore(now)) {
+                reasons.put(day.getId(), RecoveryCandidateReason.TIME_PASSED);
+            }
+        }
+
+        Map<UUID, RecoveryEventItem> latest = latestDecisions(reasons.keySet());
+        List<RecoveryCandidateResponse> result = new ArrayList<>();
+        for (Day day : open) {
+            RecoveryCandidateReason reason = reasons.get(day.getId());
+            if (reason == null) {
+                continue;
+            }
+            DaySchedule schedule = scheduleByDay.get(day.getId());
+            RecoveryEventItem last = latest.get(day.getId());
+            if (last != null && Objects.equals(last.getPlanningState(), RecoveryPlanningState.of(day, schedule))) {
+                continue;
+            }
+            result.add(new RecoveryCandidateResponse(DayResponse.from(day, schedule), reason,
+                    last == null ? null : last.getAction()));
+        }
+        result.sort(Comparator.comparing((RecoveryCandidateResponse candidate) -> candidate.day().plannedDate())
+                .thenComparing(candidate -> candidate.day().title()));
+        return result;
     }
 
     /** Applies every decision in one transaction; any invalid or stale decision rolls back all of them. */
@@ -72,23 +131,61 @@ public class RecoveryService {
                 throw invalid(field + ".dayId", "Only unfinished Days can be recovered.");
             }
 
+            String previousTitle = day.getTitle();
             DayStatus previousStatus = day.getStatus();
             LocalDate previousDate = day.getPlannedDate();
             int previousMinutes = day.getEstimatedMinutes();
             DayResponse result = switch (decision.action()) {
                 case KEEP -> dayService.get(day.getId());
                 case REDUCE -> reduce(day, decision, field);
-                case MOVE -> move(day, decision, field);
+                case MOVE -> move(day, decision, request.localDate(), field);
                 case DROP -> drop(day, decision);
+                case CARRY_OVER -> throw invalid(field + ".action",
+                        "CARRY_OVER has its own preview and apply (/recovery/carry-over).");
             };
 
-            event.addItem(new RecoveryEventItem(day.getId(), decision.action(), previousStatus, result.status(),
-                    previousDate, result.plannedDate(), previousMinutes, result.estimatedMinutes()));
+            // The state right after the decision: while the Day keeps it, it is not offered again (REC-005).
+            Day after = days.findById(day.getId()).orElseThrow();
+            String state = RecoveryPlanningState.of(after, schedules.findByDayId(day.getId()).orElse(null));
+            event.addItem(new RecoveryEventItem(day.getId(), previousTitle, decision.action(), previousStatus,
+                    result.status(), previousDate, result.plannedDate(), previousMinutes, result.estimatedMinutes(),
+                    null, state));
             results.add(result);
         }
 
         RecoveryEvent saved = events.saveAndFlush(event);
         return new ApplyRecoveryResponse(saved.getId(), saved.getLocalDate(), saved.getAppliedAt(), results);
+    }
+
+    /** REC-005 history, newest first. Read only. */
+    @Transactional(readOnly = true)
+    public List<RecoveryEventResponse> history(int limit) {
+        List<RecoveryEvent> found = events.findAllByOrderByAppliedAtDesc(PageRequest.of(0, Math.min(Math.max(limit, 1), MAX_HISTORY)));
+        Set<UUID> dayIds = new HashSet<>();
+        for (RecoveryEvent event : found) {
+            for (RecoveryEventItem item : event.getItems()) {
+                if (item.getDayId() != null) {
+                    dayIds.add(item.getDayId());
+                }
+                if (item.getDestinationDayId() != null) {
+                    dayIds.add(item.getDestinationDayId());
+                }
+            }
+        }
+        Map<UUID, Day> dayById = days.findAllById(dayIds).stream().collect(Collectors.toMap(Day::getId, Function.identity()));
+
+        return found.stream().map(event -> new RecoveryEventResponse(event.getId(), event.getLocalDate(),
+                event.getAppliedAt(), event.getItems().stream().map(item -> {
+                    Day day = item.getDayId() == null ? null : dayById.get(item.getDayId());
+                    Day destination = item.getDestinationDayId() == null ? null : dayById.get(item.getDestinationDayId());
+                    return new RecoveryEventItemResponse(item.getId(), item.getDayId(),
+                            item.getDayTitle() != null ? item.getDayTitle() : (day == null ? null : day.getTitle()),
+                            item.getAction(), item.getPreviousStatus(), item.getNewStatus(),
+                            item.getPreviousPlannedDate(), item.getNewPlannedDate(),
+                            item.getPreviousEstimatedMinutes(), item.getNewEstimatedMinutes(),
+                            item.getDestinationDayId(), destination == null ? null : destination.getTitle(),
+                            destination == null ? null : destination.getPlannedDate());
+                }).toList())).toList();
     }
 
     @Transactional(readOnly = true)
@@ -99,6 +196,11 @@ public class RecoveryService {
         return recoveryDays.findByDateBetweenOrderByDate(from, to).stream().map(RecoveryDayResponse::from).toList();
     }
 
+    /**
+     * Creates or updates a recovery day for any date (today or ahead) and, in the same transaction,
+     * un-marks the core Days the user chose to release on that date. A stale Day or recovery day
+     * version rolls back everything.
+     */
     public RecoveryDayResponse saveDay(LocalDate date, SaveRecoveryDayRequest request) {
         if (request.returnDate() != null && !request.returnDate().isAfter(date)) {
             throw new ApiException(ErrorCode.INVALID_RECOVERY_RETURN_DATE,
@@ -110,6 +212,24 @@ public class RecoveryService {
             throw new ApiException(ErrorCode.VERSION_CONFLICT,
                     "The recovery day was changed by another request. Reload and try again.", "expectedVersion");
         }
+
+        List<VersionedIdRequest> releases = request.releaseCoreDays() == null ? List.of() : request.releaseCoreDays();
+        for (int index = 0; index < releases.size(); index++) {
+            VersionedIdRequest release = releases.get(index);
+            String field = "releaseCoreDays[" + index + "]";
+            Day day = days.findById(release.id())
+                    .orElseThrow(() -> new ApiException(ErrorCode.DAY_NOT_FOUND, "Day " + release.id() + " was not found.",
+                            field + ".id"));
+            if (!date.equals(day.getPlannedDate()) || !day.isCoreDay()) {
+                throw new ApiException(ErrorCode.VALIDATION_ERROR,
+                        "Only core Days planned on the recovery day can be released.", field + ".id");
+            }
+            UpdateDayRequest update = new UpdateDayRequest();
+            update.setVersion(release.version());
+            update.setCoreDay(false);
+            dayService.update(day.getId(), update);
+        }
+
         if (recoveryDay == null) {
             recoveryDay = new RecoveryDay(date);
         }
@@ -122,6 +242,18 @@ public class RecoveryService {
                 .orElseThrow(() -> new ApiException(ErrorCode.RECOVERY_DAY_NOT_FOUND,
                         date + " is not a recovery day."));
         recoveryDays.delete(recoveryDay);
+    }
+
+    /** The newest decision of each Day. */
+    private Map<UUID, RecoveryEventItem> latestDecisions(Set<UUID> dayIds) {
+        Map<UUID, RecoveryEventItem> latest = new HashMap<>();
+        if (dayIds.isEmpty()) {
+            return latest;
+        }
+        for (RecoveryEventItem item : events.findItemsNewestFirst(dayIds)) {
+            latest.putIfAbsent(item.getDayId(), item);
+        }
+        return latest;
     }
 
     private DayResponse reduce(Day day, RecoveryDecisionRequest decision, String field) {
@@ -140,10 +272,17 @@ public class RecoveryService {
         return dayService.update(day.getId(), update);
     }
 
-    /** Moves to a date-only Day: the schedule is removed first so it is not carried to the new date. */
-    private DayResponse move(Day day, RecoveryDecisionRequest decision, String field) {
+    /**
+     * MOVE to today or a later date. A Day with a Goal stays inside its WEEK Goal (checked by DayService:
+     * another week is a CARRY_OVER); a Day without a Goal can go to any later date. The schedule is
+     * removed first so it is not carried to the new date.
+     */
+    private DayResponse move(Day day, RecoveryDecisionRequest decision, LocalDate today, String field) {
         if (decision.plannedDate() == null) {
             throw invalid(field + ".plannedDate", "MOVE needs a plannedDate.");
+        }
+        if (decision.plannedDate().isBefore(today)) {
+            throw invalid(field + ".plannedDate", "MOVE goes to today or a later date.");
         }
         if (schedules.findByDayId(day.getId()).isPresent()) {
             dayService.deleteSchedule(day.getId());

@@ -40,6 +40,13 @@ public class Goal extends VersionedEntity {
     @Column(name = "progress_policy", nullable = false)
     private ProgressPolicy progressPolicy;
 
+    /**
+     * REC-003: the Goal of an earlier period this Goal continues (e.g. October after September), or null.
+     * Deleting the earlier Goal only clears this link.
+     */
+    @Column(name = "continued_from_goal_id", updatable = false)
+    private UUID continuedFromGoalId;
+
     protected Goal() {
     }
 
@@ -113,6 +120,14 @@ public class Goal extends VersionedEntity {
 
     public void setProgressPolicy(ProgressPolicy progressPolicy) {
         this.progressPolicy = progressPolicy;
+    }
+
+    public UUID getContinuedFromGoalId() {
+        return continuedFromGoalId;
+    }
+
+    public void setContinuedFromGoalId(UUID continuedFromGoalId) {
+        this.continuedFromGoalId = continuedFromGoalId;
     }
 
     public boolean contains(LocalDate date) {

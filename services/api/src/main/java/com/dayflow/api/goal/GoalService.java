@@ -41,6 +41,23 @@ public class GoalService {
         return GoalResponse.from(goals.saveAndFlush(goal));
     }
 
+    /**
+     * REC-004: a Goal of a later canonical period continuing {@code template} (title, why, priority and
+     * progress policy are copied). The same parent, period and canonical rules as {@link #create} apply.
+     * {@code continuedFrom} is the Goal of the same level being continued, or null when there is none.
+     */
+    public Goal createContinuation(Goal template, UUID continuedFrom, GoalType type, UUID parentGoalId,
+            LocalDate startDate, LocalDate endDate) {
+        validatePeriod(startDate, endDate);
+        validateParent(type, parentGoalId, startDate, endDate);
+        validateCanonicalPeriod(type, startDate, endDate);
+
+        Goal goal = new Goal(parentGoalId, type, template.getTitle(), template.getWhy(), startDate, endDate,
+                template.getPriority(), template.getProgressPolicy());
+        goal.setContinuedFromGoalId(continuedFrom);
+        return goals.saveAndFlush(goal);
+    }
+
     /** Goals of a type and/or overlapping the from..to period. */
     @Transactional(readOnly = true)
     public List<GoalResponse> list(GoalType type, LocalDate from, LocalDate to) {

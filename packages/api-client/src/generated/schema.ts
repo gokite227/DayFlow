@@ -212,6 +212,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/recovery/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listRecoveryCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recovery/carry-over/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["applyCarryOver"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recovery/carry-over/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewCarryOver"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recovery/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listRecoveryEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/review-items/{itemId}/convert": {
         parameters: {
             query?: never;
@@ -248,6 +312,34 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ApplyCarryOverRequest: {
+            /** @description The Days to carry over (the source Day included) with their previewed versions */
+            days: components["schemas"]["VersionedIdRequest"][];
+            /** @description WITH_PLAN: the source Goal path and reused Goals with their previewed versions */
+            goals?: components["schemas"]["VersionedIdRequest"][];
+            levels?: components["schemas"]["CarryOverLevelChoice"][];
+            /** Format: date */
+            localDate: string;
+            /** @enum {string} */
+            mode: "DAY_ONLY" | "WITH_PLAN" | "WITHOUT_GOAL";
+            /** Format: uuid */
+            sourceDayId: string;
+            /** Format: date */
+            targetDate: string;
+            /**
+             * Format: uuid
+             * @description DAY_ONLY: the WEEK Goal to use
+             */
+            targetWeekGoalId?: string | null;
+        };
+        ApplyCarryOverResponse: {
+            /** Format: date-time */
+            appliedAt: string;
+            createdGoals: components["schemas"]["GoalResponse"][];
+            days: components["schemas"]["CarriedDayResponse"][];
+            /** Format: uuid */
+            eventId: string;
+        };
         ApplyRecoveryRequest: {
             decisions: components["schemas"]["RecoveryDecisionRequest"][];
             /** Format: date */
@@ -261,6 +353,87 @@ export interface components {
             eventId: string;
             /** Format: date */
             localDate: string;
+        };
+        CarriedDayResponse: {
+            destination: components["schemas"]["DayResponse"];
+            source: components["schemas"]["DayResponse"];
+        };
+        CarryOverDayPreview: {
+            day: components["schemas"]["DayResponse"];
+            /** @enum {string|null} */
+            exclusion: "FINISHED" | "ALREADY_CARRIED" | null;
+            selectable: boolean;
+            selected: boolean;
+        };
+        CarryOverLevelChoice: {
+            /** @description true to create a new Goal instead of reusing one */
+            create?: boolean;
+            /**
+             * Format: uuid
+             * @description Reuse this existing Goal
+             */
+            goalId?: string | null;
+            /** @enum {string} */
+            type: "YEAR" | "QUARTER" | "MONTH" | "WEEK";
+        };
+        CarryOverLevelPreview: {
+            /** @enum {string} */
+            action: "KEEP_SOURCE" | "REUSE" | "CREATE" | "CHOOSE";
+            /** @description Existing Goals of the target period that could be reused */
+            candidates: components["schemas"]["GoalResponse"][];
+            /** Format: date */
+            endDate: string;
+            /** @description KEEP_SOURCE/REUSE: the Goal that will be used */
+            goal: components["schemas"]["GoalResponse"] | null;
+            /** @description CREATE: the new Goal's title */
+            newTitle: string | null;
+            /** @description The Goal of this level above the source Day */
+            sourceGoal: components["schemas"]["GoalResponse"] | null;
+            /** Format: date */
+            startDate: string;
+            /** @enum {string} */
+            type: "YEAR" | "QUARTER" | "MONTH" | "WEEK";
+        };
+        CarryOverPreviewRequest: {
+            /** @description WITH_PLAN: the Days of the source WEEK Goal to carry along; null selects only the source Day */
+            dayIds?: string[];
+            /** @description WITH_PLAN: choices per Goal level */
+            levels?: components["schemas"]["CarryOverLevelChoice"][];
+            /** Format: date */
+            localDate: string;
+            /** @enum {string} */
+            mode: "DAY_ONLY" | "WITH_PLAN" | "WITHOUT_GOAL";
+            /** Format: uuid */
+            sourceDayId: string;
+            /** Format: date */
+            targetDate: string;
+            /**
+             * Format: uuid
+             * @description DAY_ONLY: the chosen WEEK Goal of the target date; null uses the suggestion
+             */
+            targetWeekGoalId?: string | null;
+        };
+        CarryOverPreviewResponse: {
+            /** @description Days of the source WEEK Goal; DAY_ONLY/WITHOUT_GOAL list only the source */
+            days: components["schemas"]["CarryOverDayPreview"][];
+            /** @description WITH_PLAN: YEAR → WEEK levels of the target date */
+            levels: components["schemas"]["CarryOverLevelPreview"][];
+            /** @enum {string} */
+            mode: "DAY_ONLY" | "WITH_PLAN" | "WITHOUT_GOAL";
+            /** @description false while a Goal still has to be chosen or is missing */
+            ready: boolean;
+            sourceDay: components["schemas"]["DayResponse"];
+            /** @description YEAR → WEEK Goals above the source Day */
+            sourceGoalPath: components["schemas"]["GoalResponse"][];
+            /** Format: date */
+            targetDate: string;
+            /**
+             * Format: uuid
+             * @description DAY_ONLY: the WEEK Goal that will be used, or null when none is available
+             */
+            targetWeekGoalId: string | null;
+            /** @description Existing WEEK Goals containing the target date */
+            targetWeekGoals: components["schemas"]["GoalResponse"][];
         };
         ConvertReviewItemResponse: {
             day: components["schemas"]["DayResponse"];
@@ -355,6 +528,11 @@ export interface components {
             why: string;
         };
         DayResponse: {
+            /**
+             * Format: uuid
+             * @description The Day this one continues after a Carry Over (REC-003), or null
+             */
+            carriedFromDayId: string | null;
             coreDay: boolean;
             /** Format: date-time */
             createdAt: string;
@@ -502,6 +680,11 @@ export interface components {
             message: string;
         };
         GoalResponse: {
+            /**
+             * Format: uuid
+             * @description The earlier-period Goal this Goal continues (REC-003), or null
+             */
+            continuedFromGoalId: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date */
@@ -544,6 +727,16 @@ export interface components {
             title: string;
             traceId: string;
         };
+        RecoveryCandidateResponse: {
+            day: components["schemas"]["DayResponse"];
+            /**
+             * @description The last decision for this Day if it was handled before and its plan changed since
+             * @enum {string|null}
+             */
+            lastAction: "KEEP" | "REDUCE" | "MOVE" | "CARRY_OVER" | "DROP" | null;
+            /** @enum {string} */
+            reason: "PAST_DATE" | "TIME_PASSED";
+        };
         RecoveryDayResponse: {
             /** Format: date-time */
             createdAt: string;
@@ -561,7 +754,7 @@ export interface components {
         };
         RecoveryDecisionRequest: {
             /** @enum {string} */
-            action: "KEEP" | "REDUCE" | "MOVE" | "DROP";
+            action: "KEEP" | "REDUCE" | "MOVE" | "CARRY_OVER" | "DROP";
             /** Format: uuid */
             dayId: string;
             /**
@@ -571,7 +764,7 @@ export interface components {
             estimatedMinutes?: number | null;
             /**
              * Format: date
-             * @description MOVE: the new date inside the Day's WEEK Goal
+             * @description MOVE: today or later; inside the Day's WEEK Goal when it has one
              */
             plannedDate?: string | null;
             /** @description REDUCE: optional new title */
@@ -581,6 +774,47 @@ export interface components {
              * @description The Day version the user saw in the preview
              */
             version: number;
+        };
+        RecoveryEventItemResponse: {
+            /** @enum {string} */
+            action: "KEEP" | "REDUCE" | "MOVE" | "CARRY_OVER" | "DROP";
+            /**
+             * Format: uuid
+             * @description null when the Day was deleted later
+             */
+            dayId: string | null;
+            dayTitle: string | null;
+            /**
+             * Format: uuid
+             * @description CARRY_OVER: the Day created in the later period
+             */
+            destinationDayId: string | null;
+            destinationDayTitle: string | null;
+            /** Format: date */
+            destinationPlannedDate: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            newEstimatedMinutes: number;
+            /** Format: date */
+            newPlannedDate: string | null;
+            /** @enum {string} */
+            newStatus: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "DEFERRED" | "SKIPPED";
+            /** Format: int32 */
+            previousEstimatedMinutes: number;
+            /** Format: date */
+            previousPlannedDate: string | null;
+            /** @enum {string} */
+            previousStatus: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "DEFERRED" | "SKIPPED";
+        };
+        RecoveryEventResponse: {
+            /** Format: date-time */
+            appliedAt: string;
+            /** Format: uuid */
+            id: string;
+            items: components["schemas"]["RecoveryEventItemResponse"][];
+            /** Format: date */
+            localDate: string;
         };
         ReviewItemRequest: {
             content: string;
@@ -651,6 +885,8 @@ export interface components {
              */
             expectedVersion: number | null;
             note: string;
+            /** @description Core Days planned on this date to un-mark, with the versions the user saw */
+            releaseCoreDays?: components["schemas"]["VersionedIdRequest"][];
             /**
              * Format: date
              * @description The date to come back, after the recovery day
@@ -777,6 +1013,12 @@ export interface components {
             /** Format: int64 */
             version: number;
             why?: string;
+        };
+        VersionedIdRequest: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            version: number;
         };
     };
     responses: never;
@@ -1835,6 +2077,171 @@ export interface operations {
             };
             /** @description A Day version is stale (VERSION_CONFLICT); nothing was applied */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    listRecoveryCandidates: {
+        parameters: {
+            query: {
+                today: string;
+                now: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCandidateResponse"][];
+                };
+            };
+            /** @description Invalid request or recovery decision */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    applyCarryOver: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyCarryOverRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyCarryOverResponse"];
+                };
+            };
+            /** @description Invalid request or recovery decision */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description The source Day was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description A Day or Goal changed after the preview (VERSION_CONFLICT) or the Day was already carried over; nothing was applied */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    previewCarryOver: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CarryOverPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarryOverPreviewResponse"];
+                };
+            };
+            /** @description Invalid request or recovery decision */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description The source Day was not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description The Day was already carried over (ALREADY_CARRIED_OVER) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    listRecoveryEvents: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryEventResponse"][];
+                };
+            };
+            /** @description Invalid request or recovery decision */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

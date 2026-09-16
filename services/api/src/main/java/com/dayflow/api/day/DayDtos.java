@@ -230,6 +230,9 @@ public final class DayDtos {
             @Schema(requiredMode = REQUIRED) DayPlanningMode planningMode,
             @Schema(requiredMode = REQUIRED) boolean coreDay,
             @Schema(requiredMode = REQUIRED) List<DayTagResponse> tags,
+            @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "uuid",
+                    description = "The Day this one continues after a Carry Over (REC-003), or null")
+            UUID carriedFromDayId,
             @Schema(requiredMode = REQUIRED) Instant createdAt,
             @Schema(requiredMode = REQUIRED) Instant updatedAt,
             @Schema(requiredMode = REQUIRED) long version,
@@ -237,10 +240,10 @@ public final class DayDtos {
                     description = "null when the Day has no time placement")
             DayScheduleResponse schedule) {
 
-        static DayResponse from(Day day, DaySchedule schedule) {
+        public static DayResponse from(Day day, DaySchedule schedule) {
             return new DayResponse(day.getId(), day.getGoalId(), day.getTitle(), day.getStatus(), day.getPriority(),
                     day.getEstimatedMinutes(), day.getPlannedDate(), day.getPlanningMode(), day.isCoreDay(),
-                    day.getTags().stream().map(DayTagResponse::from).toList(),
+                    day.getTags().stream().map(DayTagResponse::from).toList(), day.getCarriedFromDayId(),
                     day.getCreatedAt(), day.getUpdatedAt(), day.getVersion(),
                     schedule == null ? null : DayScheduleResponse.from(schedule));
         }

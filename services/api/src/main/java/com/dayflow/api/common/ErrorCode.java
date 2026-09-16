@@ -40,6 +40,7 @@ public enum ErrorCode {
     VERSION_CONFLICT(HttpStatus.CONFLICT, "Version conflict"),
     SCHEDULE_VERSION_CONFLICT(HttpStatus.CONFLICT, "Schedule version conflict"),
     GOAL_IN_USE(HttpStatus.CONFLICT, "Goal in use"),
+    ALREADY_CARRIED_OVER(HttpStatus.CONFLICT, "Already carried over"),
     DATA_CONFLICT(HttpStatus.CONFLICT, "Data conflict");
 
     private final HttpStatus status;

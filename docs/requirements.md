@@ -407,6 +407,8 @@
 
 - “N일 뒤 자동 재노출” 같은 시간 기반 정책은 넣지 않는다. recovery event/history는 그대로 유지하고, `/recovery`에서 과거에 처리한 기록을 다시 확인할 수 있게 한다.
 
+- `이번엔 건너뛰기`는 Recovery action이 아니다. 사용자가 이번 정리에서 판단을 미룬 Day는 apply 요청에서 제외할 뿐이며, Day를 바꾸지 않고 recovery event도 남기지 않는다. 그래서 후보 조건을 계속 만족하면 다음에 다시 보인다.
+
 **접근성 (REC-002)**
 
 - `/recovery`는 놓친 Day가 있을 때만 발견되는 기능이 아니라 항상 접근 가능한 관리 화면이다. 화면은 `놓친 계획 정리`와 `Recovery Day 관리`를 분리한다.
@@ -750,9 +752,13 @@ REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며,
 | POST             | /api/v1/focus-sessions            | 실제 Focus 시작 기록                  |
 | PATCH            | /api/v1/focus-sessions/{id}/end   | Focus 종료/결과 기록                  |
 | POST             | /api/v1/interventions             | nudge response/reason/action 기록     |
-| POST             | /api/v1/recovery/preview          | 놓친 Day 기반 복구안 계산(CARRY_OVER 시 새로 만들 Goal/Day 포함) |
-| POST             | /api/v1/recovery/apply            | 사용자 확정 복구안 반영(KEEP/REDUCE/MOVE/CARRY_OVER/DROP) |
-| GET/PUT/DELETE   | /api/v1/recovery-days/{date}      | 오늘·미래 Recovery Day 조회/지정/해제 |
+| GET              | /api/v1/recovery/candidates       | `today`(사용자 로컬 날짜)·`now`(현재 시각) 기준 놓친 Day 후보: 과거 미완료 + 오늘 `endAt`이 지난 미완료, 같은 planning state로 이미 처리한 Day 제외(REC-001, REC-005) |
+| POST             | /api/v1/recovery/apply            | 사용자가 preview 후 확정한 KEEP/REDUCE/MOVE/DROP 일괄 반영. 한 transaction, version 불일치 시 409로 전체 미반영. CARRY_OVER는 받지 않는다 |
+| POST             | /api/v1/recovery/carry-over/preview | CARRY_OVER 계획 계산만 한다(DB 변경 없음): 새 날짜의 Goal 계층(그대로 사용/재사용/새로 만들기/선택 필요), 함께 넘길 미완료 Day, 준비 여부(REC-003, REC-004) |
+| POST             | /api/v1/recovery/carry-over/apply | preview에서 본 Day·Goal version과 함께 CARRY_OVER 적용. Goal 생성 + 새 Day + continuation 관계 + recovery event를 한 transaction으로 처리, 변경 감지 시 409로 전체 미반영 |
+| GET              | /api/v1/recovery/events           | 지난 Recovery 결정 기록 조회(최신순, `limit`), CARRY_OVER의 새 Day 포함(REC-005) |
+| GET              | /api/v1/recovery-days             | `from`/`to` 기간의 Recovery Day 목록 |
+| PUT/DELETE       | /api/v1/recovery-days/{date}      | 오늘·미래 Recovery Day 지정/수정(선택한 핵심 Day 해제를 같은 transaction으로)/해제 |
 | GET/PUT          | /api/v1/reviews/{type}/{period}   | 회고 조회/저장                        |
 | POST             | /api/v1/review-items/{id}/convert | Try → Day/Goal 변환                   |
 | POST             | /api/v1/ai/review-coach           | AI Review 제안 생성                   |

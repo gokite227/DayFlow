@@ -29,6 +29,7 @@ function day(overrides: Partial<DayResponse>): DayResponse {
     estimatedMinutes: 30,
     plannedDate: null,
     planningMode: "ANYTIME",
+    carriedFromDayId: null,
     coreDay: false,
     tags: [],
     createdAt: `2026-09-01T00:00:0${created}Z`,

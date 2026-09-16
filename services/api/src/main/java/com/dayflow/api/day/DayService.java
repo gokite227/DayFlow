@@ -166,6 +166,22 @@ public class DayService {
         return DayResponse.from(day, schedule);
     }
 
+    /**
+     * REC-003 Carry Over: a new Day on {@code date} continuing {@code source}. Title, estimate, priority,
+     * planning mode and Tags are copied; status starts again, there is no time placement, it is not a
+     * core Day, and nothing of the source changes. The Goal (optional) follows the normal Day rules.
+     */
+    public DayResponse createCarriedOver(Day source, UUID goalId, LocalDate date) {
+        Goal goal = findWeekGoal(goalId);
+        validateDateInGoal(date, goal, "targetDate");
+
+        Day day = new Day(goal == null ? null : goal.getId(), source.getTitle(), DayStatus.NOT_STARTED,
+                source.getPriority(), source.getEstimatedMinutes(), date, source.getPlanningMode(), false);
+        day.setTags(source.getTags());
+        day.setCarriedFromDayId(source.getId());
+        return DayResponse.from(days.saveAndFlush(day), null);
+    }
+
     /** The schedule, if any, is removed with the Day by the database cascade. */
     public void delete(UUID id) {
         days.delete(find(id));

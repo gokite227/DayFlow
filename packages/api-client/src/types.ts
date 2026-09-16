@@ -32,6 +32,13 @@ export type RecoveryDecisionRequest = Schemas["RecoveryDecisionRequest"];
 export type ApplyRecoveryResponse = Schemas["ApplyRecoveryResponse"];
 export type RecoveryDayResponse = Schemas["RecoveryDayResponse"];
 export type SaveRecoveryDayRequest = Schemas["SaveRecoveryDayRequest"];
+export type RecoveryCandidateResponse = Schemas["RecoveryCandidateResponse"];
+export type RecoveryEventResponse = Schemas["RecoveryEventResponse"];
+export type RecoveryEventItemResponse = Schemas["RecoveryEventItemResponse"];
+export type CarryOverPreviewRequest = Schemas["CarryOverPreviewRequest"];
+export type CarryOverPreviewResponse = Schemas["CarryOverPreviewResponse"];
+export type ApplyCarryOverRequest = Schemas["ApplyCarryOverRequest"];
+export type ApplyCarryOverResponse = Schemas["ApplyCarryOverResponse"];
 
 export type EventResponse = Schemas["EventResponse"];
 export type EventOccurrenceResponse = Schemas["EventOccurrenceResponse"];

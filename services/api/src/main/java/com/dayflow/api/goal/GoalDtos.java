@@ -149,14 +149,18 @@ public final class GoalDtos {
             @Schema(requiredMode = REQUIRED) LocalDate endDate,
             @Schema(requiredMode = REQUIRED) int priority,
             @Schema(requiredMode = REQUIRED) ProgressPolicy progressPolicy,
+            @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "uuid",
+                    description = "The earlier-period Goal this Goal continues (REC-003), or null")
+            UUID continuedFromGoalId,
             @Schema(requiredMode = REQUIRED) Instant createdAt,
             @Schema(requiredMode = REQUIRED) Instant updatedAt,
             @Schema(requiredMode = REQUIRED) long version) {
 
-        static GoalResponse from(Goal goal) {
+        public static GoalResponse from(Goal goal) {
             return new GoalResponse(goal.getId(), goal.getParentGoalId(), goal.getType(), goal.getTitle(),
                     goal.getWhy(), goal.getStartDate(), goal.getEndDate(), goal.getPriority(),
-                    goal.getProgressPolicy(), goal.getCreatedAt(), goal.getUpdatedAt(), goal.getVersion());
+                    goal.getProgressPolicy(), goal.getContinuedFromGoalId(), goal.getCreatedAt(),
+                    goal.getUpdatedAt(), goal.getVersion());
         }
     }
 }

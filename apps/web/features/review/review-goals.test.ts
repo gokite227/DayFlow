@@ -20,6 +20,7 @@ const goal = (id: string, type: GoalResponse["type"], startDate: string, endDate
   endDate,
   priority: 1,
   progressPolicy: "AUTO",
+  continuedFromGoalId: null,
   createdAt: "2026-09-01T00:00:00Z",
   updatedAt: "2026-09-01T00:00:00Z",
   version: 0,
