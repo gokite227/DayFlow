@@ -54,9 +54,11 @@ public class EventController {
     @ResponseStatus(HttpStatus.OK)
     @Operation(operationId = "listEvents")
     public List<EventResponse> list(
-            @RequestParam(required = false) EventType type,
+            @Parameter(description = "Only Events of this Category") @RequestParam(required = false) UUID categoryId,
+            @Parameter(description = "false: only uncategorized Events (미분류); true: only categorized ones")
+            @RequestParam(required = false) Boolean hasCategory,
             @RequestParam(required = false) UUID linkedGoalId) {
-        return eventService.list(type, linkedGoalId);
+        return eventService.list(categoryId, hasCategory, linkedGoalId);
     }
 
     @GetMapping("/events/{eventId}")
@@ -98,7 +100,9 @@ public class EventController {
     public List<EventOccurrenceResponse> occurrences(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) EventType type) {
-        return eventService.occurrences(from, to, type);
+            @Parameter(description = "Only occurrences of this Category") @RequestParam(required = false) UUID categoryId,
+            @Parameter(description = "false: only uncategorized Events (미분류); true: only categorized ones")
+            @RequestParam(required = false) Boolean hasCategory) {
+        return eventService.occurrences(from, to, categoryId, hasCategory);
     }
 }

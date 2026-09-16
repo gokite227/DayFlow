@@ -168,12 +168,12 @@
 | CAL-003   | P0      | Calendar   | 주간 Calendar에 Day와 Event occurrence를 함께 표시한다.                | 데이터는 `/days`와 `/event-occurrences`로 분리 조회하고, 같은 주간 grid에서 Event가 Day와 다른 시각 스타일(타입 라벨 포함)로 보인다. all-day Event는 날짜 행에 표시된다. |
 | CAL-004   | P0      | Calendar   | Day와 Event, Event와 Event가 같은 시간대에 겹칠 수 있다.               | 겹침은 validation 오류가 아니며, 겹친 블록은 서로 가리지 않고 나란히 표시된다.            |
 | CAL-005   | P0      | Calendar   | Calendar에서 Event를 클릭하면 Event 편집 화면/modal을 연다.            | MVP에서 Event는 drag/resize로 이동하지 않는다. Event 시간 변경은 명시적인 편집 후 저장으로만 처리된다. Day drag/drop/resize 동작은 CAL-001 그대로 유지된다. |
-| EVT-001   | P0      | Event      | Event를 생성/조회/수정/삭제한다(title, type, allDay, timed 또는 all-day 시간 필드, timezone, location, notes, recurrence, reminders, linkedGoalId). | timed(`startAt`/`endAt`)와 all-day(`startDate`/`endDateExclusive`) 필드가 섞이거나 누락되면 400(§8.4). `endAt < startAt`, `endDateExclusive <= startDate`, 잘못된 timezone, 알 수 없는 type/recurrence는 400. 수정/삭제는 version 충돌 시 409. |
-| EVT-002   | P0      | Event      | Events 화면에서 Event만 조회하고 Category로 필터한다.                  | desktop navigation은 Today / Goals / Calendar / Events / Days / Review 순서. 필터는 전체 + 사용자 Category 목록(EVT-006)이다. Day는 이 화면에 나오지 않는다. 모바일 Web은 6개 bottom tab으로 고정하지 않고 `More` 또는 별도 정보구조를 쓸 수 있다. |
+| EVT-001   | P0      | Event      | Event를 생성/조회/수정/삭제한다(title, categoryId, allDay, timed 또는 all-day 시간 필드, timezone, location, notes, recurrence, reminders, linkedGoalId). | timed(`startAt`/`endAt`)와 all-day(`startDate`/`endDateExclusive`) 필드가 섞이거나 누락되면 400(§8.4). `endAt < startAt`, `endDateExclusive <= startDate`, 잘못된 timezone, 알 수 없는 recurrence, 존재하지 않는 categoryId는 400. 수정/삭제는 version 충돌 시 409. |
+| EVT-002   | P0      | Event      | Events 화면에서 Event만 조회하고 Category로 필터한다.                  | desktop navigation은 Today / Goals / Calendar / Events / Days / Review 순서. 필터는 `전체` + `미분류` + 사용자 Category 목록(sortOrder 순, EVT-006)이다. Day는 이 화면에 나오지 않는다. 모바일 Web은 6개 bottom tab으로 고정하지 않고 `More` 또는 별도 정보구조를 쓸 수 있다. |
 | EVT-003   | P0      | Event      | recurrence NONE/DAILY/WEEKLY/MONTHLY/YEARLY를 지원한다.                | occurrence는 원래 recurrence anchor 기준으로 계산되고(직전 occurrence 기준 아님), 월/연 반복에서 대상 월에 없는 날짜는 그 달 마지막 날로 보정된다. 개별 occurrence 수정·예외 규칙은 MVP 제외(§8.4). |
 | EVT-004   | P0      | Event      | Event는 선택적으로 Goal에 연결한다(linkedGoalId nullable).             | Goal 없이 Event 생성 가능. 연결 Goal 삭제 시 Event는 남고 linkedGoalId만 null이 된다.     |
 | EVT-005   | P0      | Event      | Day와 Event는 별도 도메인이다. 마감은 Event, 준비 작업은 Day로 관리한다. 같은 현실 행동도 사용 목적(완료 관리 vs 시간 점유)에 따라 Day/Event를 고른다(§4.4). | Event에는 Day 상태(DONE 등)·핵심 Day·Recovery 분류가 없다. Event를 Day로 자동 변환하지 않는다. Routine/Habit 전용 도메인은 만들지 않고 Day/Event로 표현한다(§2.4). |
-| EVT-006   | P0      | Event      | Event 유형은 고정 enum 대신 사용자 정의 Category로 관리한다(§4.4, §8.6). | 기본 Category(일정/생일/면접/시험/마감/약속)를 제공하고 사용자가 추가·이름 변경·색상 변경·정렬·삭제할 수 있다. 삭제할 수 없는 강제 default Category는 두지 않는다. `Event.categoryId`는 nullable이며, Category 삭제 시 Event는 남고 `categoryId = null`이 되어 UI에서 `미분류`로 보인다. Day Tag(DAY-005)와 Event Category는 합치지 않는다. |
+| EVT-006   | P0      | Event      | Event 유형은 고정 enum 대신 사용자 정의 Category로 관리한다(§4.4, §8.6). | 기본 Category(일정/생일/면접/시험/마감/약속)를 제공하고 사용자가 추가·이름 변경·색상 변경·정렬·삭제할 수 있다. 이름은 trim 후 최대 30자, 대소문자를 무시한 중복 금지. 색상은 Event palette 중 선택. 삭제할 수 없는 강제 default Category는 두지 않는다. `Event.categoryId`는 nullable이며, Category 삭제 시 Event는 남고 `categoryId = null`이 되어 UI에서 `미분류`로 보인다. Day Tag(DAY-005)와 Event Category는 합치지 않는다. |
 | TODAY-001 | P0      | Today      | 오늘 Day와 Goal Path, 그리고 오늘 날짜를 포함하는 WEEK Goal들의 progress를 보여준다. | 오늘 배치된 Day가 없는 WEEK Goal도 이번 주의 방향이므로 표시한다. WEEK Goal이 여러 개면 compact하게 보여도 되고, progress 계산은 그 Goal에 연결된 Day만 사용한다(GOAL-003). Day 클릭 시 수정, 시작 시 Focus 진입 가능. Goal이 없는 Day도 오늘 목록에 함께 보인다(DAY-001). |
 | FOCUS-001 | P0      | Focus      | Day 또는 독립 Focus Session을 즉시 시작/종료한다.                      | 실제 시작/종료 시각과 source가 저장된다.                                                 |
 | FOCUS-002 | P0      | iOS Lock   | 선택 앱 차단 또는 허용 앱 중심 차단 규칙을 설정한다.                   | FamilyActivityPicker 선택이 기기 로컬에 저장되고 server에는 raw token이 올라가지 않는다. |
@@ -270,7 +270,7 @@
 
 - 같은 주간 grid에 Day와 Event occurrence를 함께 그린다. Event가 점유한 시간을 먼저 보고 남은 시간에 Day를 배치할 수 있어야 한다.
 
-- Day는 기존 pink/lavender 스타일을 유지한다. Event는 Day 팔레트와 구분되는 별도 토큰을 쓰고, 시간이 확정된 일정임이 드러나도록 더 명확하게(선명한 테두리/바, 유형 라벨) 표시한다. 색만으로 구분하지 않는다.
+- Day는 기존 pink/lavender 스타일을 유지한다. Event는 Day 팔레트와 구분되는 별도 토큰을 쓰고, 시간이 확정된 일정임이 드러나도록 더 명확하게(선명한 테두리/바, Category 라벨·색상, 미분류는 중립색) 표시한다. 색만으로 구분하지 않는다.
 
 - all-day Event는 날짜 행(date-only row)에 표시한다. `startAt = endAt`인 timed Event(예: 23:59 마감)는 해당 시각의 marker로 표시한다.
 
@@ -625,7 +625,7 @@ erDiagram
 | day_tag_links        | Day ↔ Tag 연결                                       | (day_id, tag_id) unique, Day당 최대 10개(서비스 검증), Day/Tag 삭제 시 연결만 정리 |
 | day_schedules        | 선택적 시간 블록                                     | 시간 미정 Day를 위해 Day와 분리                      |
 | event_categories     | 사용자 정의 Event Category: 이름, 색상, 정렬 순서    | 기본 Category는 시드일 뿐 삭제 가능(EVT-006). `events.category_id` nullable FK(ON DELETE SET NULL) → 미분류 |
-| events               | 일정: title, category(→ category_id), all_day, start_at, end_at(timed), start_date, end_date_exclusive(all-day), timezone, location, notes, recurrence, linked_goal_id | Day와 별도 테이블. timed/all-day 필드 정합성 CHECK(§8.4). 고정 type enum → event_categories 참조로 전환(EVT-006, §8.6). linked_goal_id nullable FK(ON DELETE SET NULL), version |
+| events               | 일정: title, category(→ category_id), all_day, start_at, end_at(timed), start_date, end_date_exclusive(all-day), timezone, location, notes, recurrence, linked_goal_id | Day와 별도 테이블. timed/all-day 필드 정합성 CHECK(§8.4). 종류는 event_categories 참조(EVT-006, §8.6). linked_goal_id nullable FK(ON DELETE SET NULL), version |
 | event_reminders      | Event별 reminder offset(분, occurrence 기준 상대값)  | event_id FK cascade, (event_id, offset_minutes) unique, offset_minutes ≥ 0 CHECK, Event당 최대 5개 |
 | focus_rules          | Focus 설정 metadata                                  | OS token 자체는 server 비저장                        |
 | focus_sessions       | 실제 집중 시작/종료                                  | Actual 분석의 핵심                                   |
@@ -662,7 +662,7 @@ erDiagram
 |----------------|----------------------------------------------------------------|-----------------------------------------------------------------|
 | id             | UUID                                                           | 공통 필드                                                       |
 | title          | string                                                         | 필수, 공백 불가                                                 |
-| categoryId     | 사용자 정의 Event Category(EVT-006) 참조, nullable             | 없으면 UI에서 `미분류`. Category 삭제 시 null이 된다. 현재 구현의 고정 enum(`BIRTHDAY/INTERVIEW/EXAM/DEADLINE/APPOINTMENT/OTHER`)은 Category 전환 시 대체한다(§8.6) |
+| categoryId     | 사용자 정의 Event Category(EVT-006) 참조, nullable             | 없으면 UI에서 `미분류`. Category 삭제 시 null이 된다. 응답은 `category`(`id`/`name`/`color` 또는 null)를 항상 포함한다 |
 | allDay         | boolean                                                        | 필수. timed/all-day 저장 계약을 결정                            |
 | startAt        | instant, timed 전용                                            | allDay=false면 필수, allDay=true면 null                         |
 | endAt          | instant, timed 전용                                            | allDay=false면 필수, `endAt >= startAt`. 같으면 시점 일정(예: 마감). allDay=true면 null |
@@ -688,7 +688,7 @@ erDiagram
 - **DB 정합성(CHECK):**
   - `all_day = false` → `start_at`, `end_at` NOT NULL, `start_date`, `end_date_exclusive` NULL, `end_at >= start_at`
   - `all_day = true` → `start_date`, `end_date_exclusive` NOT NULL, `start_at`, `end_at` NULL, `end_date_exclusive > start_date`
-  - `timezone` NOT NULL, `type`/`recurrence`는 허용 enum 값만
+  - `timezone` NOT NULL, `recurrence`는 허용 enum 값만, `category_id`는 nullable FK(ON DELETE SET NULL)
   - `event_reminders.offset_minutes >= 0`, `(event_id, offset_minutes)` unique
 
 - **Application validation:** DB CHECK로 표현할 수 없는 규칙은 service validation과 테스트로 보장한다. timezone이 유효한 IANA ID인지, Event당 reminder 최대 5개, 존재하지 않는 linkedGoalId, allDay 전환 시 반대쪽 시간 필드를 비우고 새 필드를 모두 받는지.
@@ -719,9 +719,9 @@ erDiagram
   - Day Tag와 Event Category는 별도 테이블로 유지한다(같은 테이블로 합치지 않는다). Routine/Habit 분류와도 합치지 않는다.
 
 ## 8.6 Event Category와 Carry Over 추적 (EVT-006, REC-003)
-- **Event Category:** 고정 enum(`BIRTHDAY/INTERVIEW/EXAM/DEADLINE/APPOINTMENT/OTHER`)을 `event_categories` 참조(`events.category_id`)로 전환한다. 기본 Category(일정/생일/면접/시험/마감/약속)를 시드로 제공하되, 기본 Category도 사용자가 이름·색상을 바꾸거나 삭제할 수 있다. 삭제할 수 없는 강제 default Category는 두지 않는다.
+- **Event Category:** Event 종류는 `event_categories` 참조(`events.category_id`)다. 과거의 고정 type 값은 migration(V7)에서 같은 의미의 기본 Category로 옮기고 컬럼을 제거했다(OTHER→일정, BIRTHDAY→생일, INTERVIEW→면접, EXAM→시험, DEADLINE→마감, APPOINTMENT→약속). 기본 Category(일정/생일/면접/시험/마감/약속)를 시드로 제공하되, 기본 Category도 사용자가 이름·색상을 바꾸거나 삭제할 수 있다. 삭제할 수 없는 강제 default Category는 두지 않는다.
   - `events.category_id`는 nullable이고 FK는 `ON DELETE SET NULL`로 둔다. Category를 지워도 Event는 남고 `미분류`로 표시한다.
-  - §8.4의 `type` 필드 설명은 이 전환 이후 `categoryId`로 대체한다.
+  - API에 legacy `type` 필드·필터는 없다. Event 요청은 `categoryId`(nullable, PATCH에서 생략 시 유지·null이면 미분류), 응답은 `category` 요약을 쓴다.
 
 - **Carry Over 추적:** 승계 관계는 recovery event history에만 숨기지 않고 엔티티에서 직접 조회할 수 있어야 한다.
   - 방향: Day에 `carried_from_day_id`(nullable self-reference), Goal에 `continued_from_goal_id`(nullable self-reference). 실제 컬럼명은 기존 naming convention에 맞춰 조정할 수 있다.
@@ -742,13 +742,13 @@ REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며,
 | GET/POST         | /api/v1/day-tags                  | Day Tag 목록/생성                     |
 | PATCH/DELETE     | /api/v1/day-tags/{tagId}          | Tag 이름/색상/정렬 수정, 삭제         |
 | GET/POST         | /api/v1/event-categories          | Event Category 목록/생성              |
-| PATCH/DELETE     | /api/v1/event-categories/{id}     | Category 이름/색상/정렬 수정, 삭제    |
+| PATCH/DELETE     | /api/v1/event-categories/{categoryId} | Category 이름/색상/정렬 수정(version 충돌 409), 삭제(Event는 미분류로 유지) |
 | PATCH            | /api/v1/days/{dayId}              | title/status/date/priority 수정       |
 | PUT              | /api/v1/days/{dayId}/schedule     | 시간 배치/수정                        |
 | DELETE           | /api/v1/days/{dayId}/schedule     | 시간 배치만 해제                      |
-| GET/POST         | /api/v1/events                    | type/linkedGoalId 필터 Event 목록, Event 생성 |
+| GET/POST         | /api/v1/events                    | categoryId/hasCategory/linkedGoalId 필터 Event 목록, Event 생성 |
 | GET/PATCH/DELETE | /api/v1/events/{eventId}          | Event 상세/수정(reminders 포함)/삭제  |
-| GET              | /api/v1/event-occurrences         | from/to/type 기간 내 반복 전개 occurrence (Calendar/Events 화면) |
+| GET              | /api/v1/event-occurrences         | from/to/categoryId/hasCategory 기간 내 반복 전개 occurrence (Calendar/Events 화면) |
 | POST             | /api/v1/focus-sessions            | 실제 Focus 시작 기록                  |
 | PATCH            | /api/v1/focus-sessions/{id}/end   | Focus 종료/결과 기록                  |
 | POST             | /api/v1/interventions             | nudge response/reason/action 기록     |
@@ -779,7 +779,7 @@ REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며,
 
 - 요청/응답 시간 필드는 §8.4 저장 계약을 따른다. `allDay=false`는 `startAt`/`endAt`만, `allDay=true`는 `startDate`/`endDateExclusive`만 값이 있고 반대쪽은 null이다. `allDay`를 바꾸는 `PATCH`는 새 계약의 시간 필드를 모두 함께 보내야 한다.
 
-- `GET /event-occurrences` 응답 항목은 `eventId`, `allDay`, occurrence 시간(timed: `startAt`/`endAt`, all-day: `startDate`/`endDateExclusive`), `type`, `title`, `timezone`, `linkedGoalId`를 포함한다. from/to(date)는 필수이며 조회 범위 상한을 둔다.
+- `GET /event-occurrences` 응답 항목은 `eventId`, `allDay`, occurrence 시간(timed: `startAt`/`endAt`, all-day: `startDate`/`endDateExclusive`), `category`(nullable), `title`, `timezone`, `linkedGoalId`를 포함한다. `categoryId=`는 해당 Category만, `hasCategory=false`는 미분류만 조회한다(`/events`도 동일). from/to(date)는 필수이며 조회 범위 상한을 둔다.
 
 - validation 오류(timed/all-day 필드 혼합·누락, `endAt < startAt`, `endDateExclusive <= startDate`, 잘못된 timezone, 중복/음수 reminder offset, reminder 6개 이상, 존재하지 않는 linkedGoalId)는 fieldErrors를 포함한 400으로 반환한다.
 
@@ -797,7 +797,7 @@ REST + JSON을 기본으로 한다. Web과 Mobile이 같은 API를 사용하며,
 
 - 사용자 설정: coach intensity, 주당 가용 시간(선택), 중요한 Goal.
 
-- Event(P1, AI-004): 기간 내 occurrence의 type, 시작/종료 시각, all-day 여부, linkedGoalId. 가용 시간 계산과 배치 추천 근거로 사용한다.
+- Event(P1, AI-004): 기간 내 occurrence의 category, 시작/종료 시각, all-day 여부, linkedGoalId. 가용 시간 계산과 배치 추천 근거로 사용한다.
 
 ## 10.2 AI가 보면 안 되는 데이터(기본값)
 - iOS FamilyActivitySelection raw token.

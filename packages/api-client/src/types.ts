@@ -44,7 +44,10 @@ export type EventResponse = Schemas["EventResponse"];
 export type EventOccurrenceResponse = Schemas["EventOccurrenceResponse"];
 export type CreateEventRequest = Schemas["CreateEventRequest"];
 export type UpdateEventRequest = Schemas["UpdateEventRequest"];
-export type EventType = EventResponse["type"];
+export type EventCategoryResponse = Schemas["EventCategoryResponse"];
+export type EventCategorySummary = Schemas["EventCategorySummary"];
+export type CreateEventCategoryRequest = Schemas["CreateEventCategoryRequest"];
+export type UpdateEventCategoryRequest = Schemas["UpdateEventCategoryRequest"];
 export type EventRecurrence = EventResponse["recurrence"];
 
 /**

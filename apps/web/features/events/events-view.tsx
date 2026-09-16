@@ -1,17 +1,25 @@
 "use client";
 
-import type { EventOccurrenceResponse, EventResponse, EventType } from "@dayflow/api-client";
-import { useState } from "react";
+import type { EventOccurrenceResponse, EventResponse } from "@dayflow/api-client";
+import { useState, type CSSProperties } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
 import { addDays } from "@/features/calendar/calendar-time";
 import { useGoals } from "@/features/goals/goal-queries";
 import { useToday } from "@/lib/use-today";
+import { EventCategoryManager } from "./event-category-manager";
+import { useEventCategories } from "./event-category-queries";
+import {
+  UNCATEGORIZED_LABEL,
+  categoryLabel,
+  categoryStyle,
+  matchesCategoryFilter,
+  sortCategories,
+  type EventCategoryFilter,
+} from "./event-category-values";
 import { EventFormModal, type EventFormTarget } from "./event-form-modal";
 import { useEventOccurrences, useEvents } from "./event-queries";
 import {
-  EVENT_TYPES,
-  EVENT_TYPE_LABEL,
   RECURRENCE_LABEL,
   describeOccurrenceTime,
   eventTime,
@@ -23,11 +31,10 @@ import {
 /** Upcoming = the next occurrence of each Event within a year (the API range limit is 366 days). */
 const UPCOMING_DAYS = 365;
 
-type Filter = "ALL" | EventType;
-
 export function EventsView() {
   const today = useToday();
   const [target, setTarget] = useState<EventFormTarget | null>(null);
+  const [managingCategories, setManagingCategories] = useState(false);
 
   return (
     <>
@@ -35,52 +42,80 @@ export function EventsView() {
         title="Events"
         subtitle="면접·시험·생일·마감처럼 이미 정해진 일정을 따로 관리합니다."
         action={
-          today && (
-            <button type="button" className="btn" onClick={() => setTarget({ mode: "create", date: today })}>
-              + 새 일정
+          <div className="event-header-actions">
+            <button type="button" className="btn secondary" onClick={() => setManagingCategories(true)}>
+              카테고리 관리
             </button>
-          )
+            {today && (
+              <button type="button" className="btn" onClick={() => setTarget({ mode: "create", date: today })}>
+                + 새 일정
+              </button>
+            )}
+          </div>
         }
       />
       {today === null ? <LoadingState /> : <EventsContent today={today} onOpen={setTarget} />}
       {target && <EventFormModal target={target} onClose={() => setTarget(null)} />}
+      {managingCategories && <EventCategoryManager onClose={() => setManagingCategories(false)} />}
     </>
   );
 }
 
 function EventsContent({ today, onOpen }: { today: string; onOpen: (target: EventFormTarget) => void }) {
-  const [filter, setFilter] = useState<Filter>("ALL");
+  const [selectedFilter, setFilter] = useState<EventCategoryFilter>("ALL");
   const occurrencesQuery = useEventOccurrences(today, addDays(today, UPCOMING_DAYS));
   const eventsQuery = useEvents();
   const goalsQuery = useGoals();
+  const categoriesQuery = useEventCategories();
+  const categories = sortCategories(categoriesQuery.data ?? []);
+  // A Category deleted in the manager falls back to 전체 instead of an empty list.
+  const filter =
+    typeof selectedFilter === "object" && !categories.some((category) => category.id === selectedFilter.categoryId)
+      ? "ALL"
+      : selectedFilter;
+  const filters: { key: string; value: EventCategoryFilter; label: string; color?: string }[] = [
+    { key: "ALL", value: "ALL", label: "전체" },
+    { key: "UNCATEGORIZED", value: "UNCATEGORIZED", label: UNCATEGORIZED_LABEL },
+    ...categories.map((category) => ({
+      key: category.id,
+      value: { categoryId: category.id },
+      label: category.name,
+      color: category.color,
+    })),
+  ];
+  const filterKey = (value: EventCategoryFilter) => (typeof value === "object" ? value.categoryId : value);
+  const activeFilter = filters.find((entry) => entry.key === filterKey(filter));
 
   const goalTitle = new Map((goalsQuery.data ?? []).map((goal) => [goal.id, goal.title]));
   const eventsById = new Map((eventsQuery.data ?? []).map((event) => [event.id, event]));
-  const matches = (type: EventType) => filter === "ALL" || filter === type;
-
-  const upcoming = nextOccurrences(occurrencesQuery.data ?? []).filter((occurrence) => matches(occurrence.type));
+  const upcoming = nextOccurrences(occurrencesQuery.data ?? []).filter((occurrence) =>
+    matchesCategoryFilter(occurrence.category, filter),
+  );
   const upcomingIds = new Set((occurrencesQuery.data ?? []).map((occurrence) => occurrence.eventId));
   // Events without an occurrence in the upcoming year: already over, or further than a year ahead.
-  const others = (eventsQuery.data ?? []).filter((event) => !upcomingIds.has(event.id) && matches(event.type));
+  const others = (eventsQuery.data ?? []).filter(
+    (event) => !upcomingIds.has(event.id) && matchesCategoryFilter(event.category, filter),
+  );
 
-  const countFor = (value: Filter) =>
-    nextOccurrences(occurrencesQuery.data ?? []).filter((occurrence) => value === "ALL" || occurrence.type === value)
+  const countFor = (value: EventCategoryFilter) =>
+    nextOccurrences(occurrencesQuery.data ?? []).filter((occurrence) => matchesCategoryFilter(occurrence.category, value))
       .length;
 
   return (
     <div className="stack">
-      <div className="goal-tabs" role="tablist" aria-label="일정 유형">
-        {(["ALL", ...EVENT_TYPES] as Filter[]).map((value) => (
+      <div className="goal-tabs" role="tablist" aria-label="일정 카테고리">
+        {filters.map((entry) => (
           <button
-            key={value}
+            key={entry.key}
             type="button"
             role="tab"
-            aria-selected={filter === value}
-            className={filter === value ? "active" : undefined}
-            onClick={() => setFilter(value)}
+            aria-selected={entry.key === activeFilter?.key}
+            className={entry.key === activeFilter?.key ? "active" : undefined}
+            onClick={() => setFilter(entry.value)}
           >
-            {value === "ALL" ? "전체" : EVENT_TYPE_LABEL[value]}
-            {occurrencesQuery.isSuccess && <span className="tab-count">{countFor(value)}</span>}
+            {entry.color && <span className="tag-dot" aria-hidden style={{ background: entry.color, marginRight: 5 }} />}
+            {entry.label}
+            {occurrencesQuery.isSuccess && <span className="tab-count">{countFor(entry.value)}</span>}
           </button>
         ))}
       </div>
@@ -93,7 +128,7 @@ function EventsContent({ today, onOpen }: { today: string; onOpen: (target: Even
           <ErrorNotice error={occurrencesQuery.error} onRetry={() => void occurrencesQuery.refetch()} />
         ) : upcoming.length === 0 ? (
           <EmptyState>
-            {filter === "ALL" ? "앞으로 1년 안에 예정된 일정이 없습니다." : `다가오는 ${EVENT_TYPE_LABEL[filter]} 일정이 없습니다.`}
+            {filter === "ALL" ? "앞으로 1년 안에 예정된 일정이 없습니다." : `다가오는 ${activeFilter?.label ?? ""} 일정이 없습니다.`}
           </EmptyState>
         ) : (
           <div className="event-list">
@@ -152,8 +187,13 @@ function UpcomingRow({
   ].filter((detail): detail is string => detail !== null);
 
   return (
-    <button type="button" className={`event-row type-${occurrence.type.toLowerCase()}`} onClick={onOpen}>
-      <span className="event-type-badge">{EVENT_TYPE_LABEL[occurrence.type]}</span>
+    <button
+      type="button"
+      className="event-row"
+      style={categoryStyle(occurrence.category) as CSSProperties}
+      onClick={onOpen}
+    >
+      <span className="event-type-badge">{categoryLabel(occurrence.category)}</span>
       <span className="event-row-main">
         <strong>{occurrence.title}</strong>
         <span className="event-row-time">{describeOccurrenceTime(occurrence)}</span>
@@ -170,10 +210,11 @@ function OtherRow({ event, today, onOpen }: { event: EventResponse; today: strin
   return (
     <button
       type="button"
-      className={`event-row${date < today ? " past" : ""} type-${event.type.toLowerCase()}`}
+      className={`event-row${date < today ? " past" : ""}`}
+      style={categoryStyle(event.category) as CSSProperties}
       onClick={onOpen}
     >
-      <span className="event-type-badge">{EVENT_TYPE_LABEL[event.type]}</span>
+      <span className="event-type-badge">{categoryLabel(event.category)}</span>
       <span className="event-row-main">
         <strong>{event.title}</strong>
         <span className="event-row-time">

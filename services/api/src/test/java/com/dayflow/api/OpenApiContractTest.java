@@ -1,6 +1,7 @@
 package com.dayflow.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -82,6 +83,10 @@ class OpenApiContractTest {
         expectOnlySuccessStatus(docs, "/api/v1/events/{eventId}", "patch", "200");
         expectOnlySuccessStatus(docs, "/api/v1/events/{eventId}", "delete", "204");
         expectOnlySuccessStatus(docs, "/api/v1/event-occurrences", "get", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/event-categories", "get", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/event-categories", "post", "201");
+        expectOnlySuccessStatus(docs, "/api/v1/event-categories/{categoryId}", "patch", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/event-categories/{categoryId}", "delete", "204");
     }
 
     @Test
@@ -100,17 +105,31 @@ class OpenApiContractTest {
                 .andExpect(problemResponse("/api/v1/events/{eventId}", "delete", "409"))
                 .andExpect(jsonPath(SCHEMAS + "EventResponse.properties.reminders.type").value("array"))
                 .andExpect(jsonPath(SCHEMAS + "CreateEventRequest.properties.reminders.maxItems").value(5))
-                .andExpect(jsonPath(SCHEMAS + "UpdateEventRequest.required", not(hasItem("linkedGoalId"))));
+                .andExpect(jsonPath(SCHEMAS + "UpdateEventRequest.required", not(hasItem("linkedGoalId"))))
+                .andExpect(jsonPath(SCHEMAS + "EventResponse.properties.type").doesNotExist())
+                .andExpect(jsonPath(SCHEMAS + "EventType").doesNotExist())
+                .andExpect(jsonPath(SCHEMAS + "EventResponse.properties.category.oneOf[*]['$ref']",
+                        contains("#/components/schemas/EventCategorySummary")))
+                .andExpect(jsonPath(SCHEMAS + "EventResponse.properties.category.oneOf[*].type", contains("null")))
+                .andExpect(jsonPath(SCHEMAS + "EventOccurrenceResponse.properties.category.oneOf[*].type",
+                        contains("null")))
+                .andExpect(jsonPath(SCHEMAS + "CreateEventRequest.properties.categoryId.type",
+                        containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath(SCHEMAS + "CreateEventRequest.required", not(hasItem("categoryId"))))
+                .andExpect(jsonPath(SCHEMAS + "UpdateEventRequest.properties.categoryId.type",
+                        containsInAnyOrder("string", "null")))
+                .andExpect(problemResponse("/api/v1/event-categories/{categoryId}", "patch", "409"))
+                .andExpect(problemResponse("/api/v1/event-categories/{categoryId}", "delete", "404"));
     }
 
     /** A timed and an all-day Event carry every documented field, with the other kind's pair as null. */
     @Test
     void runtimeEventBodiesMatchDocumentedFields() throws Exception {
         for (String json : List.of("""
-                {"title": "Contract timed", "type": "OTHER", "allDay": false, "startAt": "2050-01-01T09:00:00Z",
+                {"title": "Contract timed", "allDay": false, "startAt": "2050-01-01T09:00:00Z",
                  "endAt": "2050-01-01T10:00:00Z", "timezone": "UTC", "recurrence": "NONE", "reminders": []}
                 """, """
-                {"title": "Contract all-day", "type": "OTHER", "allDay": true, "startDate": "2050-01-01",
+                {"title": "Contract all-day", "allDay": true, "startDate": "2050-01-01",
                  "endDateExclusive": "2050-01-02", "timezone": "UTC", "recurrence": "NONE", "reminders": []}
                 """)) {
             String event = mvc.perform(post("/api/v1/events").contentType(MediaType.APPLICATION_JSON).content(json))
@@ -153,7 +172,7 @@ class OpenApiContractTest {
                 "ConvertReviewItemResponse", "RecoveryDayResponse", "ApplyRecoveryResponse",
                 "RecoveryCandidateResponse", "RecoveryEventResponse", "RecoveryEventItemResponse",
                 "CarryOverPreviewResponse", "CarryOverLevelPreview", "CarryOverDayPreview", "ApplyCarryOverResponse",
-                "CarriedDayResponse")) {
+                "CarriedDayResponse", "EventCategoryResponse", "EventCategorySummary")) {
             assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(
                     propertiesOf(schema));
         }

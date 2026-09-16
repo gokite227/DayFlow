@@ -16,7 +16,7 @@ import {
 const timedEvent: EventResponse = {
   id: "e1",
   title: "Interview",
-  type: "INTERVIEW",
+  category: { id: "c-interview", name: "면접", color: "#3a78b8" },
   allDay: false,
   startAt: "2026-09-16T14:00:00+09:00",
   endAt: "2026-09-16T15:00:00+09:00",
@@ -37,7 +37,7 @@ const occurrence = (overrides: Partial<EventOccurrenceResponse>): EventOccurrenc
   eventId: "e1",
   eventVersion: 0,
   title: "Birthday",
-  type: "BIRTHDAY",
+  category: null,
   allDay: true,
   startAt: null,
   endAt: null,
@@ -61,7 +61,7 @@ describe("EVT-001 timed / all-day values", () => {
     const timed = { ...newEventValues("2026-09-16", "Asia/Seoul"), title: " Interview ", reminders: [60, 0] };
     expect(toCreateEventRequest(timed)).toEqual({
       title: "Interview",
-      type: "APPOINTMENT",
+      categoryId: null,
       allDay: false,
       startAt: "2026-09-16T09:00:00+09:00",
       endAt: "2026-09-16T10:00:00+09:00",
@@ -81,11 +81,21 @@ describe("EVT-001 timed / all-day values", () => {
 
   it("round-trips an Event into form values and a versioned PATCH", () => {
     const values = eventToValues(timedEvent);
-    expect(values).toMatchObject({ startDate: "2026-09-16", startTime: "14:00", endTime: "15:00", reminders: [0, 60] });
+    expect(values).toMatchObject({
+      categoryId: "c-interview",
+      startDate: "2026-09-16",
+      startTime: "14:00",
+      endTime: "15:00",
+      reminders: [0, 60],
+    });
     expect(toUpdateEventRequest(values, timedEvent.version)).toMatchObject({
+      categoryId: "c-interview",
       startAt: "2026-09-16T14:00:00+09:00",
       version: 3,
     });
+    // EVT-006: choosing 미분류 sends null, which clears the Category.
+    expect(toUpdateEventRequest({ ...values, categoryId: "" }, timedEvent.version).categoryId).toBeNull();
+    expect(eventToValues({ ...timedEvent, category: null }).categoryId).toBe("");
 
     const allDay = eventToValues({ ...timedEvent, allDay: true, startAt: null, endAt: null, startDate: "2026-10-03", endDateExclusive: "2026-10-04" });
     expect(allDay).toMatchObject({ allDay: true, startDate: "2026-10-03", endDate: "2026-10-03" });

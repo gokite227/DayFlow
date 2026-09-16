@@ -43,7 +43,7 @@ class EventApiIntegrationTest {
     @Test
     void evt001CreatesTimedAndAllDayEventsWithSeparateTimeFields() throws Exception {
         String timed = send(post("/api/v1/events"), """
-                {"title": "Interview", "type": "INTERVIEW", "allDay": false,
+                {"title": "Interview", "allDay": false,
                  "startAt": "2041-09-16T14:00:00+09:00", "endAt": "2041-09-16T15:00:00+09:00",
                  "timezone": "Asia/Seoul", "location": "Gangnam", "notes": null, "recurrence": "NONE",
                  "reminders": [60, 0, 1440], "linkedGoalId": null}
@@ -59,7 +59,7 @@ class EventApiIntegrationTest {
         assertThat((String) JsonPath.read(timed, "$.location")).isEqualTo("Gangnam");
 
         String allDay = send(post("/api/v1/events"), """
-                {"title": "Exam week", "type": "EXAM", "allDay": true,
+                {"title": "Exam week", "allDay": true,
                  "startDate": "2041-09-20", "endDateExclusive": "2041-09-23",
                  "timezone": "Asia/Seoul", "recurrence": "NONE", "reminders": []}
                 """)
@@ -82,7 +82,7 @@ class EventApiIntegrationTest {
     @Test
     void evt001RejectsMixedOrMissingTimeFields() throws Exception {
         send(post("/api/v1/events"), """
-                {"title": "Mixed", "type": "OTHER", "allDay": true, "startAt": "2041-01-01T10:00:00+09:00",
+                {"title": "Mixed", "allDay": true, "startAt": "2041-01-01T10:00:00+09:00",
                  "startDate": "2041-01-01", "timezone": "Asia/Seoul", "recurrence": "NONE", "reminders": []}
                 """)
                 .andExpect(status().isBadRequest())
@@ -90,14 +90,14 @@ class EventApiIntegrationTest {
                 .andExpect(jsonPath("$.fieldErrors[*].field", containsInAnyOrder("startAt", "endDateExclusive")));
 
         send(post("/api/v1/events"), """
-                {"title": "Backwards", "type": "OTHER", "allDay": false, "startAt": "2041-01-01T10:00:00+09:00",
+                {"title": "Backwards", "allDay": false, "startAt": "2041-01-01T10:00:00+09:00",
                  "endAt": "2041-01-01T09:00:00+09:00", "timezone": "Asia/Seoul", "recurrence": "NONE", "reminders": []}
                 """)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("endAt"));
 
         send(post("/api/v1/events"), """
-                {"title": "Bad zone", "type": "OTHER", "allDay": true, "startDate": "2041-01-01",
+                {"title": "Bad zone", "allDay": true, "startDate": "2041-01-01",
                  "endDateExclusive": "2041-01-02", "timezone": "+09:00", "recurrence": "NONE", "reminders": []}
                 """)
                 .andExpect(status().isBadRequest())
@@ -107,9 +107,9 @@ class EventApiIntegrationTest {
     @Test
     void evt001DatabaseRejectsMixedTimeShape() {
         assertThatThrownBy(() -> jdbc.update("""
-                insert into events (id, title, type, all_day, start_at, end_at, start_date, end_date_exclusive,
+                insert into events (id, title, all_day, start_at, end_at, start_date, end_date_exclusive,
                     timezone, recurrence, created_at, updated_at, version)
-                values (gen_random_uuid(), 'Broken', 'OTHER', true, now(), now(), current_date, current_date + 1,
+                values (gen_random_uuid(), 'Broken', true, now(), now(), current_date, current_date + 1,
                     'Asia/Seoul', 'NONE', now(), now(), 0)
                 """)).isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -196,13 +196,16 @@ class EventApiIntegrationTest {
     }
 
     @Test
-    void cal003ListsOccurrencesInRangeWithRecurrenceAndTypeFilter() throws Exception {
+    void cal003ListsOccurrencesInRangeWithRecurrenceAndCategoryFilter() throws Exception {
+        String birthday = JsonPath.read(send(post("/api/v1/event-categories"), """
+                {"name": "cal003 birthdays", "color": "#d9822b", "sortOrder": null}
+                """).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id");
         createEvent("""
-                {"title": "Mom birthday", "type": "BIRTHDAY", "allDay": true, "startDate": "2045-03-05",
+                {"title": "Mom birthday", "categoryId": "%s", "allDay": true, "startDate": "2045-03-05",
                  "endDateExclusive": "2045-03-06", "timezone": "Asia/Seoul", "recurrence": "YEARLY", "reminders": [1440]}
-                """);
+                """.formatted(birthday));
         createEvent("""
-                {"title": "Rent", "type": "DEADLINE", "allDay": false, "startAt": "2045-01-31T23:59:00+09:00",
+                {"title": "Rent", "allDay": false, "startAt": "2045-01-31T23:59:00+09:00",
                  "endAt": "2045-01-31T23:59:00+09:00", "timezone": "Asia/Seoul", "recurrence": "MONTHLY", "reminders": []}
                 """);
 
@@ -213,12 +216,23 @@ class EventApiIntegrationTest {
                 .andExpect(jsonPath("$[?(@.title == 'Mom birthday')].startDate").value(
                         org.hamcrest.Matchers.contains("2047-03-05")));
 
+        // Recurring occurrences keep their Category.
         String birthdays = mvc.perform(get("/api/v1/event-occurrences").param("from", "2047-02-01")
-                        .param("to", "2047-03-31").param("type", "BIRTHDAY"))
+                        .param("to", "2047-03-31").param("categoryId", birthday))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].category.name").value("cal003 birthdays"))
+                .andExpect(jsonPath("$[0].category.color").value("#d9822b"))
                 .andReturn().getResponse().getContentAsString();
-        List<String> types = JsonPath.read(birthdays, "$[*].type");
-        assertThat(types).isNotEmpty().allMatch("BIRTHDAY"::equals);
+        List<String> categoryIds = JsonPath.read(birthdays, "$[*].category.id");
+        assertThat(categoryIds).isNotEmpty().allMatch(birthday::equals);
+
+        // hasCategory=false keeps only uncategorized Events (the monthly Rent here).
+        mvc.perform(get("/api/v1/event-occurrences").param("from", "2047-02-01").param("to", "2047-03-31")
+                        .param("hasCategory", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.title == 'Rent')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.title == 'Mom birthday')]").isEmpty())
+                .andExpect(jsonPath("$[?(@.title == 'Rent')].category").value(org.hamcrest.Matchers.everyItem(nullValue())));
 
         // 366 days inclusive is the limit.
         mvc.perform(get("/api/v1/event-occurrences").param("from", "2047-01-01").param("to", "2048-01-01"))
@@ -235,7 +249,7 @@ class EventApiIntegrationTest {
 
     private static String timedJson(String title, String date, String reminders) {
         return """
-                {"title": "%s", "type": "APPOINTMENT", "allDay": false, "startAt": "%sT10:00:00+09:00",
+                {"title": "%s", "allDay": false, "startAt": "%sT10:00:00+09:00",
                  "endAt": "%sT11:00:00+09:00", "timezone": "Asia/Seoul", "location": null, "notes": null,
                  "recurrence": "NONE", "reminders": %s, "linkedGoalId": null}
                 """.formatted(title, date, date, reminders);

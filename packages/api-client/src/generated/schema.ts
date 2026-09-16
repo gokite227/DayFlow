@@ -84,6 +84,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/event-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listEventCategories"];
+        put?: never;
+        post: operations["createEventCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/event-categories/{categoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteEventCategory"];
+        options?: never;
+        head?: never;
+        patch: operations["updateEventCategory"];
+        trace?: never;
+    };
     "/api/v1/event-occurrences": {
         parameters: {
             query?: never;
@@ -473,8 +505,23 @@ export interface components {
              */
             sortOrder?: number | null;
         };
+        CreateEventCategoryRequest: {
+            /** @description One of the Event palette colors */
+            color: string;
+            name: string;
+            /**
+             * Format: int32
+             * @description Omitted or null puts the Category at the end of the list
+             */
+            sortOrder?: number | null;
+        };
         CreateEventRequest: {
             allDay: boolean;
+            /**
+             * Format: uuid
+             * @description Event Category (EVT-006); null or omitted for an uncategorized Event
+             */
+            categoryId?: string | null;
             /**
              * Format: date-time
              * @description Timed Events only; >= startAt
@@ -505,8 +552,6 @@ export interface components {
             startDate?: string | null;
             timezone: string;
             title: string;
-            /** @enum {string} */
-            type: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
         };
         CreateGoalRequest: {
             /** Format: date */
@@ -596,8 +641,30 @@ export interface components {
             /** Format: int64 */
             version: number;
         };
+        EventCategoryResponse: {
+            color: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: int32 */
+            sortOrder: number;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            version: number;
+        };
+        EventCategorySummary: {
+            color: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
         EventOccurrenceResponse: {
             allDay: boolean;
+            /** @description null for an uncategorized Event (미분류) */
+            category: components["schemas"]["EventCategorySummary"] | null;
             /**
              * Format: date-time
              * @description Timed occurrence end with the Event timezone offset; null for all-day
@@ -629,11 +696,11 @@ export interface components {
             startDate: string | null;
             timezone: string;
             title: string;
-            /** @enum {string} */
-            type: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
         };
         EventResponse: {
             allDay: boolean;
+            /** @description null for an uncategorized Event (미분류) */
+            category: components["schemas"]["EventCategorySummary"] | null;
             /** Format: date-time */
             createdAt: string;
             /**
@@ -668,8 +735,6 @@ export interface components {
             startDate: string | null;
             timezone: string;
             title: string;
-            /** @enum {string} */
-            type: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
             /** Format: date-time */
             updatedAt: string;
             /** Format: int64 */
@@ -953,8 +1018,21 @@ export interface components {
             /** Format: int64 */
             version: number;
         };
+        UpdateEventCategoryRequest: {
+            color?: string;
+            name?: string;
+            /** Format: int32 */
+            sortOrder?: number;
+            /** Format: int64 */
+            version: number;
+        };
         UpdateEventRequest: {
             allDay?: boolean;
+            /**
+             * Format: uuid
+             * @description Omit to keep; null makes the Event uncategorized
+             */
+            categoryId?: string | null;
             /**
              * Format: date-time
              * @description Timed only; null is the same as omitted
@@ -990,8 +1068,6 @@ export interface components {
             startDate?: string | null;
             timezone?: string;
             title?: string;
-            /** @enum {string} */
-            type?: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
             /** Format: int64 */
             version: number;
         };
@@ -1474,12 +1550,168 @@ export interface operations {
             };
         };
     };
+    listEventCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCategoryResponse"][];
+                };
+            };
+            /** @description Invalid request or Category rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    createEventCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEventCategoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCategoryResponse"];
+                };
+            };
+            /** @description Invalid request or Category rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    deleteEventCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request or Category rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Category not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    updateEventCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEventCategoryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCategoryResponse"];
+                };
+            };
+            /** @description Invalid request or Category rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Category not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Stale version (VERSION_CONFLICT) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
     listEventOccurrences: {
         parameters: {
             query: {
                 from: string;
                 to: string;
-                type?: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
+                /** @description Only occurrences of this Category */
+                categoryId?: string;
+                /** @description false: only uncategorized Events (미분류); true: only categorized ones */
+                hasCategory?: boolean;
             };
             header?: never;
             path?: never;
@@ -1510,7 +1742,10 @@ export interface operations {
     listEvents: {
         parameters: {
             query?: {
-                type?: "BIRTHDAY" | "INTERVIEW" | "EXAM" | "DEADLINE" | "APPOINTMENT" | "OTHER";
+                /** @description Only Events of this Category */
+                categoryId?: string;
+                /** @description false: only uncategorized Events (미분류); true: only categorized ones */
+                hasCategory?: boolean;
                 linkedGoalId?: string;
             };
             header?: never;

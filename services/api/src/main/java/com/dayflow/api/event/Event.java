@@ -6,7 +6,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -33,9 +35,10 @@ public class Event extends VersionedEntity {
     @Column(name = "title", nullable = false)
     private String title;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
-    private EventType type;
+    /** EVT-006: the user defined kind of the Event, or null for "미분류". Deleting the Category sets it to null. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private EventCategory category;
 
     @Column(name = "all_day", nullable = false)
     private boolean allDay;
@@ -77,9 +80,9 @@ public class Event extends VersionedEntity {
     protected Event() {
     }
 
-    public Event(String title, EventType type, String timezone, EventRecurrence recurrence) {
+    public Event(String title, EventCategory category, String timezone, EventRecurrence recurrence) {
         this.title = title;
-        this.type = type;
+        this.category = category;
         this.timezone = timezone;
         this.recurrence = recurrence;
     }
@@ -128,12 +131,12 @@ public class Event extends VersionedEntity {
         this.title = title;
     }
 
-    public EventType getType() {
-        return type;
+    public EventCategory getCategory() {
+        return category;
     }
 
-    public void setType(EventType type) {
-        this.type = type;
+    public void setCategory(EventCategory category) {
+        this.category = category;
     }
 
     public boolean isAllDay() {

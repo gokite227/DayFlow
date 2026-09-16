@@ -8,7 +8,9 @@ import com.dayflow.api.event.EventDtos.EventOccurrenceResponse;
 import com.dayflow.api.event.EventDtos.EventResponse;
 import com.dayflow.api.event.EventDtos.UpdateEventRequest;
 import com.dayflow.api.goal.GoalRepository;
+import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,10 +41,12 @@ public class EventService {
 
     private final EventRepository events;
     private final GoalRepository goals;
+    private final EventCategoryService categories;
 
-    public EventService(EventRepository events, GoalRepository goals) {
+    public EventService(EventRepository events, GoalRepository goals, EventCategoryService categories) {
         this.events = events;
         this.goals = goals;
+        this.categories = categories;
     }
 
     public EventResponse create(CreateEventRequest request) {
@@ -50,7 +54,8 @@ public class EventService {
         validateReminders(request.reminders());
         validateGoal(request.linkedGoalId());
 
-        Event event = new Event(request.title().strip(), request.type(), request.timezone(), request.recurrence());
+        Event event = new Event(request.title().strip(), categories.resolve(request.categoryId()), request.timezone(),
+                request.recurrence());
         place(event, request.allDay(), request.startAt(), request.endAt(), request.startDate(),
                 request.endDateExclusive(), null);
         event.setLocation(blankToNull(request.location()));
@@ -60,13 +65,12 @@ public class EventService {
         return EventResponse.from(events.saveAndFlush(event));
     }
 
+    /** categoryId: one Category; hasCategory=false: uncategorized only (EVT-002, EVT-006). */
     @Transactional(readOnly = true)
-    public List<EventResponse> list(EventType type, UUID linkedGoalId) {
+    public List<EventResponse> list(UUID categoryId, Boolean hasCategory, UUID linkedGoalId) {
         Specification<Event> filter = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            if (type != null) {
-                predicates.add(cb.equal(root.get("type"), type));
-            }
+            predicates.add(categoryFilter(root, cb, categoryId, hasCategory));
             if (linkedGoalId != null) {
                 predicates.add(cb.equal(root.get("linkedGoalId"), linkedGoalId));
             }
@@ -109,8 +113,8 @@ public class EventService {
         if (request.getTitle() != null) {
             event.setTitle(request.getTitle().strip());
         }
-        if (request.getType() != null) {
-            event.setType(request.getType());
+        if (request.hasCategoryId()) {
+            event.setCategory(categories.resolve(request.getCategoryId()));
         }
         if (request.getRecurrence() != null) {
             event.setRecurrence(request.getRecurrence());
@@ -133,9 +137,10 @@ public class EventService {
         events.flush();
     }
 
-    /** Occurrences of all Events (optionally one type) touching from..to, in local start order. */
+    /** Occurrences of all Events (optionally one Category, or only uncategorized) touching from..to, in local start order. */
     @Transactional(readOnly = true)
-    public List<EventOccurrenceResponse> occurrences(LocalDate from, LocalDate to, EventType type) {
+    public List<EventOccurrenceResponse> occurrences(LocalDate from, LocalDate to, UUID categoryId,
+            Boolean hasCategory) {
         if (from.isAfter(to)) {
             throw new ApiException(ErrorCode.INVALID_OCCURRENCE_RANGE, "from must be on or before to.", "from");
         }
@@ -146,7 +151,7 @@ public class EventService {
 
         record Found(Event event, EventOccurrences.Occurrence occurrence) {
         }
-        return events.findAll(candidates(from, to, type)).stream()
+        return events.findAll(candidates(from, to, categoryId, hasCategory)).stream()
                 .flatMap(event -> EventOccurrences.between(event, from, to).stream()
                         .map(occurrence -> new Found(event, occurrence)))
                 .sorted(Comparator.comparing((Found found) -> localStart(found.event(), found.occurrence()))
@@ -161,7 +166,8 @@ public class EventService {
      * timezone offsets); recurring Events must start before the range ends. Exact overlap is
      * decided by {@link EventOccurrences}.
      */
-    private static Specification<Event> candidates(LocalDate from, LocalDate to, EventType type) {
+    private static Specification<Event> candidates(LocalDate from, LocalDate to, UUID categoryId,
+            Boolean hasCategory) {
         Instant paddedStart = from.minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant paddedEnd = to.plusDays(2).atStartOfDay().toInstant(ZoneOffset.UTC);
         return (root, query, cb) -> {
@@ -176,8 +182,19 @@ public class EventService {
                     cb.and(allDay, cb.lessThanOrEqualTo(root.<LocalDate>get("startDate"), to)));
             Predicate match = cb.or(cb.and(once, cb.or(timedOverlap, allDayOverlap)),
                     cb.and(cb.not(once), startsBeforeEnd));
-            return type == null ? match : cb.and(match, cb.equal(root.get("type"), type));
+            return cb.and(match, categoryFilter(root, cb, categoryId, hasCategory));
         };
+    }
+
+    /** No filter when both are null; categoryId wins over hasCategory. */
+    private static Predicate categoryFilter(Root<Event> root, CriteriaBuilder cb, UUID categoryId, Boolean hasCategory) {
+        if (categoryId != null) {
+            return cb.equal(root.get("category").get("id"), categoryId);
+        }
+        if (hasCategory != null) {
+            return hasCategory ? cb.isNotNull(root.get("category")) : cb.isNull(root.get("category"));
+        }
+        return cb.conjunction();
     }
 
     private Event find(UUID id) {

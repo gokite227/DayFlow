@@ -1,15 +1,15 @@
 "use client";
 
-import type { EventRecurrence, EventResponse, EventType } from "@dayflow/api-client";
+import type { EventCategorySummary, EventRecurrence, EventResponse } from "@dayflow/api-client";
 import { useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
 import { ErrorNotice, LoadingState } from "@/components/query-state";
 import { useGoals } from "@/features/goals/goal-queries";
 import { GOAL_TYPE_LABEL, sortGoals } from "@/features/goals/goal-tree";
+import { useEventCategories } from "./event-category-queries";
+import { UNCATEGORIZED_LABEL, categoryStyle, sortCategories } from "./event-category-values";
 import { useCreateEvent, useDeleteEvent, useEvent, useUpdateEvent } from "./event-queries";
 import {
-  EVENT_TYPES,
-  EVENT_TYPE_LABEL,
   MAX_REMINDERS,
   MAX_REMINDER_OFFSET_MINUTES,
   RECURRENCE_LABEL,
@@ -73,6 +73,14 @@ function EventForm({
   const error = createEvent.error ?? updateEvent.error ?? deleteEvent.error;
   const problem = eventFormProblem(values);
   const goals = sortGoals(goalsQuery.data ?? []);
+  const categoriesQuery = useEventCategories();
+  const categories = sortCategories(categoriesQuery.data ?? []);
+  // Keeps the saved Category selectable while the list loads or after it was deleted elsewhere.
+  const categoryOptions: EventCategorySummary[] =
+    editing?.category && !categories.some((category) => category.id === editing.category?.id)
+      ? [...categories, editing.category]
+      : categories;
+  const selectedCategory = categoryOptions.find((category) => category.id === values.categoryId) ?? null;
 
   const set = <Key extends keyof EventFormValues>(key: Key, value: EventFormValues[Key]) =>
     setValues((current) => ({ ...current, [key]: value }));
@@ -136,23 +144,28 @@ function EventForm({
             />
           </label>
 
-          <div className="field wide">
-            <span className="field-label">유형</span>
-            <div className="event-type-picker" role="radiogroup" aria-label="일정 유형">
-              {EVENT_TYPES.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  role="radio"
-                  aria-checked={values.type === type}
-                  className={`event-type-option type-${type.toLowerCase()}${values.type === type ? " active" : ""}`}
-                  onClick={() => set("type", type as EventType)}
-                >
-                  {EVENT_TYPE_LABEL[type]}
-                </button>
-              ))}
-            </div>
-          </div>
+          <label className="field wide">
+            <span className="field-label">카테고리</span>
+            <span className="event-category-select">
+              <span
+                className="tag-dot"
+                aria-hidden
+                style={{ background: categoryStyle(selectedCategory)["--event-color"] }}
+              />
+              <select
+                aria-label="카테고리"
+                value={values.categoryId}
+                onChange={(event) => set("categoryId", event.target.value)}
+              >
+                <option value="">{UNCATEGORIZED_LABEL}</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
 
           <label className="switch-line field wide">
             <input type="checkbox" checked={values.allDay} onChange={(event) => set("allDay", event.target.checked)} />

@@ -11,7 +11,8 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { EVENT_TYPE_LABEL, eventTime } from "../events/event-values";
+import { categoryLabel, categoryStyle } from "../events/event-category-values";
+import { eventTime } from "../events/event-values";
 import type { DropTarget } from "./calendar-drop";
 import { layoutOverlaps, type LayoutSlot } from "./calendar-layout";
 import {
@@ -255,11 +256,12 @@ function DateOnlyCell({
         <button
           key={`${occurrence.eventId}:${occurrence.startDate}`}
           type="button"
-          className={`tc-event-chip type-${occurrence.type.toLowerCase()}`}
+          className="tc-event-chip"
+          style={categoryStyle(occurrence.category) as CSSProperties}
           data-event-id={occurrence.eventId}
           onClick={() => onOpenEvent(occurrence.eventId)}
         >
-          <span className="tc-event-type">{EVENT_TYPE_LABEL[occurrence.type]}</span>
+          <span className="tc-event-type">{categoryLabel(occurrence.category)}</span>
           {occurrence.title}
         </button>
       ))}
@@ -352,9 +354,10 @@ function EventBlock({
     <div
       role="button"
       tabIndex={0}
-      className={`tc-event type-${occurrence.type.toLowerCase()}${compact ? " compact" : ""}${point ? " point" : ""}`}
+      className={`tc-event${compact ? " compact" : ""}${point ? " point" : ""}`}
       data-event-id={occurrence.eventId}
       style={{
+        ...(categoryStyle(occurrence.category) as CSSProperties),
         top: (start / 60) * HOUR_HEIGHT,
         height: point ? MIN_BLOCK_HEIGHT : Math.max((visibleLength / 60) * HOUR_HEIGHT - 1, MIN_BLOCK_HEIGHT),
         ...laneStyle(slot),
@@ -365,7 +368,7 @@ function EventBlock({
       }}
     >
       <div className="tc-block-title">
-        <span className="tc-event-type">{EVENT_TYPE_LABEL[occurrence.type]}</span>
+        <span className="tc-event-type">{categoryLabel(occurrence.category)}</span>
         {occurrence.title}
       </div>
       <div className="tc-block-time">

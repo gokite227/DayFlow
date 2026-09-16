@@ -276,7 +276,7 @@ Version 0.1 · 2026-09-14
 
 - Day는 기존 pink/lavender 스타일을 유지한다.
 
-- Event는 별도 시각 스타일로, 시간이 확정된 일정임이 드러나도록 더 명확하게 표시한다(선명한 테두리나 바, 유형 라벨). 색만으로 구분하지 않는다.
+- Event는 별도 시각 스타일로, 시간이 확정된 일정임이 드러나도록 더 명확하게 표시한다(선명한 테두리나 바, Category 라벨과 색, 미분류는 중립색). 색만으로 구분하지 않는다.
 
 - 하루 종일 일정(생일, 시험 기간 등)은 날짜 행에, 시각이 정해진 마감은 해당 시각의 표시선으로 보여준다.
 
@@ -472,7 +472,7 @@ Version 0.1 · 2026-09-14
 | Day               | id, goalId?(연결 시 WEEK), title, status, priority(0=NONE~3=HIGH), tagIds[], estimatedMinutes, plannedDate?, planningMode(FIXED/WINDOW/ANYTIME), coreDay, carriedFromDayId?, version | 사용자가 실제로 실행하는 모든 Task. Goal 연결은 선택 |
 | DayTag            | id, name, color, sortOrder                                                                    | 생활/업무 영역 Tag (Day와 다대다)  |
 | DaySchedule       | id, dayId, startAt, endAt, timezone, version                                                  | Day의 선택적 시간 배치(Day당 0..1). 실제 시작/종료는 FocusSession |
-| Event             | id, title, type, allDay, startAt?/endAt?(시각 일정), startDate?/endDateExclusive?(하루 종일 일정), timezone, location?, notes?, recurrence, reminders(최대 5), linkedGoalId?, createdAt, updatedAt, version | 사용자에게 일어나는 일정(Day와 별도) |
+| Event             | id, title, categoryId?(없으면 미분류), allDay, startAt?/endAt?(시각 일정), startDate?/endDateExclusive?(하루 종일 일정), timezone, location?, notes?, recurrence, reminders(최대 5), linkedGoalId?, createdAt, updatedAt, version | 사용자에게 일어나는 일정(Day와 별도) |
 | EventOccurrence   | eventId, occurrence 시각(startAt/endAt 또는 startDate/endDateExclusive)                        | 반복 규칙으로 계산한 표시 단위(저장하지 않음) |
 | FocusRule         | id, dayId?, mode(blockSelected/allowOnly), selectedTokens, schedule, strictness               | 잠금 정책                     |
 | FocusSession      | id, dayId, plannedStart, startedAt, endedAt, interruptionCount, result                        | 실행 로그                     |

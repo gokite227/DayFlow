@@ -2,6 +2,7 @@ package com.dayflow.api.event;
 
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
+import com.dayflow.api.event.EventCategoryDtos.EventCategorySummary;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
@@ -30,7 +31,9 @@ public final class EventDtos {
 
     public record CreateEventRequest(
             @NotBlank @Size(max = 200) String title,
-            @NotNull EventType type,
+            @Schema(types = {"string", "null"}, format = "uuid",
+                    description = "Event Category (EVT-006); null or omitted for an uncategorized Event")
+            UUID categoryId,
             @NotNull Boolean allDay,
             @Schema(types = {"string", "null"}, format = "date-time", description = "Timed Events only")
             OffsetDateTime startAt,
@@ -64,7 +67,10 @@ public final class EventDtos {
         @Pattern(regexp = "(?s).*\\S.*", message = "must not be blank")
         private String title;
 
-        private EventType type;
+        @Schema(types = {"string", "null"}, format = "uuid", description = "Omit to keep; null makes the Event uncategorized")
+        private UUID categoryId;
+        private boolean categoryIdProvided;
+
         private Boolean allDay;
 
         @Schema(types = {"string", "null"}, format = "date-time", description = "Timed only; null is the same as omitted")
@@ -109,9 +115,13 @@ public final class EventDtos {
         private Long version;
 
         public boolean hasAnyChange() {
-            return title != null || type != null || allDay != null || startAt != null || endAt != null
+            return title != null || categoryIdProvided || allDay != null || startAt != null || endAt != null
                     || startDate != null || endDateExclusive != null || timezone != null || locationProvided
                     || notesProvided || recurrence != null || reminders != null || linkedGoalIdProvided;
+        }
+
+        public boolean hasCategoryId() {
+            return categoryIdProvided;
         }
 
         public boolean hasLocation() {
@@ -134,12 +144,13 @@ public final class EventDtos {
             this.title = title;
         }
 
-        public EventType getType() {
-            return type;
+        public UUID getCategoryId() {
+            return categoryId;
         }
 
-        public void setType(EventType type) {
-            this.type = type;
+        public void setCategoryId(UUID categoryId) {
+            this.categoryId = categoryId;
+            this.categoryIdProvided = true;
         }
 
         public Boolean getAllDay() {
@@ -246,7 +257,8 @@ public final class EventDtos {
     public record EventResponse(
             @Schema(requiredMode = REQUIRED) UUID id,
             @Schema(requiredMode = REQUIRED) String title,
-            @Schema(requiredMode = REQUIRED) EventType type,
+            @Schema(requiredMode = REQUIRED, types = {"object", "null"}, description = "null for an uncategorized Event (미분류)")
+            EventCategorySummary category,
             @Schema(requiredMode = REQUIRED) boolean allDay,
             @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "date-time",
                     description = "Timed Events: start with the Event timezone offset; null for all-day")
@@ -273,7 +285,8 @@ public final class EventDtos {
             @Schema(requiredMode = REQUIRED) long version) {
 
         static EventResponse from(Event event) {
-            return new EventResponse(event.getId(), event.getTitle(), event.getType(), event.isAllDay(),
+            return new EventResponse(event.getId(), event.getTitle(), EventCategorySummary.from(event.getCategory()),
+                    event.isAllDay(),
                     offset(event, event.getStartAt()), offset(event, event.getEndAt()), event.getStartDate(),
                     event.getEndDateExclusive(), event.getTimezone(), event.getLocation(), event.getNotes(),
                     event.getRecurrence(), event.reminderOffsets(), event.getLinkedGoalId(), event.getCreatedAt(),
@@ -286,7 +299,8 @@ public final class EventDtos {
             @Schema(requiredMode = REQUIRED) UUID eventId,
             @Schema(requiredMode = REQUIRED) long eventVersion,
             @Schema(requiredMode = REQUIRED) String title,
-            @Schema(requiredMode = REQUIRED) EventType type,
+            @Schema(requiredMode = REQUIRED, types = {"object", "null"}, description = "null for an uncategorized Event (미분류)")
+            EventCategorySummary category,
             @Schema(requiredMode = REQUIRED) boolean allDay,
             @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "date-time",
                     description = "Timed occurrence start with the Event timezone offset; null for all-day")
@@ -306,7 +320,8 @@ public final class EventDtos {
             @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "uuid") UUID linkedGoalId) {
 
         static EventOccurrenceResponse from(Event event, EventOccurrences.Occurrence occurrence) {
-            return new EventOccurrenceResponse(event.getId(), event.getVersion(), event.getTitle(), event.getType(),
+            return new EventOccurrenceResponse(event.getId(), event.getVersion(), event.getTitle(),
+                    EventCategorySummary.from(event.getCategory()),
                     event.isAllDay(), offset(event, occurrence.startAt()), offset(event, occurrence.endAt()),
                     occurrence.startDate(), occurrence.endDateExclusive(), event.getTimezone(), event.getLocation(),
                     event.getRecurrence(), event.getLinkedGoalId());

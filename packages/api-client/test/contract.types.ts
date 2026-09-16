@@ -3,7 +3,9 @@
 import type {
   DayFlowApiClient,
   DayResponse,
+  CreateEventRequest,
   DayScheduleResponse,
+  EventCategorySummary,
   EventOccurrenceResponse,
   EventResponse,
   EventTime,
@@ -86,7 +88,22 @@ export type EventNullability = [
   Expect<Equal<IsRequired<UpdateEventRequest, "linkedGoalId">, false>>,
   Expect<Equal<UpdateEventRequest["linkedGoalId"], string | null | undefined>>,
   Expect<Equal<paths["/api/v1/events/{eventId}"]["delete"]["parameters"]["query"], { version: number }>>,
-  Expect<Equal<keyof NonNullable<paths["/api/v1/event-occurrences"]["get"]["parameters"]["query"]>, "from" | "to" | "type">>,
+  Expect<
+    Equal<
+      keyof NonNullable<paths["/api/v1/event-occurrences"]["get"]["parameters"]["query"]>,
+      "from" | "to" | "categoryId" | "hasCategory"
+    >
+  >,
+  Expect<Equal<keyof NonNullable<paths["/api/v1/events"]["get"]["parameters"]["query"]>, "categoryId" | "hasCategory" | "linkedGoalId">>,
+  // Category: always present, null for uncategorized; requests may omit it (PATCH omit keeps it).
+  Expect<Equal<EventResponse["category"], EventCategorySummary | null>>,
+  Expect<Equal<IsRequired<EventResponse, "category">, true>>,
+  Expect<Equal<EventOccurrenceResponse["category"], EventCategorySummary | null>>,
+  Expect<Equal<IsRequired<CreateEventRequest, "categoryId">, false>>,
+  Expect<Equal<UpdateEventRequest["categoryId"], string | null | undefined>>,
+  Expect<Equal<SuccessStatus<paths["/api/v1/event-categories"]["post"]["responses"]>, 201>>,
+  Expect<Equal<SuccessStatus<paths["/api/v1/event-categories/{categoryId}"]["delete"]["responses"]>, 204>>,
+  Expect<Equal<ErrorStatus<paths["/api/v1/event-categories/{categoryId}"]["patch"]["responses"]>, 400 | 404 | 409>>,
   // Every EventTime variant fits the generated response fields.
   Expect<EventTime extends Pick<EventResponse, keyof EventTime> ? true : false>,
 ];

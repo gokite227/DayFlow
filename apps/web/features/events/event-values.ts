@@ -4,21 +4,10 @@ import type {
   EventRecurrence,
   EventResponse,
   EventTime,
-  EventType,
   UpdateEventRequest,
 } from "@dayflow/api-client";
 import { addDays, browserTimeZone, formatMinutes, wallClock, weekdayShort } from "../calendar/calendar-time";
 
-export const EVENT_TYPES: readonly EventType[] = ["BIRTHDAY", "INTERVIEW", "EXAM", "DEADLINE", "APPOINTMENT", "OTHER"];
-
-export const EVENT_TYPE_LABEL: Record<EventType, string> = {
-  BIRTHDAY: "생일",
-  INTERVIEW: "면접",
-  EXAM: "시험",
-  DEADLINE: "마감",
-  APPOINTMENT: "약속",
-  OTHER: "기타",
-};
 
 export const RECURRENCE_LABEL: Record<EventRecurrence, string> = {
   NONE: "반복 안 함",
@@ -139,7 +128,8 @@ export function isValidTimeZone(timeZone: string): boolean {
 
 export interface EventFormValues {
   title: string;
-  type: EventType;
+  /** EVT-006: "" is uncategorized (미분류). */
+  categoryId: string;
   allDay: boolean;
   startDate: string;
   startTime: string;
@@ -157,7 +147,7 @@ export interface EventFormValues {
 export function newEventValues(date: string, timezone = browserTimeZone()): EventFormValues {
   return {
     title: "",
-    type: "APPOINTMENT",
+    categoryId: "",
     allDay: false,
     startDate: date,
     startTime: "09:00",
@@ -177,7 +167,7 @@ export function eventToValues(event: EventResponse): EventFormValues {
   const base = { ...newEventValues("", event.timezone) };
   const shared = {
     title: event.title,
-    type: event.type,
+    categoryId: event.category?.id ?? "",
     timezone: event.timezone,
     location: event.location ?? "",
     notes: event.notes ?? "",
@@ -227,7 +217,7 @@ const orNull = (value: string) => (value.trim() === "" ? null : value.trim());
 export function toCreateEventRequest(values: EventFormValues): CreateEventRequest {
   return {
     title: values.title.trim(),
-    type: values.type,
+    categoryId: orNull(values.categoryId),
     ...timeFields(values),
     timezone: values.timezone,
     location: orNull(values.location),
@@ -238,7 +228,7 @@ export function toCreateEventRequest(values: EventFormValues): CreateEventReques
   };
 }
 
-/** Sends the whole form; the time pair of the other kind is omitted and dropped by the server. */
+/** Sends the whole form (categoryId null clears the Category); the time pair of the other kind is omitted and dropped by the server. */
 export function toUpdateEventRequest(values: EventFormValues, version: number): UpdateEventRequest {
   return { ...toCreateEventRequest(values), version };
 }

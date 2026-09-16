@@ -14,14 +14,15 @@ import {
 } from "@dnd-kit/core";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
 import { DayFormModal } from "@/features/days/day-form-modal";
 import { useDays, useDeleteDaySchedule, useSetDaySchedule, useUpdateDay } from "@/features/days/day-queries";
 import { DAY_STATUS_LABEL, describeDaySchedule } from "@/features/days/day-values";
 import { EventFormModal } from "@/features/events/event-form-modal";
 import { useEventOccurrences } from "@/features/events/event-queries";
-import { EVENT_TYPE_LABEL, describeOccurrenceTime } from "@/features/events/event-values";
+import { categoryLabel, categoryStyle } from "@/features/events/event-category-values";
+import { describeOccurrenceTime } from "@/features/events/event-values";
 import { useGoals } from "@/features/goals/goal-queries";
 import { sortGoals } from "@/features/goals/goal-tree";
 import { useNowMinutes, useToday } from "@/lib/use-today";
@@ -346,10 +347,11 @@ function CalendarList({
     <button
       key={`${occurrence.eventId}:${index}`}
       type="button"
-      className={`day-list-row event type-${occurrence.type.toLowerCase()}`}
+      className="day-list-row event"
+      style={categoryStyle(occurrence.category) as CSSProperties}
       onClick={() => onOpenEvent(occurrence.eventId)}
     >
-      <span className="day-list-date">{EVENT_TYPE_LABEL[occurrence.type]}</span>
+      <span className="day-list-date">{categoryLabel(occurrence.category)}</span>
       <span>
         <strong>{occurrence.title}</strong>
       </span>
