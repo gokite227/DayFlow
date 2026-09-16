@@ -16,6 +16,10 @@ export const queryKeys = {
     all: ["days"] as const,
     list: (filters: DayListFilters = {}) => ["days", "list", filters] as const,
   },
+  dayTags: {
+    all: ["day-tags"] as const,
+    list: () => ["day-tags", "list"] as const,
+  },
   events: {
     all: ["events"] as const,
     list: () => ["events", "list"] as const,

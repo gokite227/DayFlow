@@ -50,7 +50,10 @@ public class DayController {
         return ResponseEntity.created(URI.create("/api/v1/days/" + day.id())).body(day);
     }
 
-    /** from/to filter plannedDate inclusively; Days without a date are excluded when either is set. */
+    /**
+     * from/to filter plannedDate inclusively; Days without a date are excluded when either is set.
+     * hasGoal=false lists the Days without a Goal, tagId the Days carrying that Tag (DAY-006).
+     */
     // Explicit 200: with method-level @ApiResponse, springdoc no longer infers the success response.
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
@@ -59,8 +62,11 @@ public class DayController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) UUID goalId,
-            @RequestParam(required = false) DayStatus status) {
-        return dayService.list(from, to, goalId, status);
+            @RequestParam(required = false) Boolean hasGoal,
+            @RequestParam(required = false) DayStatus status,
+            @RequestParam(required = false) DayPriority priority,
+            @RequestParam(required = false) UUID tagId) {
+        return dayService.list(from, to, goalId, hasGoal, status, priority, tagId);
     }
 
     @GetMapping("/{dayId}")

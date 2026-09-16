@@ -787,6 +787,158 @@ a.btn {
   margin-top: 12px;
   flex-wrap: wrap;
 }
+/* Backlog quick add sits above the list (DAY-006). */
+.add-day-line.top {
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+/* Day priority (DAY-004) and Tags (DAY-005). Deliberately quiet: no strong alert colors. */
+.day-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.priority-badge {
+  display: inline-flex;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+.priority-badge.high {
+  border-color: #efbad0;
+  background: var(--accent-soft);
+  color: #b44f74;
+}
+.priority-badge.medium {
+  border-color: #dcc9ef;
+  background: var(--lav);
+  color: #6f5a8a;
+}
+.tag-pills {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.tag-pill.more {
+  color: var(--muted);
+}
+.tag-pill-remove {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0 0 0 2px;
+  font-size: 12px;
+  line-height: 1;
+}
+.tag-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: none;
+}
+.tag-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tag-popover {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+.tag-choice-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tag-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.tag-create-line {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tag-create-line input[type="text"] {
+  flex: 1;
+  min-width: 160px;
+}
+.tag-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.tag-filter.active {
+  background: #fffafd;
+  font-weight: 700;
+}
+.tag-manage-list {
+  display: grid;
+  gap: 8px;
+}
+.tag-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: #fff;
+  flex-wrap: wrap;
+}
+.tag-manage-row input[type="text"] {
+  flex: 1;
+  min-width: 140px;
+}
+.tag-manage-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+/* Calendar blocks show at most one Tag as a dot (§17). */
+.tc-tag-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
 .add-day-line input[type="text"] {
   flex: 1;
   min-width: 180px;

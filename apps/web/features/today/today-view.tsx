@@ -47,9 +47,13 @@ function TodayContent({ today }: { today: string }) {
   const days = [...(daysQuery.data ?? [])].sort((a, b) => Number(b.coreDay) - Number(a.coreDay));
   const weekGoals = sortGoals(goals.filter((goal) => goal.type === "WEEK"));
 
-  // Paths of the WEEK Goals behind today's Days; without Days, the WEEK Goals covering today.
-  const pathGoals = days.length
-    ? [...new Set(days.map((day) => day.goalId))]
+  // Paths of the WEEK Goals behind today's Days (Days without a Goal have no path, DAY-001);
+  // without such Days, the WEEK Goals covering today.
+  const linkedGoalIds = [...new Set(days.map((day) => day.goalId))].filter(
+    (goalId): goalId is string => goalId !== null,
+  );
+  const pathGoals = linkedGoalIds.length
+    ? linkedGoalIds
         .map((goalId) => goalsById.get(goalId))
         .filter((goal): goal is GoalResponse => goal !== undefined)
     : weekGoals.filter((goal) => goal.startDate <= today && today <= goal.endDate);
@@ -101,7 +105,7 @@ function TodayContent({ today }: { today: string }) {
               <DayItem
                 key={day.id}
                 day={day}
-                goalTitle={goalsById.get(day.goalId)?.title}
+                goalTitle={day.goalId === null ? undefined : goalsById.get(day.goalId)?.title}
                 highlightCore
                 toggling={updateDay.isPending && updateDay.variables?.dayId === day.id}
                 onToggle={() => updateDay.mutate({ dayId: day.id, body: doneToggleRequest(day) })}

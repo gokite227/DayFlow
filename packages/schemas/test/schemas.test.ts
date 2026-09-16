@@ -72,14 +72,15 @@ const validQuarterInput = {
 };
 
 const validDayInput = {
-  goalId: ids.week,
+  goalId: ids.week as string | null,
   title: "Implement domain foundation",
   status: "NOT_STARTED" as const,
-  priority: 1,
+  priority: "LOW" as const,
   estimatedMinutes: 60,
   plannedDate: null,
   planningMode: "ANYTIME" as const,
   coreDay: true,
+  tagIds: [] as string[],
 };
 
 const currentDay: Day = {
@@ -251,6 +252,36 @@ describe("DAY-001 Day schemas", () => {
     });
 
     expect(domainCodes(result.error?.issues)).toEqual(["DAY_REQUIRES_WEEK_GOAL"]);
+  });
+
+  it("DAY-001 accepts a Day without a Goal, with any date", () => {
+    const goalless = { ...validDayInput, goalId: null, plannedDate: "2027-05-05" };
+
+    expect(createDaySchema.safeParse(goalless).success).toBe(true);
+    // No Goal means no Goal period to stay inside.
+    expect(createDaySchemaForGoal(null).safeParse(goalless).success).toBe(true);
+  });
+
+  it("DAY-001 accepts removing the Goal link of a dated Day", () => {
+    expect(
+      updateDaySchemaForCurrentDay(currentDay, null).safeParse({ goalId: null, version: 1 }).success,
+    ).toBe(true);
+  });
+
+  it("DAY-004 rejects a priority outside NONE/LOW/MEDIUM/HIGH", () => {
+    expect(createDaySchema.safeParse({ ...validDayInput, priority: "URGENT" }).success).toBe(false);
+    expect(createDaySchema.safeParse({ ...validDayInput, priority: 1 }).success).toBe(false);
+    expect(createDaySchema.safeParse({ ...validDayInput, priority: "HIGH" }).success).toBe(true);
+  });
+
+  it("DAY-005 accepts up to 10 distinct Tags", () => {
+    const tagIds = Array.from({ length: 10 }, (_, index) => `10000000-0000-4000-8000-0000000001${index.toString().padStart(2, "0")}`);
+
+    expect(createDaySchema.safeParse({ ...validDayInput, tagIds }).success).toBe(true);
+    expect(createDaySchema.safeParse({ ...validDayInput, tagIds: [...tagIds, ids.week] }).success).toBe(false);
+    expect(
+      createDaySchema.safeParse({ ...validDayInput, tagIds: [ids.week, ids.week] }).success,
+    ).toBe(false);
   });
 });
 

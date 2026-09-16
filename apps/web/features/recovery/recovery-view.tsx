@@ -18,6 +18,7 @@ import {
   draftProblem,
   initialDraft,
   moveRange,
+  type MoveRange,
   previewLines,
   shortDate,
   toApplyRequest,
@@ -75,7 +76,9 @@ function MissedDaysSection({ today }: { today: string }) {
   const missed = (daysQuery.data ?? [])
     .filter(isOpen)
     .sort((a, b) => (a.plannedDate ?? "").localeCompare(b.plannedDate ?? "") || a.title.localeCompare(b.title));
-  const rangeOf = (day: DayResponse) => moveRange(goalsById.get(day.goalId), today);
+  // A Day without a Goal has no Goal period, so MOVE is only bounded by today (DAY-001).
+  const goalOf = (day: DayResponse) => (day.goalId === null ? undefined : goalsById.get(day.goalId));
+  const rangeOf = (day: DayResponse) => moveRange(goalOf(day), today);
   const draftOf = (day: DayResponse) => drafts[day.id] ?? initialDraft(day, rangeOf(day)?.min ?? null);
   const hasProblem = missed.some((day) => draftProblem(day, draftOf(day), rangeOf(day)) !== null);
 
@@ -139,7 +142,7 @@ function MissedDaysSection({ today }: { today: string }) {
               <MissedDayRow
                 key={day.id}
                 day={day}
-                goal={goalsById.get(day.goalId)}
+                goal={goalOf(day)}
                 draft={draftOf(day)}
                 range={rangeOf(day)}
                 onChange={(change) => updateDraft(day, change)}
@@ -170,7 +173,7 @@ function MissedDayRow({
   day: DayResponse;
   goal: GoalResponse | undefined;
   draft: RecoveryDraft;
-  range: { min: string; max: string } | null;
+  range: MoveRange | null;
   onChange: (change: Partial<RecoveryDraft>) => void;
 }) {
   const problem = draftProblem(day, draft, range);
@@ -232,7 +235,7 @@ function MissedDayRow({
             <input
               type="date"
               min={range.min}
-              max={range.max}
+              max={range.max ?? undefined}
               value={draft.plannedDate}
               onChange={(event) => onChange({ plannedDate: event.target.value })}
             />

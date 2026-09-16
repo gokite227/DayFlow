@@ -58,13 +58,14 @@ export function WeekGoalDays({
   const updateDay = useUpdateDay();
   const goalIds = new Set(weekGoals.map((goal) => goal.id));
   const goalById = new Map(weekGoals.map((goal) => [goal.id, goal]));
+  // Only Days linked to these WEEK Goals; Days without a Goal belong to Days/Today (DAY-001).
   const linked = days
-    .filter((day) => goalIds.has(day.goalId))
+    .filter((day) => day.goalId !== null && goalIds.has(day.goalId))
     .sort((a, b) => (a.plannedDate ?? "9999").localeCompare(b.plannedDate ?? "9999") || a.title.localeCompare(b.title));
   const showGoal = weekGoals.length > 1;
 
   const dayCard = (day: DayResponse) => {
-    const goal = goalById.get(day.goalId);
+    const goal = day.goalId === null ? undefined : goalById.get(day.goalId);
     return (
       <div key={day.id} className={`day-item board-day${day.status === "DONE" ? " done" : ""}`} data-day-id={day.id}>
         <input
@@ -131,7 +132,9 @@ export function WeekGoalDays({
                 <strong>{day.title}</strong>
                 <span className="mini" style={{ display: "block" }}>
                   {DAY_STATUS_LABEL[day.status]}
-                  {showGoal && goalById.get(day.goalId) ? ` · ${goalPeriodLabel(goalById.get(day.goalId)!)}` : ""}
+                  {showGoal && day.goalId !== null && goalById.has(day.goalId)
+                    ? ` · ${goalPeriodLabel(goalById.get(day.goalId)!)}`
+                    : ""}
                 </span>
               </span>
               <span className="day-list-schedule">{describeDaySchedule(day).split(" · ")[1] ?? "날짜 미정"}</span>

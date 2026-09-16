@@ -1,4 +1,4 @@
-import type { CreateDayRequest, DayResponse, UpdateDayRequest } from "@dayflow/api-client";
+import type { CreateDayRequest, DayPriority, DayResponse, UpdateDayRequest } from "@dayflow/api-client";
 
 export type DayStatus = DayResponse["status"];
 export type PlanningMode = DayResponse["planningMode"];
@@ -18,60 +18,80 @@ export const PLANNING_MODE_LABEL: Record<PlanningMode, string> = {
   ANYTIME: "오늘 안에",
 };
 
-/** Form state: date inputs use "" for "no date". */
+/** DAY-004 task priority, in order. Independent of coreDay ("오늘의 핵심 Day"). */
+export const DAY_PRIORITIES: readonly DayPriority[] = ["NONE", "LOW", "MEDIUM", "HIGH"];
+
+export const DAY_PRIORITY_LABEL: Record<DayPriority, string> = {
+  NONE: "없음",
+  LOW: "낮음",
+  MEDIUM: "보통",
+  HIGH: "높음",
+};
+
+/** Form state: selects use "" for "no Goal" and date inputs "" for "no date". */
 export interface DayFormValues {
   goalId: string;
   title: string;
   status: DayStatus;
-  priority: string;
+  priority: DayPriority;
   estimatedMinutes: string;
   plannedDate: string;
   planningMode: PlanningMode;
   coreDay: boolean;
+  tagIds: string[];
 }
 
-export function newDayValues(goalId: string, plannedDate = ""): DayFormValues {
+export function newDayValues(goalId = "", plannedDate = ""): DayFormValues {
   return {
     goalId,
     title: "",
     status: "NOT_STARTED",
-    priority: "1",
+    priority: "NONE",
     estimatedMinutes: "60",
     plannedDate,
     planningMode: "ANYTIME",
     coreDay: false,
+    tagIds: [],
   };
 }
 
 export function dayToValues(day: DayResponse): DayFormValues {
   return {
-    goalId: day.goalId,
+    goalId: day.goalId ?? "",
     title: day.title,
     status: day.status,
-    priority: String(day.priority),
+    priority: day.priority,
     estimatedMinutes: String(day.estimatedMinutes),
     plannedDate: day.plannedDate ?? "",
     planningMode: day.planningMode,
     coreDay: day.coreDay,
+    tagIds: day.tags.map((tag) => tag.id),
   };
 }
 
+/** An empty Goal or date is sent as explicit null: a Day may have neither (DAY-001). */
 export function toCreateDayRequest(values: DayFormValues): CreateDayRequest {
   return {
-    goalId: values.goalId,
+    goalId: values.goalId === "" ? null : values.goalId,
     title: values.title,
     status: values.status,
-    priority: Number(values.priority),
+    priority: values.priority,
     estimatedMinutes: Number(values.estimatedMinutes),
     plannedDate: values.plannedDate === "" ? null : values.plannedDate,
     planningMode: values.planningMode,
     coreDay: values.coreDay,
+    tagIds: values.tagIds,
   };
 }
 
-/** An empty date is sent as explicit null, which clears the date and removes the schedule. */
+/** Sends every field, so clearing the Goal, the date or the Tags is explicit. */
 export function toUpdateDayRequest(values: DayFormValues, version: number): UpdateDayRequest {
   return { ...toCreateDayRequest(values), version };
+}
+
+/** DAY-006 Backlog quick add: a title is enough, everything else keeps its default. */
+export function quickAddDayRequest(title: string): CreateDayRequest {
+  return toCreateDayRequest({ ...newDayValues(), title });
 }
 
 /** Toggles DONE ↔ NOT_STARTED; only status and version are sent so the date and schedule stay as they are. */

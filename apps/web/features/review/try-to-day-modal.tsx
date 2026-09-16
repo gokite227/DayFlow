@@ -40,10 +40,11 @@ export function TryToDayModal({
       {
         itemId: item.id,
         body: {
-          goalId,
+          // REV-004: linking a Goal is optional here too (DAY-001).
+          goalId: goalId === "" ? null : goalId,
           title,
           status: "NOT_STARTED",
-          priority: 1,
+          priority: "NONE",
           estimatedMinutes: Number(minutes),
           plannedDate: plannedDate === "" ? null : plannedDate,
           planningMode: "ANYTIME",
@@ -69,8 +70,8 @@ export function TryToDayModal({
           </label>
           <label className="field wide">
             <span className="field-label">주간 목표</span>
-            <select required value={goalId} onChange={(event) => setGoalId(event.target.value)}>
-              <option value="">선택하세요</option>
+            <select value={goalId} onChange={(event) => setGoalId(event.target.value)}>
+              <option value="">연결 안 함</option>
               {weekGoals.map((weekGoal) => (
                 <option key={weekGoal.id} value={weekGoal.id}>
                   {weekGoal.title} ({formatPeriod(weekGoal)})

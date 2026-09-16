@@ -16,6 +16,17 @@ export type DayStatus = (typeof DAY_STATUSES)[number];
 export const DAY_PLANNING_MODES = ["FIXED", "WINDOW", "ANYTIME"] as const;
 export type DayPlanningMode = (typeof DAY_PLANNING_MODES)[number];
 
+/**
+ * DAY-004 task priority. Stored as the integer at the same index (0=NONE … 3=HIGH); domain, API
+ * and UI use the names. Independent of Day.coreDay.
+ */
+export const DAY_PRIORITIES = ["NONE", "LOW", "MEDIUM", "HIGH"] as const;
+export type DayPriority = (typeof DAY_PRIORITIES)[number];
+
+/** DAY-005: at most this many Tags per Day. */
+export const MAX_DAY_TAGS_PER_DAY = 10;
+export const MAX_DAY_TAG_NAME_LENGTH = 30;
+
 /** A calendar date without a time or timezone, serialized as YYYY-MM-DD. */
 export type LocalDate = string;
 
@@ -59,16 +70,27 @@ export type UpdateGoalInput = {
   [Key in keyof GoalMutableFields]?: GoalMutableFields[Key] | undefined;
 } & { version: number };
 
+/** A user defined life/work area a Day can belong to (DAY-005). Separate from Goals and Event categories. */
+export interface DayTag extends VersionedEntity {
+  id: EntityId;
+  name: string;
+  /** One of the DayFlow palette colors. */
+  color: string;
+  sortOrder: number;
+}
+
 export interface Day extends VersionedEntity {
   id: EntityId;
-  goalId: EntityId;
+  /** null when the Day has no Goal; otherwise a WEEK Goal (DAY-001). */
+  goalId: EntityId | null;
   title: string;
   status: DayStatus;
-  priority: number;
+  priority: DayPriority;
   estimatedMinutes: number;
   plannedDate: LocalDate | null;
   planningMode: DayPlanningMode;
   coreDay: boolean;
+  tagIds: EntityId[];
 }
 
 export type CreateDayInput = Omit<Day, keyof VersionedEntity | "id">;
@@ -83,6 +105,7 @@ type DayMutableFields = Pick<
   | "plannedDate"
   | "planningMode"
   | "coreDay"
+  | "tagIds"
 >;
 
 export type UpdateDayInput = {

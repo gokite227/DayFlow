@@ -60,6 +60,10 @@ class OpenApiContractTest {
         expectOnlySuccessStatus(docs, "/api/v1/goals/{goalId}", "delete", "204");
         expectOnlySuccessStatus(docs, "/api/v1/days/{dayId}", "delete", "204");
         expectOnlySuccessStatus(docs, "/api/v1/days/{dayId}/schedule", "delete", "204");
+        expectOnlySuccessStatus(docs, "/api/v1/day-tags", "post", "201");
+        expectOnlySuccessStatus(docs, "/api/v1/day-tags", "get", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/day-tags/{tagId}", "patch", "200");
+        expectOnlySuccessStatus(docs, "/api/v1/day-tags/{tagId}", "delete", "204");
         expectOnlySuccessStatus(docs, "/api/v1/reviews/{type}/{periodStart}", "get", "200");
         expectOnlySuccessStatus(docs, "/api/v1/reviews/{type}/{periodStart}", "put", "200");
         expectOnlySuccessStatus(docs, "/api/v1/review-items/{itemId}/convert", "post", "200");
@@ -138,9 +142,9 @@ class OpenApiContractTest {
 
     @Test
     void documentsResponseFieldsAsRequiredWithExplicitNulls() throws Exception {
-        for (String schema : List.of("GoalResponse", "DayResponse", "DayScheduleResponse", "ProblemResponse",
-                "FieldViolation", "ReviewResponse", "ReviewItemResponse", "ConvertReviewItemResponse",
-                "RecoveryDayResponse", "ApplyRecoveryResponse")) {
+        for (String schema : List.of("GoalResponse", "DayResponse", "DayTagResponse", "DayScheduleResponse",
+                "ProblemResponse", "FieldViolation", "ReviewResponse", "ReviewItemResponse",
+                "ConvertReviewItemResponse", "RecoveryDayResponse", "ApplyRecoveryResponse")) {
             assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(
                     propertiesOf(schema));
         }
@@ -149,6 +153,9 @@ class OpenApiContractTest {
                 .andExpect(jsonPath(SCHEMAS + "GoalResponse.properties.parentGoalId.type",
                         containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath(SCHEMAS + "DayResponse.properties.plannedDate.type",
+                        containsInAnyOrder("string", "null")))
+                // DAY-001: a Day without a Goal sends goalId: null, so the field stays required.
+                .andExpect(jsonPath(SCHEMAS + "DayResponse.properties.goalId.type",
                         containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath(SCHEMAS + "DayResponse.properties.schedule.oneOf[0]['$ref']")
                         .value("#/components/schemas/DayScheduleResponse"))
@@ -164,6 +171,13 @@ class OpenApiContractTest {
                 .andExpect(jsonPath(SCHEMAS + "CreateDayRequest.properties.plannedDate.type",
                         containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath(SCHEMAS + "CreateDayRequest.required", not(hasItem("plannedDate"))))
+                .andExpect(jsonPath(SCHEMAS + "CreateDayRequest.properties.goalId.type",
+                        containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath(SCHEMAS + "CreateDayRequest.required", not(hasItem("goalId"))))
+                .andExpect(jsonPath(SCHEMAS + "CreateDayRequest.required", not(hasItem("tagIds"))))
+                .andExpect(jsonPath(SCHEMAS + "UpdateDayRequest.properties.goalId.type",
+                        containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath(SCHEMAS + "UpdateDayRequest.required", not(hasItem("goalId"))))
                 .andExpect(jsonPath(SCHEMAS + "CreateGoalRequest.properties.parentGoalId.type",
                         containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath(SCHEMAS + "UpdateGoalRequest.properties.parentGoalId.type",

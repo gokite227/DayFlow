@@ -5,20 +5,32 @@ import {
   describeDaySchedule,
   doneToggleRequest,
   newDayValues,
+  quickAddDayRequest,
   toCreateDayRequest,
   toUpdateDayRequest,
 } from "./day-values";
+
+const tag = {
+  id: "tag-home",
+  name: "집안일",
+  color: "#9a8fa6",
+  sortOrder: 0,
+  createdAt: "2026-09-01T00:00:00Z",
+  updatedAt: "2026-09-01T00:00:00Z",
+  version: 0,
+};
 
 const day: DayResponse = {
   id: "day",
   goalId: "week",
   title: "Write API",
   status: "NOT_STARTED",
-  priority: 1,
+  priority: "LOW",
   estimatedMinutes: 60,
   plannedDate: "2026-09-15",
   planningMode: "ANYTIME",
   coreDay: true,
+  tags: [tag],
   createdAt: "2026-09-01T00:00:00Z",
   updatedAt: "2026-09-01T00:00:00Z",
   version: 3,
@@ -44,6 +56,36 @@ describe("DAY-001 / DAY-002 form values", () => {
     });
   });
 
+  it("DAY-001 sends an unselected Goal as null", () => {
+    expect(toCreateDayRequest({ ...newDayValues(), title: "빨래" })).toMatchObject({
+      goalId: null,
+      plannedDate: null,
+      priority: "NONE",
+      tagIds: [],
+    });
+  });
+
+  it("DAY-001 removes the Goal link of an existing Day with an explicit null", () => {
+    expect(toUpdateDayRequest({ ...dayToValues(day), goalId: "" }, day.version)).toMatchObject({
+      goalId: null,
+      version: 3,
+    });
+  });
+
+  it("DAY-006 quick add only needs a title", () => {
+    expect(quickAddDayRequest("  세탁하기  ")).toEqual({
+      goalId: null,
+      title: "  세탁하기  ",
+      status: "NOT_STARTED",
+      priority: "NONE",
+      estimatedMinutes: 60,
+      plannedDate: null,
+      planningMode: "ANYTIME",
+      coreDay: false,
+      tagIds: [],
+    });
+  });
+
   it("clears the date with an explicit null on update and keeps the version", () => {
     expect(toUpdateDayRequest({ ...dayToValues(day), plannedDate: "" }, day.version)).toMatchObject({
       plannedDate: null,
@@ -56,11 +98,12 @@ describe("DAY-001 / DAY-002 form values", () => {
       goalId: "week",
       title: "Write API",
       status: "NOT_STARTED",
-      priority: 1,
+      priority: "LOW",
       estimatedMinutes: 60,
       plannedDate: "2026-09-15",
       planningMode: "ANYTIME",
       coreDay: true,
+      tagIds: ["tag-home"],
       version: 3,
     });
   });

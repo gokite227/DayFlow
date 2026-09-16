@@ -173,6 +173,76 @@ class GoalDayApiIntegrationTest {
     }
 
     @Test
+    void day001CreatesDayWithoutGoal() throws Exception {
+        // A Task with no Goal: any date is allowed because there is no Goal period to stay inside.
+        String dayId = idOf(send(post("/api/v1/days"), dayJson(null, "2027-03-02"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.goalId").value(nullValue()))
+                .andExpect(jsonPath("$.priority").value("LOW"))
+                .andExpect(jsonPath("$.tags").isEmpty()));
+
+        String scheduled = send(put("/api/v1/days/" + dayId + "/schedule"), scheduleJson(
+                "2027-03-02T19:00:00+09:00", "2027-03-02T20:00:00+09:00", "Asia/Seoul", null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.plannedDate").value("2027-03-02"))
+                .andReturn().getResponse().getContentAsString();
+
+        send(patch("/api/v1/days/" + dayId), """
+                {"status": "DONE", "priority": "HIGH", "version": %d}
+                """.formatted((int) JsonPath.read(scheduled, "$.version")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DONE"))
+                .andExpect(jsonPath("$.priority").value("HIGH"))
+                .andExpect(jsonPath("$.goalId").value(nullValue()));
+
+        mvc.perform(get("/api/v1/days").param("hasGoal", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '" + dayId + "')]").isNotEmpty());
+        mvc.perform(get("/api/v1/days").param("hasGoal", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '" + dayId + "')]").isEmpty());
+    }
+
+    @Test
+    void day001LinksAndUnlinksAGoalWithoutDeletingTheDay() throws Exception {
+        String weekId = createWeek();
+        String dayId = createDay(weekId, "2026-09-16");
+
+        // An explicit null removes the Goal link; the Day and its date stay.
+        send(patch("/api/v1/days/" + dayId), """
+                {"goalId": null, "version": 0}
+                """)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.goalId").value(nullValue()))
+                .andExpect(jsonPath("$.plannedDate").value("2026-09-16"));
+
+        send(patch("/api/v1/days/" + dayId), """
+                {"goalId": "%s", "version": 1}
+                """.formatted(weekId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.goalId").value(weekId));
+    }
+
+    @Test
+    void day004RejectsPriorityOutsideTheEnum() throws Exception {
+        send(post("/api/v1/days"), """
+                {"goalId": null, "title": "Laundry", "status": "NOT_STARTED", "priority": "URGENT",
+                 "estimatedMinutes": 30, "plannedDate": null, "planningMode": "ANYTIME", "coreDay": false}
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        for (String priority : new String[] {"NONE", "LOW", "MEDIUM", "HIGH"}) {
+            send(post("/api/v1/days"), """
+                    {"goalId": null, "title": "Laundry", "status": "NOT_STARTED", "priority": "%s",
+                     "estimatedMinutes": 30, "plannedDate": null, "planningMode": "ANYTIME", "coreDay": false}
+                    """.formatted(priority))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.priority").value(priority));
+        }
+    }
+
+    @Test
     void day001RejectsDayUnderNonWeekGoal() throws Exception {
         String yearId = createYear();
 
@@ -347,9 +417,9 @@ class GoalDayApiIntegrationTest {
 
     private static String dayJson(String goalId, String plannedDate) {
         return """
-                {"goalId": "%s", "title": "Write API", "status": "NOT_STARTED", "priority": 1,
+                {"goalId": %s, "title": "Write API", "status": "NOT_STARTED", "priority": "LOW",
                  "estimatedMinutes": 60, "plannedDate": %s, "planningMode": "ANYTIME", "coreDay": true}
-                """.formatted(goalId, quoted(plannedDate));
+                """.formatted(quoted(goalId), quoted(plannedDate));
     }
 
     private static String scheduleJson(String startAt, String endAt, String timezone, Long expectedVersion) {

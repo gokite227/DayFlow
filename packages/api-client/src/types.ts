@@ -12,6 +12,12 @@ export type DayResponse = Schemas["DayResponse"];
 export type CreateDayRequest = Schemas["CreateDayRequest"];
 export type UpdateDayRequest = Schemas["UpdateDayRequest"];
 
+export type DayPriority = DayResponse["priority"];
+
+export type DayTagResponse = Schemas["DayTagResponse"];
+export type CreateDayTagRequest = Schemas["CreateDayTagRequest"];
+export type UpdateDayTagRequest = Schemas["UpdateDayTagRequest"];
+
 export type DayScheduleResponse = Schemas["DayScheduleResponse"];
 export type SetDayScheduleRequest = Schemas["SetDayScheduleRequest"];
 

@@ -2,19 +2,27 @@ package com.dayflow.api.day;
 
 import com.dayflow.api.common.VersionedEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
+import org.hibernate.annotations.BatchSize;
 
 @Entity
 @Table(name = "days")
 public class Day extends VersionedEntity {
 
-    /** The WEEK Goal this Day belongs to. */
-    @Column(name = "goal_id", nullable = false)
+    /** The WEEK Goal this Day belongs to, or null when the Day has no Goal (DAY-001). */
+    @Column(name = "goal_id")
     private UUID goalId;
 
     @Column(name = "title", nullable = false)
@@ -24,8 +32,10 @@ public class Day extends VersionedEntity {
     @Column(name = "status", nullable = false)
     private DayStatus status;
 
+    /** Stored as the existing integer column (DAY-004); the converter maps it to the enum. */
+    @Convert(converter = DayPriorityConverter.class)
     @Column(name = "priority", nullable = false)
-    private int priority;
+    private DayPriority priority;
 
     @Column(name = "estimated_minutes", nullable = false)
     private int estimatedMinutes;
@@ -41,10 +51,22 @@ public class Day extends VersionedEntity {
     @Column(name = "core_day", nullable = false)
     private boolean coreDay;
 
+    /**
+     * DAY-005 Tags. BatchSize loads the Tags of a Day list in a few queries instead of one per Day,
+     * so the Days screen stays a single request.
+     */
+    @ManyToMany
+    @JoinTable(name = "day_tag_links",
+            joinColumns = @JoinColumn(name = "day_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id"))
+    @OrderBy("sortOrder asc, name asc")
+    @BatchSize(size = 50)
+    private Set<DayTag> tags = new LinkedHashSet<>();
+
     protected Day() {
     }
 
-    public Day(UUID goalId, String title, DayStatus status, int priority, int estimatedMinutes,
+    public Day(UUID goalId, String title, DayStatus status, DayPriority priority, int estimatedMinutes,
             LocalDate plannedDate, DayPlanningMode planningMode, boolean coreDay) {
         this.goalId = goalId;
         this.title = title;
@@ -80,12 +102,20 @@ public class Day extends VersionedEntity {
         this.status = status;
     }
 
-    public int getPriority() {
+    public DayPriority getPriority() {
         return priority;
     }
 
-    public void setPriority(int priority) {
+    public void setPriority(DayPriority priority) {
         this.priority = priority;
+    }
+
+    public Set<DayTag> getTags() {
+        return tags;
+    }
+
+    public void setTags(Set<DayTag> tags) {
+        this.tags = new LinkedHashSet<>(tags);
     }
 
     public int getEstimatedMinutes() {

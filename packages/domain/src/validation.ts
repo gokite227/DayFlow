@@ -177,10 +177,17 @@ export function validateGoalParent(
   return issues;
 }
 
+/**
+ * DAY-001: a Day may have no Goal at all. When it has one, it must be the resolved WEEK Goal,
+ * so `goal` is the Goal loaded for `day.goalId`.
+ */
 export function validateDayGoal(
   day: Pick<CreateDayInput, "goalId">,
   goal: Pick<Goal, "id" | "type"> | null,
 ): DomainIssue[] {
+  if (day.goalId === null) {
+    return [];
+  }
   return goal !== null && day.goalId === goal.id && goal.type === "WEEK"
     ? []
     : [

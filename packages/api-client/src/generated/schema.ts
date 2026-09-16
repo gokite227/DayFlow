@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/api/v1/day-tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listDayTags"];
+        put?: never;
+        post: operations["createDayTag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/day-tags/{tagId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteDayTag"];
+        options?: never;
+        head?: never;
+        patch: operations["updateDayTag"];
+        trace?: never;
+    };
     "/api/v1/days": {
         parameters: {
             query?: never;
@@ -238,8 +270,11 @@ export interface components {
             coreDay: boolean;
             /** Format: int32 */
             estimatedMinutes: number;
-            /** Format: uuid */
-            goalId: string;
+            /**
+             * Format: uuid
+             * @description null or omitted for a Day without a Goal; otherwise a WEEK Goal (DAY-001)
+             */
+            goalId?: string | null;
             /**
              * Format: date
              * @description null or omitted when the date is not decided yet
@@ -247,11 +282,23 @@ export interface components {
             plannedDate?: string | null;
             /** @enum {string} */
             planningMode: "FIXED" | "WINDOW" | "ANYTIME";
-            /** Format: int32 */
-            priority: number;
+            /** @enum {string} */
+            priority: "NONE" | "LOW" | "MEDIUM" | "HIGH";
             /** @enum {string} */
             status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "DEFERRED" | "SKIPPED";
+            /** @description Day Tag ids; omitted means no Tags (at most 10, DAY-005) */
+            tagIds?: string[];
             title: string;
+        };
+        CreateDayTagRequest: {
+            /** @description One of the DayFlow palette colors */
+            color: string;
+            name: string;
+            /**
+             * Format: int32
+             * @description Omitted or null puts the Tag at the end of the list
+             */
+            sortOrder?: number | null;
         };
         CreateEventRequest: {
             allDay: boolean;
@@ -313,8 +360,11 @@ export interface components {
             createdAt: string;
             /** Format: int32 */
             estimatedMinutes: number;
-            /** Format: uuid */
-            goalId: string;
+            /**
+             * Format: uuid
+             * @description null when the Day has no Goal (DAY-001)
+             */
+            goalId: string | null;
             /** Format: uuid */
             id: string;
             /**
@@ -324,12 +374,13 @@ export interface components {
             plannedDate: string | null;
             /** @enum {string} */
             planningMode: "FIXED" | "WINDOW" | "ANYTIME";
-            /** Format: int32 */
-            priority: number;
+            /** @enum {string} */
+            priority: "NONE" | "LOW" | "MEDIUM" | "HIGH";
             /** @description null when the Day has no time placement */
             schedule: components["schemas"]["DayScheduleResponse"] | null;
             /** @enum {string} */
             status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "DEFERRED" | "SKIPPED";
+            tags: components["schemas"]["DayTagResponse"][];
             title: string;
             /** Format: date-time */
             updatedAt: string;
@@ -348,6 +399,20 @@ export interface components {
             /** Format: date-time */
             startAt: string;
             timezone: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            version: number;
+        };
+        DayTagResponse: {
+            color: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: int32 */
+            sortOrder: number;
             /** Format: date-time */
             updatedAt: string;
             /** Format: int64 */
@@ -602,8 +667,11 @@ export interface components {
             coreDay?: boolean;
             /** Format: int32 */
             estimatedMinutes?: number;
-            /** Format: uuid */
-            goalId?: string;
+            /**
+             * Format: uuid
+             * @description Omit to keep the Goal; null removes the Goal link (DAY-001).
+             */
+            goalId?: string | null;
             /**
              * Format: date
              * @description Omit to keep the date; null clears it and removes the schedule.
@@ -611,11 +679,21 @@ export interface components {
             plannedDate?: string | null;
             /** @enum {string} */
             planningMode?: "FIXED" | "WINDOW" | "ANYTIME";
-            /** Format: int32 */
-            priority?: number;
+            /** @enum {string} */
+            priority?: "NONE" | "LOW" | "MEDIUM" | "HIGH";
             /** @enum {string} */
             status?: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "DEFERRED" | "SKIPPED";
+            /** @description Omit to keep the Tags; a list replaces them (at most 10, DAY-005). */
+            tagIds?: string[];
             title?: string;
+            /** Format: int64 */
+            version: number;
+        };
+        UpdateDayTagRequest: {
+            color?: string;
+            name?: string;
+            /** Format: int32 */
+            sortOrder?: number;
             /** Format: int64 */
             version: number;
         };
@@ -689,13 +767,169 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listDayTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayTagResponse"][];
+                };
+            };
+            /** @description Invalid request or Tag rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    createDayTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDayTagRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayTagResponse"];
+                };
+            };
+            /** @description Invalid request or Tag rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    deleteDayTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tagId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request or Tag rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Tag not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    updateDayTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tagId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDayTagRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayTagResponse"];
+                };
+            };
+            /** @description Invalid request or Tag rule violation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Tag not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Stale version (VERSION_CONFLICT) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
     listDays: {
         parameters: {
             query?: {
                 from?: string;
                 to?: string;
                 goalId?: string;
+                hasGoal?: boolean;
                 status?: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "DEFERRED" | "SKIPPED";
+                priority?: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+                tagId?: string;
             };
             header?: never;
             path?: never;

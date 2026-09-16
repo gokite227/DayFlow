@@ -7,7 +7,10 @@ import { ErrorNotice } from "@/components/query-state";
 import { formatPeriod } from "@/features/goals/goal-tree";
 import { useCreateDay, useDeleteDay, useUpdateDay } from "./day-queries";
 import { DayScheduleSection } from "./day-schedule-section";
+import { DayTagPicker } from "./day-tag-picker";
 import {
+  DAY_PRIORITIES,
+  DAY_PRIORITY_LABEL,
   DAY_STATUS_LABEL,
   PLANNING_MODE_LABEL,
   dayToValues,
@@ -19,7 +22,9 @@ import {
   type DayStatus,
   type PlanningMode,
 } from "./day-values";
+import type { DayPriority } from "@dayflow/api-client";
 
+/** create carries the preselected Goal, which may be "" for a Day without a Goal (DAY-001). */
 export type DayFormTarget = { mode: "create"; goalId: string } | { mode: "edit"; day: DayResponse };
 
 export function DayFormModal({
@@ -93,15 +98,19 @@ export function DayFormModal({
 
           <label className="field wide">
             <span className="field-label">주간 목표</span>
-            <select required value={values.goalId} onChange={(event) => set("goalId", event.target.value)}>
-              <option value="">선택하세요</option>
+            {/* DAY-001: a Goal is optional, so "연결 안 함" is a normal choice, not an empty state. */}
+            <select value={values.goalId} onChange={(event) => set("goalId", event.target.value)}>
+              <option value="">연결 안 함</option>
               {weekGoals.map((weekGoal) => (
                 <option key={weekGoal.id} value={weekGoal.id}>
                   {weekGoal.title} ({formatPeriod(weekGoal)})
                 </option>
               ))}
             </select>
+            <span className="mini">목표 없이도 Day를 만들 수 있습니다. 목표를 연결하면 주간 목표 기간 안의 날짜만 고를 수 있습니다.</span>
           </label>
+
+          <DayTagPicker selectedIds={values.tagIds} onChange={(tagIds) => set("tagIds", tagIds)} />
 
           <div className="field wide">
             <span className="field-label">실행 날짜</span>
@@ -159,14 +168,17 @@ export function DayFormModal({
 
           <label className="field">
             <span className="field-label">우선순위</span>
-            <input
-              type="number"
-              required
-              min={0}
-              step={1}
+            {/* DAY-004: the task's own importance, separate from "오늘의 핵심 Day". */}
+            <select
               value={values.priority}
-              onChange={(event) => set("priority", event.target.value)}
-            />
+              onChange={(event) => set("priority", event.target.value as DayPriority)}
+            >
+              {DAY_PRIORITIES.map((priority) => (
+                <option key={priority} value={priority}>
+                  {DAY_PRIORITY_LABEL[priority]}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="field">

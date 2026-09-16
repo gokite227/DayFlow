@@ -56,14 +56,17 @@ export function goalSubtreeIds(goals: readonly GoalResponse[], goalId: string): 
   return ids;
 }
 
-/** Summary of the period's Days that belong to the Goal (directly or through child Goals). */
+/**
+ * Summary of the period's Days that belong to the Goal (directly or through child Goals).
+ * GOAL-003: Days without a Goal never count towards a Goal's progress (DAY-001).
+ */
 export function summarizeGoal(
   goals: readonly GoalResponse[],
   days: readonly DayResponse[],
   goalId: string,
 ): DaySummary {
   const ids = goalSubtreeIds(goals, goalId);
-  return summarizeDays(days.filter((day) => ids.has(day.goalId)));
+  return summarizeDays(days.filter((day) => day.goalId !== null && ids.has(day.goalId)));
 }
 
 export function formatRate(rate: number | null): string {

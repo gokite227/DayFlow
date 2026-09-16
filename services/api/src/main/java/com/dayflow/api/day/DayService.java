@@ -35,41 +35,64 @@ public class DayService {
     private final DayRepository days;
     private final DayScheduleRepository schedules;
     private final GoalRepository goals;
+    private final DayTagService dayTags;
 
-    public DayService(DayRepository days, DayScheduleRepository schedules, GoalRepository goals) {
+    public DayService(DayRepository days, DayScheduleRepository schedules, GoalRepository goals,
+            DayTagService dayTags) {
         this.days = days;
         this.schedules = schedules;
         this.goals = goals;
+        this.dayTags = dayTags;
     }
 
+    /** goalId may be null (DAY-001); a Goal, if given, must be a WEEK Goal and contain plannedDate. */
     public DayResponse create(CreateDayRequest request) {
-        Goal goal = requireWeekGoal(request.goalId());
+        Goal goal = findWeekGoal(request.goalId());
         validateDateInGoal(request.plannedDate(), goal, "plannedDate");
 
-        Day day = new Day(goal.getId(), request.title().strip(), request.status(), request.priority(),
-                request.estimatedMinutes(), request.plannedDate(), request.planningMode(), request.coreDay());
+        Day day = new Day(goal == null ? null : goal.getId(), request.title().strip(), request.status(),
+                request.priority(), request.estimatedMinutes(), request.plannedDate(), request.planningMode(),
+                request.coreDay());
+        day.setTags(dayTags.resolve(request.tagIds()));
         return DayResponse.from(days.saveAndFlush(day), null);
     }
 
-    /** requirements §9: from/to (inclusive plannedDate range), goalId and status filters. */
+    /**
+     * requirements §9: from/to (inclusive plannedDate range), goalId, hasGoal, status, priority and
+     * tagId filters (DAY-006). The Days screen combines several of these client-side on one list.
+     */
     @Transactional(readOnly = true)
-    public List<DayResponse> list(LocalDate from, LocalDate to, UUID goalId, DayStatus status) {
+    public List<DayResponse> list(LocalDate from, LocalDate to, UUID goalId, Boolean hasGoal, DayStatus status,
+            DayPriority priority, UUID tagId) {
         if (from != null && to != null && from.isAfter(to)) {
             throw new ApiException(ErrorCode.VALIDATION_ERROR, "from must be on or before to.", "from");
         }
         Specification<Day> filter = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (from != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("plannedDate"), from));
+                predicates.add(cb.greaterThanOrEqualTo(root.<LocalDate>get("plannedDate"), from));
             }
             if (to != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("plannedDate"), to));
+                predicates.add(cb.lessThanOrEqualTo(root.<LocalDate>get("plannedDate"), to));
             }
             if (goalId != null) {
                 predicates.add(cb.equal(root.get("goalId"), goalId));
             }
+            if (hasGoal != null) {
+                predicates.add(hasGoal ? cb.isNotNull(root.get("goalId")) : cb.isNull(root.get("goalId")));
+            }
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (priority != null) {
+                predicates.add(cb.equal(root.get("priority"), priority));
+            }
+            if (tagId != null) {
+                // A Day joins several Tags, so the join can repeat the Day row.
+                if (query != null) {
+                    query.distinct(true);
+                }
+                predicates.add(cb.equal(root.join("tags").get("id"), tagId));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
@@ -100,7 +123,8 @@ public class DayService {
             throw new ApiException(ErrorCode.VALIDATION_ERROR, "At least one Day field must be provided.");
         }
 
-        Goal goal = requireWeekGoal(request.getGoalId() != null ? request.getGoalId() : day.getGoalId());
+        // An omitted goalId keeps the current Goal; an explicit null removes the link (DAY-001).
+        Goal goal = findWeekGoal(request.hasGoalId() ? request.getGoalId() : day.getGoalId());
         LocalDate plannedDate = request.hasPlannedDate() ? request.getPlannedDate() : day.getPlannedDate();
         validateDateInGoal(plannedDate, goal, "plannedDate");
 
@@ -114,7 +138,7 @@ public class DayService {
             }
         }
 
-        day.setGoalId(goal.getId());
+        day.setGoalId(goal == null ? null : goal.getId());
         day.setPlannedDate(plannedDate);
         if (request.getTitle() != null) {
             day.setTitle(request.getTitle().strip());
@@ -133,6 +157,10 @@ public class DayService {
         }
         if (request.getCoreDay() != null) {
             day.setCoreDay(request.getCoreDay());
+        }
+        // A sent list replaces the Tags; an empty list removes them all (DAY-005).
+        if (request.getTagIds() != null) {
+            day.setTags(dayTags.resolve(request.getTagIds()));
         }
         days.saveAndFlush(day);
         return DayResponse.from(day, schedule);
@@ -163,7 +191,7 @@ public class DayService {
         }
 
         LocalDate scheduleDate = request.startAt().atZoneSameInstant(zone).toLocalDate();
-        validateDateInGoal(scheduleDate, requireWeekGoal(day.getGoalId()), "startAt");
+        validateDateInGoal(scheduleDate, findWeekGoal(day.getGoalId()), "startAt");
 
         Instant startAt = request.startAt().toInstant();
         Instant endAt = request.endAt().toInstant();
@@ -193,15 +221,20 @@ public class DayService {
                 .orElseThrow(() -> new ApiException(ErrorCode.DAY_NOT_FOUND, "Day " + id + " was not found."));
     }
 
-    private Goal requireWeekGoal(UUID goalId) {
+    /** null goalId means "no Goal" and is valid; any other value must be an existing WEEK Goal. */
+    private Goal findWeekGoal(UUID goalId) {
+        if (goalId == null) {
+            return null;
+        }
         return goals.findById(goalId)
                 .filter(goal -> goal.getType() == GoalType.WEEK)
                 .orElseThrow(() -> new ApiException(ErrorCode.DAY_REQUIRES_WEEK_GOAL,
                         "A Day can only belong directly to a WEEK Goal.", "goalId"));
     }
 
+    /** Days without a Goal have no Goal period to stay inside (DAY-001). */
     private static void validateDateInGoal(LocalDate date, Goal goal, String field) {
-        if (date != null && !goal.contains(date)) {
+        if (goal != null && date != null && !goal.contains(date)) {
             throw new ApiException(ErrorCode.DATE_OUTSIDE_WEEK_GOAL_PERIOD,
                     "The date must be within the WEEK Goal period " + goal.getStartDate() + " ~ "
                             + goal.getEndDate() + ".",

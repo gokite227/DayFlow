@@ -7,7 +7,8 @@ const base: DayResponse = {
   goalId: "week",
   title: "Write API",
   status: "NOT_STARTED",
-  priority: 1,
+  priority: "LOW",
+  tags: [],
   estimatedMinutes: 90,
   plannedDate: "2026-09-14",
   planningMode: "ANYTIME",
@@ -30,7 +31,15 @@ describe("REC-001 recovery plan", () => {
     expect(moveRange(week, today)).toEqual({ min: "2026-09-16", max: "2026-09-20" });
     expect(moveRange({ startDate: "2026-09-21", endDate: "2026-09-27" }, today)).toEqual({ min: "2026-09-21", max: "2026-09-27" });
     expect(moveRange({ startDate: "2026-09-07", endDate: "2026-09-13" }, today)).toBeNull();
-    expect(moveRange(undefined, today)).toBeNull();
+  });
+
+  it("DAY-001 lets a Day without a Goal move to today or any later date", () => {
+    const range = moveRange(undefined, today);
+
+    expect(range).toEqual({ min: today, max: null });
+    const draft = (plannedDate: string): RecoveryDraft => ({ ...initialDraft(base, today), action: "MOVE", plannedDate });
+    expect(draftProblem(base, draft("2026-12-31"), range)).toBeNull();
+    expect(draftProblem(base, draft("2026-09-15"), range)).toBe("moveDate");
   });
 
   it("rejects a REDUCE that is not smaller, a blank title and a MOVE outside the range", () => {

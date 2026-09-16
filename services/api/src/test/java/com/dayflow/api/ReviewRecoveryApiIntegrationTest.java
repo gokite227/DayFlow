@@ -232,7 +232,7 @@ class ReviewRecoveryApiIntegrationTest {
 
     private static String dayJson(String goalId, String title, String plannedDate, int minutes) {
         return """
-                {"goalId": "%s", "title": "%s", "status": "NOT_STARTED", "priority": 1,
+                {"goalId": "%s", "title": "%s", "status": "NOT_STARTED", "priority": "LOW",
                  "estimatedMinutes": %d, "plannedDate": "%s", "planningMode": "ANYTIME", "coreDay": false}
                 """.formatted(goalId, title, minutes, plannedDate);
     }

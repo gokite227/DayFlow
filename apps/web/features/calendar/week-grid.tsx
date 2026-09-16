@@ -309,8 +309,25 @@ export function DayChip({
       {...attributes}
       {...listeners}
     >
+      <TagDot day={day} />
       {day.title}
     </button>
+  );
+}
+
+/**
+ * DAY-005 in the Calendar: at most one small colored dot, so blocks stay readable. The Tags
+ * themselves are read and edited in Days / the Day form.
+ */
+function TagDot({ day }: { day: DayResponse }) {
+  const tag = day.tags[0];
+  if (!tag) return null;
+  return (
+    <span
+      className="tc-tag-dot"
+      style={{ background: tag.color }}
+      title={day.tags.map((entry) => entry.name).join(", ")}
+    />
   );
 }
 
@@ -434,7 +451,10 @@ function ScheduledBlock({
       {...attributes}
       {...listeners}
     >
-      <div className="tc-block-title">{day.title}</div>
+      <div className="tc-block-title">
+        <TagDot day={day} />
+        {day.title}
+      </div>
       <div className="tc-block-time">
         {formatMinutes(start)}–{formatMinutes(Math.min(start + shownLength, MINUTES_PER_DAY))}
       </div>

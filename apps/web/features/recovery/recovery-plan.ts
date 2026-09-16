@@ -29,26 +29,39 @@ export function initialDraft(day: DayResponse, moveDate: string | null): Recover
   };
 }
 
+/** Dates a MOVE may pick. `max: null` means "no end", for Days without a Goal period. */
+export interface MoveRange {
+  min: string;
+  max: string | null;
+}
+
 /**
  * Dates a Day can MOVE to: from today (or the Goal start) to its WEEK Goal end. Null when the
  * Goal period is already over — moving to another week is a separate replan use case.
+ * A Day without a Goal (DAY-001) can move to today or any later date, never to the past.
  */
-export function moveRange(goal: Pick<GoalResponse, "startDate" | "endDate"> | undefined, today: string) {
-  if (!goal) return null;
+export function moveRange(
+  goal: Pick<GoalResponse, "startDate" | "endDate"> | undefined,
+  today: string,
+): MoveRange | null {
+  if (!goal) return { min: today, max: null };
   const min = goal.startDate > today ? goal.startDate : today;
   return min <= goal.endDate ? { min, max: goal.endDate } : null;
 }
 
 export type DraftProblem = "reduceMinutes" | "reduceTitle" | "moveDate" | null;
 
-export function draftProblem(day: DayResponse, draft: RecoveryDraft, range: { min: string; max: string } | null): DraftProblem {
+export function draftProblem(day: DayResponse, draft: RecoveryDraft, range: MoveRange | null): DraftProblem {
   if (draft.action === "REDUCE") {
     if (!Number.isInteger(draft.estimatedMinutes) || draft.estimatedMinutes < 1 || draft.estimatedMinutes >= day.estimatedMinutes) {
       return "reduceMinutes";
     }
     if (draft.title.trim() === "") return "reduceTitle";
   }
-  if (draft.action === "MOVE" && (!range || draft.plannedDate < range.min || draft.plannedDate > range.max)) {
+  if (
+    draft.action === "MOVE" &&
+    (!range || draft.plannedDate < range.min || (range.max !== null && draft.plannedDate > range.max))
+  ) {
     return "moveDate";
   }
   return null;

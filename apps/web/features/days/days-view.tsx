@@ -1,47 +1,199 @@
 "use client";
 
-import type { DayResponse, GoalResponse } from "@dayflow/api-client";
-import Link from "next/link";
+import type { DayPriority, DayResponse } from "@dayflow/api-client";
 import { useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
 import { formatPeriod, sortGoals } from "@/features/goals/goal-tree";
 import { useGoals } from "@/features/goals/goal-queries";
+import { useToday } from "@/lib/use-today";
 import { DayFormModal, type DayFormTarget } from "./day-form-modal";
 import { DayItem } from "./day-item";
 import { useCreateDay, useDays, useUpdateDay } from "./day-queries";
-import { doneToggleRequest, newDayValues, toCreateDayRequest } from "./day-values";
+import { useDayTags } from "./day-tag-queries";
+import { DayTagManager } from "./day-tag-manager";
+import { sortTags } from "./day-tag-values";
+import {
+  DAYS_VIEWS,
+  DAYS_VIEW_LABEL,
+  countByView,
+  emptyDaysFilters,
+  filterDays,
+  hasActiveFilters,
+  sortDays,
+  type DaysFilters,
+  type DaysView,
+} from "./day-filters";
+import { DAY_PRIORITIES, DAY_PRIORITY_LABEL, DAY_STATUS_LABEL, doneToggleRequest, quickAddDayRequest } from "./day-values";
 
+/**
+ * DAY-006: Days is the Inbox / Backlog of every Task. Today runs the day and Calendar places it;
+ * this screen only collects, searches and organizes. The whole list is loaded once and filtered
+ * client-side, so switching views and tags needs no extra request.
+ */
 export function DaysView() {
-  const [goalFilter, setGoalFilter] = useState("");
+  const today = useToday();
+  return (
+    <>
+      <PageHeader
+        title="Days"
+        subtitle="해야 하는 모든 일을 모아두는 Inbox입니다. 목표가 없어도 괜찮아요."
+      />
+      {today === null ? <LoadingState /> : <DaysContent today={today} />}
+    </>
+  );
+}
+
+function DaysContent({ today }: { today: string }) {
+  const [filters, setFilters] = useState<DaysFilters>(() => emptyDaysFilters("all"));
   const [formTarget, setFormTarget] = useState<DayFormTarget | null>(null);
+  const [managingTags, setManagingTags] = useState(false);
+
+  const daysQuery = useDays();
   const weekGoalsQuery = useGoals({ type: "WEEK" });
-  const daysQuery = useDays(goalFilter ? { goalId: goalFilter } : {});
+  const tagsQuery = useDayTags();
   const updateDay = useUpdateDay();
 
   const weekGoals = sortGoals(weekGoalsQuery.data ?? []);
   const goalsById = new Map(weekGoals.map((goal) => [goal.id, goal]));
+  const tags = sortTags(tagsQuery.data ?? []);
+  const allDays = daysQuery.data ?? [];
+  const counts = countByView(allDays, today);
+  const days = sortDays(filterDays(allDays, filters, today));
 
-  const toggleDone = (day: DayResponse) => updateDay.mutate({ dayId: day.id, body: doneToggleRequest(day) });
+  const set = <Key extends keyof DaysFilters>(key: Key, value: DaysFilters[Key]) =>
+    setFilters((current) => ({ ...current, [key]: value }));
+
+  const toggleTag = (tagId: string) =>
+    set("tagIds", filters.tagIds.includes(tagId)
+      ? filters.tagIds.filter((id) => id !== tagId)
+      : [...filters.tagIds, tagId]);
+
+  const goalValue =
+    filters.goal === "all" || filters.goal === "with" || filters.goal === "without"
+      ? filters.goal
+      : filters.goal.goalId;
 
   return (
     <>
-      <PageHeader title="Days" subtitle="주간 목표를 실제 하루의 행동으로 바꾸는 실행 단위입니다." />
-
       <div className="card">
+        <QuickAddDay onOpenDetail={() => setFormTarget({ mode: "create", goalId: "" })} />
+
+        <div className="day-view-switch" role="tablist" aria-label="Day 보기" style={{ marginBottom: 12 }}>
+          {DAYS_VIEWS.map((view: DaysView) => (
+            <button
+              key={view}
+              type="button"
+              role="tab"
+              aria-selected={filters.view === view}
+              className={filters.view === view ? "active" : undefined}
+              onClick={() => set("view", view)}
+            >
+              {DAYS_VIEW_LABEL[view]}
+              <span className="tab-count">{counts[view]}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="toolbar">
-          <label className="mini" htmlFor="day-goal-filter">
-            주간 목표
+          <label className="mini" htmlFor="days-goal-filter">
+            목표
           </label>
-          <select id="day-goal-filter" value={goalFilter} onChange={(event) => setGoalFilter(event.target.value)}>
-            <option value="">전체</option>
+          <select
+            id="days-goal-filter"
+            value={goalValue}
+            onChange={(event) => {
+              const value = event.target.value;
+              set("goal", value === "all" || value === "with" || value === "without" ? value : { goalId: value });
+            }}
+          >
+            <option value="all">전체</option>
+            <option value="with">목표 있음</option>
+            <option value="without">목표 없음</option>
             {weekGoals.map((goal) => (
               <option key={goal.id} value={goal.id}>
                 {goal.title} ({formatPeriod(goal)})
               </option>
             ))}
           </select>
+
+          <label className="mini" htmlFor="days-priority-filter">
+            우선순위
+          </label>
+          <select
+            id="days-priority-filter"
+            value={filters.priority}
+            onChange={(event) => set("priority", event.target.value as DayPriority | "all")}
+          >
+            <option value="all">전체</option>
+            {DAY_PRIORITIES.map((priority) => (
+              <option key={priority} value={priority}>
+                {DAY_PRIORITY_LABEL[priority]}
+              </option>
+            ))}
+          </select>
+
+          <label className="mini" htmlFor="days-status-filter">
+            상태
+          </label>
+          <select
+            id="days-status-filter"
+            value={filters.status}
+            onChange={(event) => set("status", event.target.value as DayResponse["status"] | "all")}
+          >
+            <option value="all">전체</option>
+            {(Object.keys(DAY_STATUS_LABEL) as DayResponse["status"][]).map((status) => (
+              <option key={status} value={status}>
+                {DAY_STATUS_LABEL[status]}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="search"
+            placeholder="제목 검색"
+            aria-label="Day 제목 검색"
+            value={filters.search}
+            onChange={(event) => set("search", event.target.value)}
+          />
+
+          {hasActiveFilters(filters) && (
+            <button
+              type="button"
+              className="btn ghost small"
+              onClick={() => setFilters({ ...emptyDaysFilters(filters.view) })}
+            >
+              필터 초기화
+            </button>
+          )}
           {updateDay.isPending && <span className="mini">저장 중…</span>}
+        </div>
+
+        <div className="toolbar">
+          <span className="mini">태그</span>
+          {tags.length === 0 ? (
+            <span className="mini">아직 태그가 없습니다.</span>
+          ) : (
+            tags.map((tag) => {
+              const active = filters.tagIds.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className={`tag-filter${active ? " active" : ""}`}
+                  style={active ? { borderColor: tag.color, color: tag.color } : undefined}
+                  aria-pressed={active}
+                  onClick={() => toggleTag(tag.id)}
+                >
+                  <span className="tag-dot" style={{ background: tag.color }} />
+                  {tag.name}
+                </button>
+              );
+            })
+          )}
+          <button type="button" className="btn ghost small" onClick={() => setManagingTags(true)}>
+            태그 관리
+          </button>
         </div>
 
         {updateDay.error && (
@@ -54,17 +206,21 @@ export function DaysView() {
           <LoadingState label="Day를 불러오는 중…" />
         ) : daysQuery.isError ? (
           <ErrorNotice error={daysQuery.error} onRetry={() => void daysQuery.refetch()} />
-        ) : daysQuery.data.length === 0 ? (
-          <EmptyState>아직 Day가 없습니다. 아래에서 주간 목표를 골라 추가해보세요.</EmptyState>
+        ) : days.length === 0 ? (
+          <EmptyState>
+            {allDays.length === 0
+              ? "아직 Day가 없습니다. 위에 제목만 적어 바로 담아보세요."
+              : "이 조건에 맞는 Day가 없습니다."}
+          </EmptyState>
         ) : (
           <div className="day-list">
-            {daysQuery.data.map((day) => (
+            {days.map((day) => (
               <DayItem
                 key={day.id}
                 day={day}
-                goalTitle={goalsById.get(day.goalId)?.title}
+                goalTitle={day.goalId === null ? undefined : goalsById.get(day.goalId)?.title}
                 toggling={updateDay.isPending && updateDay.variables?.dayId === day.id}
-                onToggle={() => toggleDone(day)}
+                onToggle={() => updateDay.mutate({ dayId: day.id, body: doneToggleRequest(day) })}
                 onOpen={() => {
                   updateDay.reset();
                   setFormTarget({ mode: "edit", day });
@@ -73,96 +229,46 @@ export function DaysView() {
             ))}
           </div>
         )}
-
-        {weekGoalsQuery.isError ? (
-          <div style={{ marginTop: 12 }}>
-            <ErrorNotice error={weekGoalsQuery.error} onRetry={() => void weekGoalsQuery.refetch()} />
-          </div>
-        ) : weekGoalsQuery.isSuccess && weekGoals.length === 0 ? (
-          <div className="mini" style={{ marginTop: 12 }}>
-            Day는 주간 목표 아래에 만듭니다. 먼저 <Link href="/goals">Goals</Link>에서 주간 목표를 만들어주세요.
-          </div>
-        ) : (
-          <QuickAddDay
-            weekGoals={weekGoals}
-            defaultGoalId={goalFilter}
-            onOpenDetail={(goalId) => setFormTarget({ mode: "create", goalId })}
-          />
-        )}
       </div>
 
       {formTarget && (
         <DayFormModal target={formTarget} weekGoals={weekGoals} onClose={() => setFormTarget(null)} />
       )}
+      {managingTags && <DayTagManager onClose={() => setManagingTags(false)} />}
     </>
   );
 }
 
-/** The prototype's one-line add: title + WEEK Goal + optional date, with defaults for the rest. */
-function QuickAddDay({
-  weekGoals,
-  defaultGoalId,
-  onOpenDetail,
-}: {
-  weekGoals: GoalResponse[];
-  defaultGoalId: string;
-  onOpenDetail: (goalId: string) => void;
-}) {
+/**
+ * DAY-006 Backlog quick add: a title is enough. The Day lands in 미배치 with no Goal, no date and
+ * no Tags; everything else is decided later in the form or on the Calendar.
+ */
+function QuickAddDay({ onOpenDetail }: { onOpenDetail: () => void }) {
   const [title, setTitle] = useState("");
-  const [goalId, setGoalId] = useState("");
-  const [plannedDate, setPlannedDate] = useState("");
   const createDay = useCreateDay();
-
-  const selectedGoalId = goalId || defaultGoalId;
-  const goal = weekGoals.find((candidate) => candidate.id === selectedGoalId);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    createDay.mutate(toCreateDayRequest({ ...newDayValues(selectedGoalId, plannedDate), title }), {
-      onSuccess: () => {
-        setTitle("");
-        setPlannedDate("");
-      },
-    });
+    if (title.trim() === "") return;
+    createDay.mutate(quickAddDayRequest(title.trim()), { onSuccess: () => setTitle("") });
   };
 
   return (
     <form onSubmit={submit}>
-      <div className="add-day-line">
+      <div className="add-day-line top">
         <input
           type="text"
           required
           maxLength={200}
-          placeholder="새 Day"
+          placeholder="할 일을 적어두세요 (예: 세탁하기)"
           aria-label="새 Day 제목"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
         />
-        <select
-          required
-          aria-label="주간 목표"
-          value={selectedGoalId}
-          onChange={(event) => setGoalId(event.target.value)}
-        >
-          <option value="">주간 목표 선택</option>
-          {weekGoals.map((weekGoal) => (
-            <option key={weekGoal.id} value={weekGoal.id}>
-              {weekGoal.title}
-            </option>
-          ))}
-        </select>
-        <input
-          type="date"
-          aria-label="실행 날짜 (선택)"
-          value={plannedDate}
-          min={goal?.startDate}
-          max={goal?.endDate}
-          onChange={(event) => setPlannedDate(event.target.value)}
-        />
         <button type="submit" className="btn" disabled={createDay.isPending}>
-          {createDay.isPending ? "추가 중…" : "추가"}
+          {createDay.isPending ? "담는 중…" : "담기"}
         </button>
-        <button type="button" className="btn secondary" onClick={() => onOpenDetail(selectedGoalId)}>
+        <button type="button" className="btn secondary" onClick={onOpenDetail}>
           상세 추가
         </button>
       </div>

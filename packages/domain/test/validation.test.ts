@@ -71,11 +71,12 @@ const day: Day = {
   goalId: weekGoal.id,
   title: "Write tests",
   status: "NOT_STARTED",
-  priority: 1,
+  priority: "LOW",
   estimatedMinutes: 30,
   plannedDate: null,
   planningMode: "ANYTIME",
   coreDay: true,
+  tagIds: [],
 };
 
 const schedule: DaySchedule = {
