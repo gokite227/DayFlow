@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutOverlaps } from "./calendar-layout";
+import { layoutOverlaps } from "../src/calendar-layout";
 
 describe("CAL-004 overlap layout", () => {
   it("gives a lone block the full width", () => {

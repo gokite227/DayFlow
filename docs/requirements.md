@@ -148,7 +148,7 @@
 | **ID**    | **Pri** | **도메인** | **요구사항**                                                           | **Acceptance**                                                                           |
 |-----------|---------|------------|------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
 | AUTH-001  | P0      | 인증       | 사용자는 Apple/Google/이메일 중 지원 방식으로 로그인할 수 있다.        | 재로그인 시 데이터가 복구되고 다른 계정 데이터가 섞이지 않는다.                          |
-| SET-001   | P0      | 개인설정   | timezone, 주 시작 요일, 코치 강도, 기본 알림을 저장한다.               | 기기 변경 후 서버에서 복구된다.                                                          |
+| SET-001   | P0      | 개인설정   | timezone, 주 시작 요일, 코치 강도, 기본 알림을 저장한다.               | 기기 변경 후 서버에서 복구된다. 현재 Mobile은 화면 모드(시스템/라이트/다크), Calendar 주 시작 요일, 하단 탭 구성을 기기 로컬에만 저장한다(서버 저장·복구 전). |
 | GOAL-001  | P0      | Goal       | YEAR→QUARTER→MONTH→WEEK 계층을 생성/수정/삭제한다. 직접 parent는 바로 위 단계만 허용하고 단계를 건너뛰지 않는다(YEAR만 parent 없음). Day를 Goal에 연결할 때는 WEEK Goal만 허용한다(연결 자체는 선택, DAY-001). | parent 기간 밖의 하위 Goal 생성 시 validation 오류 또는 사용자 확인을 요구한다. 계층 규칙은 UI와 무관하게 서버 validation이 최종 보장한다. |
 | GOAL-002  | P0      | Goal       | Goal에 title, why, 기간(calendar period), 우선순위/가중치를 저장한다.   | Today/Review에서 상위 path와 why를 조회할 수 있다. period label(`2026`, `3분기`, `9월 3주`)과 사용자가 입력한 title은 섞지 않는다. |
 | GOAL-003  | P1      | Goal       | 진행률은 Goal에 실제 연결된 Day의 완료 기반 자동 계산 + 선택적 수동 보정 정책을 지원한다. | 자동/수동 방식이 UI에서 구분된다. Goal에 연결되지 않은 Day(DAY-001)는 어떤 Goal progress에도 반영되지 않는다. |
@@ -162,14 +162,14 @@
 | DAY-004   | P0      | Day        | Day는 task priority(NONE/LOW/MEDIUM/HIGH)를 가지며 Core Day와 구분한다(§4.6). | 저장은 기존 `days.priority` integer를 재사용한다(`0=NONE, 1=LOW, 2=MEDIUM, 3=HIGH`). domain/API/UI는 이름으로 다루고 DB enum migration은 하지 않는다. priority는 Task 자체의 중요도, coreDay는 오늘 계획에서 꼭 지키고 싶은 실행 여부이며 두 값은 독립적으로 저장·필터된다. Eisenhower Matrix는 이번 범위 밖(§2.4). |
 | DAY-005   | P0      | Day        | Day에 사용자 정의 Tag를 0개 이상 연결한다(§4.6, §8.5).                 | Tag는 생성/이름 변경/색상/정렬/삭제가 가능하고 Day 필터에 쓰인다. 이름은 최대 30자, trim 후 저장하며 대소문자를 무시한 중복을 금지한다. Day 하나당 최대 10개. 색상은 MVP에서 DayFlow 제공 palette 중 선택이다. Goal이 있는 Day에도 Tag를 붙일 수 있고, Goal·Event Category와 합치지 않는다. |
 | DAY-006   | P0      | Days 화면  | Days는 모든 Task를 모으고 관리하는 Inbox/Backlog 화면이다(§4.6).        | 최소 전체/예정/미배치/완료/Goal 있음/Goal 없음/특정 Goal/Tag/priority 개념으로 걸러 볼 수 있다. 구체적 UI는 후속 작업에서 정한다. |
-| CAL-001   | P0      | Calendar   | 주간 뷰에서 Day를 배치·이동·리사이즈한다.                              | Web mouse/touch, Mobile gesture 모두 동작한다. 15분 snap 정밀도를 유지한다.              |
+| CAL-001   | P0      | Calendar   | 주간 뷰에서 Day를 배치·이동·리사이즈한다.                              | Web mouse/touch, Mobile gesture 모두 동작한다. 15분 snap 정밀도를 유지한다. Mobile은 길게 눌러 drag, 하단 handle로 resize한다(§4.7). |
 | CAL-002   | P0      | Calendar   | Calendar는 WEEK / 3 DAYS / DAY 뷰와 리스트 뷰를 전환한다.              | 같은 calendar engine과 같은 Day/Event 데이터를 쓰고 별도 기능으로 분리하지 않는다. 동일한 서버 데이터를 다른 presentation으로 표시한다. |
 | CAL-006   | P0      | Calendar   | Calendar는 한 화면에서 더 넓은 시간대를 보는 compact time-grid를 쓰고, 미배치(Unscheduled) 패널을 접고 펼 수 있다(§4.7). | 1시간 major line, 필요 시 약한 30분 minor line, 더 작은 hour height를 사용하고 모든 15분 slot을 강하게 표시하지 않는다. 15분 배치 정밀도, Day drag/resize, Event block, 겹침 배치, 현재 시간선은 유지한다. 날짜/월 표기는 한국어 기준(`9월`)을 쓴다. |
 | CAL-003   | P0      | Calendar   | 주간 Calendar에 Day와 Event occurrence를 함께 표시한다.                | 데이터는 `/days`와 `/event-occurrences`로 분리 조회하고, 같은 주간 grid에서 Event가 Day와 다른 시각 스타일(타입 라벨 포함)로 보인다. all-day Event는 날짜 행에 표시된다. |
 | CAL-004   | P0      | Calendar   | Day와 Event, Event와 Event가 같은 시간대에 겹칠 수 있다.               | 겹침은 validation 오류가 아니며, 겹친 블록은 서로 가리지 않고 나란히 표시된다.            |
 | CAL-005   | P0      | Calendar   | Calendar에서 Event를 클릭하면 Event 편집 화면/modal을 연다.            | MVP에서 Event는 drag/resize로 이동하지 않는다. Event 시간 변경은 명시적인 편집 후 저장으로만 처리된다. Day drag/drop/resize 동작은 CAL-001 그대로 유지된다. |
 | EVT-001   | P0      | Event      | Event를 생성/조회/수정/삭제한다(title, categoryId, allDay, timed 또는 all-day 시간 필드, timezone, location, notes, recurrence, reminders, linkedGoalId). | timed(`startAt`/`endAt`)와 all-day(`startDate`/`endDateExclusive`) 필드가 섞이거나 누락되면 400(§8.4). `endAt < startAt`, `endDateExclusive <= startDate`, 잘못된 timezone, 알 수 없는 recurrence, 존재하지 않는 categoryId는 400. 수정/삭제는 version 충돌 시 409. |
-| EVT-002   | P0      | Event      | Events 화면에서 Event만 조회하고 Category로 필터한다.                  | desktop navigation은 Today / Goals / Calendar / Events / Days / Review 순서. 필터는 `전체` + `미분류` + 사용자 Category 목록(sortOrder 순, EVT-006)이다. Day는 이 화면에 나오지 않는다. 모바일 Web은 6개 bottom tab으로 고정하지 않고 `More` 또는 별도 정보구조를 쓸 수 있다. |
+| EVT-002   | P0      | Event      | Events 화면에서 Event만 조회하고 Category로 필터한다.                  | desktop navigation은 Today / Goals / Calendar / Events / Days / Review 순서. 필터는 `전체` + `미분류` + 사용자 Category 목록(sortOrder 순, EVT-006)이다. Day는 이 화면에 나오지 않는다. 모바일 Web은 6개 bottom tab으로 고정하지 않고 `More` 또는 별도 정보구조를 쓸 수 있다. Mobile 앱은 사용자 설정 하단 탭(§4.4 Navigation)을 쓴다. |
 | EVT-003   | P0      | Event      | recurrence NONE/DAILY/WEEKLY/MONTHLY/YEARLY를 지원한다.                | occurrence는 원래 recurrence anchor 기준으로 계산되고(직전 occurrence 기준 아님), 월/연 반복에서 대상 월에 없는 날짜는 그 달 마지막 날로 보정된다. 개별 occurrence 수정·예외 규칙은 MVP 제외(§8.4). |
 | EVT-004   | P0      | Event      | Event는 선택적으로 Goal에 연결한다(linkedGoalId nullable).             | Goal 없이 Event 생성 가능. 연결 Goal 삭제 시 Event는 남고 linkedGoalId만 null이 된다.     |
 | EVT-005   | P0      | Event      | Day와 Event는 별도 도메인이다. 마감은 Event, 준비 작업은 Day로 관리한다. 같은 현실 행동도 사용 목적(완료 관리 vs 시간 점유)에 따라 Day/Event를 고른다(§4.4). | Event에는 Day 상태(DONE 등)·핵심 Day·Recovery 분류가 없다. Event를 Day로 자동 변환하지 않는다. Routine/Habit 전용 도메인은 만들지 않고 Day/Event로 표현한다(§2.4). |
@@ -284,6 +284,8 @@
 
 - 모바일 Web은 6개 bottom tab으로 고정하지 않는다. 추후 `More` 또는 별도 정보구조로 Events/Days 등을 배치할 수 있다.
 
+- Mobile 앱 navigation: 하단 탭 5개 = 사용자가 고르는 4칸 + `Settings`(항상 마지막, 고정). 기본값은 `Today / Days / Calendar / Events / Settings`. 4칸에는 Today/Days/Calendar/Events/Goals/Review/Recovery 중 서로 다른 화면을 순서와 함께 고르며, 설정은 기기 로컬에 저장한다(계정 동기화는 SET-001 이후). 탭에 없는 화면은 Settings의 기능 바로가기나 다른 화면 링크에서 back 버튼이 있는 화면으로 열리고, Event 상세(알림 deep link 포함)는 탭 구성과 관계없이 열린다. 보고 있던 탭이 설정에서 빠지면 첫 번째 탭으로 이동한다.
+
 **일정 기반 시간 분배 흐름 (PLAN-001, P1)**
 
 `Event 먼저 확인 → 고정 시간 제외 → 남은 가용 시간 계산 → Core Day 배치 → 나머지 Day 배치`
@@ -311,7 +313,7 @@
 
 - period label은 `type + startDate + endDate`로 계산하는 파생값이며 DB에 저장하지 않는다. DB/API의 `startDate/endDate`는 유지하고, 서버는 canonical range가 아니면 `INVALID_GOAL_PERIOD`로 거부한다. 기존 parent 계층·parent 기간 포함·child 영향 검증은 그대로 유지한다.
 
-- 주 시작 요일은 사용자 설정(SET-001)이 생기기 전까지 월요일로 고정한다.
+- Goal WEEK period의 주 시작 요일은 월요일로 고정한다(canonical). Mobile Settings의 `한 주 시작 요일`(월/일)은 Calendar 표시 순서(주간 strip, 주 View, 날짜 header)에만 적용되며 WEEK Goal period와 주간 Review 기간은 바꾸지 않는다.
 
 - **parent 선택:** Goal 상세 안에서 `+ 분기/월간/주간`으로 만들면 현재 Goal이 parent로 자동 선택되고, 선택 가능한 period도 그 parent 안의 것만 보여준다. 전역 `새 목표`에서는 type/period를 먼저 고른 뒤 그 period를 담는 바로 위 단계 Goal을 찾는다: 1개면 자동 선택, 여러 개면 유효한 후보만 선택지로, 없으면 상위 목표를 먼저 만들도록 안내한다.
 
@@ -370,7 +372,12 @@
 
 - `WEEK / 3 DAYS / DAY` 뷰를 지원한다. 같은 calendar engine과 같은 Day/Event 데이터를 쓰고 별도 기능으로 분리하지 않는다.
 
-- 미배치(Unscheduled) 패널은 접고 펼 수 있다.
+- 미배치(Unscheduled) 패널은 접고 펼 수 있다. Mobile에서는 Calendar 폭을 줄이지 않는 오른쪽 overlay Drawer(`날짜 없음 N` 버튼, X·바깥 tap·오른쪽 swipe로 닫기)로 제공한다.
+
+- **Mobile Calendar:** Web과 같은 규칙(15분 snap, 최소 15분, 1시간 major/30분 minor line, 겹침 lane은 shared `layoutOverlaps`, 현재 시간선, 처음 진입 시 현재 시간 근처 scroll)을 쓰는 시간 grid다. View는 `하루 / 3일 / 주`이고 기본은 `하루`다. `주`는 7열을 억지로 줄이지 않고 가로 scroll한다. 상단 행에는 all-day Event(Category 색 bar)와 날짜만 정한 Day(Day 형태)를 구분해 보여준다.
+  - Day는 길게 눌러(약 0.3초) drag한다: 날짜 없음 Drawer → 시간 grid(추정 시간을 15분 단위로 올림한 길이, 최소 15분) 또는 날짜 칸, 시간 grid ↔ 다른 시간/날짜/날짜 칸, 그리고 `날짜 없음` 버튼 위로 놓으면 날짜 없음으로 되돌린다. Day 편집 화면의 `날짜 없음으로 이동`도 같은 결과다. 아래쪽 handle로 resize한다.
+  - drag 중에는 화면 위치만 바뀌고 서버 요청은 drop 후 한 번 보낸다. 기존 Day schedule/Day API를 그대로 쓰며, 목록은 먼저 낙관적으로 갱신하고 실패하면 원래대로 되돌린 뒤 오류를 보여준다.
+  - Event는 표시·탭(상세/수정)만 하고 drag/resize하지 않는다.
 
 - compact time-grid: 1시간 major line, 필요하면 약한 30분 minor line, 더 작은 hour height로 한 화면에서 더 넓은 시간대를 본다. 15분 배치 정밀도는 유지하되 모든 15분 slot을 강하게 그리지 않는다.
 

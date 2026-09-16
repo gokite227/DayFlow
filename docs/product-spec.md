@@ -239,6 +239,8 @@ Version 0.1 · 2026-09-14
 
 - Navigation: desktop은 `Today / Goals / Calendar / Events / Days / Review`. Events 화면에서는 일정만 따로 본다(Category 필터). 모바일 Web은 6개 하단 탭으로 고정하지 않고, 추후 `More` 또는 별도 정보구조를 쓸 수 있다.
 
+- 모바일 앱: 하단 탭은 사용자가 고르는 4개 화면 + 항상 마지막에 있는 `Settings`다(기본 `Today / Days / Calendar / Events / Settings`). 자주 쓰는 화면을 사람마다 다르게 둘 수 있고, 탭에 없는 화면은 Settings의 바로가기로 연다. Settings에서 화면 모드(시스템/라이트/다크)와 Calendar의 한 주 시작 요일(월/일)을 고른다. 한 주 시작 요일은 Calendar를 보는 순서일 뿐이고, 주간 목표의 기간(월요일 시작)은 바뀌지 않는다. 다크 모드도 pink/lavender 정체성을 유지한다.
+
 - Apple/Google Calendar 연동은 MVP 필수가 아니다. 이후 EventKit 또는 외부 Calendar API로 확장한다.
 
 ### 4.2.2 일정 기반 시간 분배
@@ -283,6 +285,8 @@ Version 0.1 · 2026-09-14
 - Day와 Event는 같은 시간대에 겹칠 수 있다. 겹침을 오류나 실패로 표현하지 않고, 두 블록이 모두 보이도록 나란히 둔다.
 
 - Calendar에서 Day는 지금처럼 드래그로 옮긴다. MVP에서 Event는 드래그·길이 조절을 하지 않고, 클릭하면 Event 편집 화면/modal이 열린다. 일정 이동은 편집 후 저장으로만 한다. 실수로 Event 시간이 바뀌지 않게 하기 위해서다.
+
+- 모바일 Calendar도 조회용 목록이 아니라 시간 계획 화면이다. 시간축을 중심으로 하루(기본)/3일/주를 보고, Day를 길게 눌러 원하는 시간·날짜로 옮기거나 아래 handle로 길이를 바꾼다. 날짜 없는 Day는 오른쪽 Drawer에서 꺼내 시간이나 날짜 칸으로 끌어오고, 필요하면 다시 `날짜 없음`으로 돌려놓는다.
 
 ## 4.3 Focus Lock — 실행을 돕는 강제 장치
 

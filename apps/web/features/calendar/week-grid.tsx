@@ -13,8 +13,8 @@ import {
 } from "react";
 import { categoryLabel, categoryStyle } from "../events/event-category-values";
 import { eventTime } from "../events/event-values";
+import { layoutOverlaps, type LayoutSlot } from "@dayflow/domain";
 import type { DropTarget } from "./calendar-drop";
-import { layoutOverlaps, type LayoutSlot } from "./calendar-layout";
 import {
   CALENDAR_SNAP_MINUTES,
   MINUTES_PER_DAY,
