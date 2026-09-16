@@ -675,6 +675,56 @@ a.btn {
     gap: 6px;
   }
 }
+.detail-back {
+  margin-bottom: 10px;
+}
+.period-badge-link {
+  text-decoration: none;
+  cursor: pointer;
+}
+.period-badge-link:hover {
+  background: #fbd3e1;
+}
+.today-goal-list {
+  display: grid;
+  gap: 8px;
+}
+.today-goal-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--text);
+  text-decoration: none;
+}
+.today-goal-row:hover {
+  background: #fffafd;
+}
+.today-goal-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.today-goal-main .period-badge {
+  justify-self: start;
+}
+.today-goal-title {
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+.today-goal-progress .progress-line {
+  margin-top: 0;
+}
+@media (max-width: 760px) {
+  .today-goal-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
 .period-preview,
 .parent-fixed {
   display: block;

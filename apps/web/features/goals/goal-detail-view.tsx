@@ -14,7 +14,7 @@ import { GoalProgress } from "./goal-progress";
 import { useDeleteGoal, useGoals } from "./goal-queries";
 import { GOAL_TYPE_LABEL, PROGRESS_POLICY_LABEL, childTypeOf, childrenOf, goalPath, sortGoals } from "./goal-tree";
 import { WeekGoalDays, WeekLayoutSwitch } from "./goal-week-days";
-import { datesOfGoal, type WeekLayout } from "./goal-views";
+import { backToGoalsHref, datesOfGoal, goalCalendarHref, goalDetailHref, type WeekLayout } from "./goal-views";
 
 const CHILD_SECTION_TITLE = { YEAR: "분기 목표", QUARTER: "월간 목표", MONTH: "주간 목표" } as const;
 
@@ -22,6 +22,8 @@ const CHILD_SECTION_TITLE = { YEAR: "분기 목표", QUARTER: "월간 목표", M
 export function GoalDetailView({ goalId }: { goalId: string }) {
   const goalsQuery = useGoals();
   const daysQuery = useDays();
+  const today = useToday();
+  const searchParams = useSearchParams();
 
   if (goalsQuery.isPending) return <LoadingState label="목표를 불러오는 중…" />;
   if (goalsQuery.isError) {
@@ -39,17 +41,31 @@ export function GoalDetailView({ goalId }: { goalId: string }) {
     );
   }
   // key: a different Goal starts with fresh modal state.
-  return <GoalDetail key={goal.id} goal={goal} goals={goals} days={daysQuery.data} />;
+  return (
+    <GoalDetail
+      key={goal.id}
+      goal={goal}
+      goals={goals}
+      days={daysQuery.data}
+      today={today}
+      backHref={backToGoalsHref(searchParams.get("back"), goal.type)}
+    />
+  );
 }
 
 function GoalDetail({
   goal,
   goals,
   days,
+  today,
+  backHref,
 }: {
   goal: GoalResponse;
   goals: GoalResponse[];
   days: DayResponse[] | undefined;
+  today: string | null;
+  /** Returns to the Goals view the user came from (GOAL-005). */
+  backHref: string;
 }) {
   const router = useRouter();
   const [formTarget, setFormTarget] = useState<GoalFormTarget | null>(null);
@@ -61,14 +77,20 @@ function GoalDetail({
     if (!window.confirm(`"${goal.title}" 목표를 삭제할까요? 되돌릴 수 없습니다.`)) return;
     deleteGoal.mutate(goal.id, {
       // replace: going back must not return to a deleted Goal.
-      onSuccess: () => router.replace(goal.parentGoalId ? `/goals/${goal.parentGoalId}` : "/goals"),
+      onSuccess: () => router.replace(goal.parentGoalId ? `/goals/${goal.parentGoalId}` : backHref),
     });
   };
 
   return (
     <>
+      <div className="detail-back">
+        <Link href={backHref} className="btn ghost small">
+          ← 목표 목록으로
+        </Link>
+      </div>
+
       <nav className="breadcrumb" aria-label="목표 경로">
-        <Link href="/goals">Goals</Link>
+        <Link href={backHref}>Goals</Link>
         {path.map((ancestor) => (
           <span key={ancestor.id} className="breadcrumb-step">
             <span aria-hidden>›</span>
@@ -89,7 +111,7 @@ function GoalDetail({
         <section className="card detail-hero">
           <div className="detail-meta">
             <span className="goal-type">{GOAL_TYPE_LABEL[goal.type]}</span>
-            <span className="period-badge">{goalPeriodLabel(goal, goal.type !== "YEAR")}</span>
+            <PeriodBadge goal={goal} today={today} />
             <span className="pill">{periodRangeLabel(goal)}</span>
           </div>
           <div className="detail-title">{goal.title}</div>
@@ -107,7 +129,7 @@ function GoalDetail({
           )}
           <div className="card-actions">
             {goal.type === "YEAR" && (
-              <Link href={`/goals?view=all&root=${goal.id}`} className="btn ghost small">
+              <Link href={`/goals/${goal.id}/flow`} className="btn ghost small">
                 전체 흐름 보기
               </Link>
             )}
@@ -123,7 +145,14 @@ function GoalDetail({
         {goal.type === "WEEK" ? (
           <WeekDays goal={goal} goals={goals} />
         ) : (
-          <ChildGoals goal={goal} goals={goals} days={days} onAdd={() => setFormTarget({ mode: "create", context: goal, defaultYear: Number(goal.startDate.slice(0, 4)) })} childLabel={childType ? GOAL_TYPE_LABEL[childType] : ""} />
+          <ChildGoals
+            goal={goal}
+            goals={goals}
+            days={days}
+            backHref={backHref}
+            onAdd={() => setFormTarget({ mode: "create", context: goal, defaultYear: Number(goal.startDate.slice(0, 4)) })}
+            childLabel={childType ? GOAL_TYPE_LABEL[childType] : ""}
+          />
         )}
       </div>
 
@@ -132,16 +161,33 @@ function GoalDetail({
   );
 }
 
+/**
+ * GOAL-007: MONTH/WEEK period labels open the Calendar at that period (WEEK → its start, MONTH → today when
+ * we are inside that month, otherwise its first day). Other types stay plain text.
+ */
+function PeriodBadge({ goal, today }: { goal: GoalResponse; today: string | null }) {
+  const label = goalPeriodLabel(goal, goal.type !== "YEAR");
+  const href = today === null ? null : goalCalendarHref(goal, today);
+  if (href === null) return <span className="period-badge">{label}</span>;
+  return (
+    <Link href={href} className="period-badge period-badge-link" title="이 기간의 Calendar 열기" data-calendar-href={href}>
+      {label} <span aria-hidden>📅</span>
+    </Link>
+  );
+}
+
 function ChildGoals({
   goal,
   goals,
   days,
+  backHref,
   childLabel,
   onAdd,
 }: {
   goal: GoalResponse;
   goals: GoalResponse[];
   days: DayResponse[] | undefined;
+  backHref: string;
   childLabel: string;
   onAdd: () => void;
 }) {
@@ -163,7 +209,12 @@ function ChildGoals({
       ) : (
         <div className="subgoal-grid">
           {children.map((child) => (
-            <Link key={child.id} href={`/goals/${child.id}`} className="subgoal-card" data-goal-id={child.id}>
+            <Link
+              key={child.id}
+              href={goalDetailHref(child.id, backHref)}
+              className="subgoal-card"
+              data-goal-id={child.id}
+            >
               <div className="goal-card-meta">
                 <span className="period-badge">{goalPeriodLabel(child)}</span>
                 <span className="mini">우선순위 {child.priority}</span>

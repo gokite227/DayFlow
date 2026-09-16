@@ -11,7 +11,7 @@ import { GOAL_TYPE_LABEL, childrenOf, sortGoals } from "./goal-tree";
 import { WeekGoalDays, WeekLayoutSwitch } from "./goal-week-days";
 import {
   goalContext,
-  goalFlows,
+  goalDetailHref,
   goalsViewHref,
   isCurrentGoal,
   weekGoalsInWeek,
@@ -20,98 +20,16 @@ import {
 
 type Days = DayResponse[] | undefined;
 
-/**
- * 전체: each YEAR as a flow of four fixed stages (prototype "전체 흐름", without recursive nesting).
- * The Goal containing today is highlighted like the prototype's current node.
- */
-export function GoalFlowView({
+/** 연간: YEAR Goals as root cards with their quarter preview (prototype overview/year view). */
+export function GoalYearView({
   goals,
   days,
-  today,
-  rootId,
+  listHref,
 }: {
   goals: GoalResponse[];
   days: Days;
-  today: string;
-  rootId: string | null;
+  listHref: string;
 }) {
-  const flows = goalFlows(goals, rootId);
-  if (flows.length === 0) {
-    return <EmptyState>연간 목표를 먼저 만들어주세요.</EmptyState>;
-  }
-  const stages = [
-    { key: "quarters", label: "분기" },
-    { key: "months", label: "월간" },
-    { key: "weeks", label: "주간" },
-  ] as const;
-
-  return (
-    <div className="stack">
-      {rootId && (
-        <div className="breadcrumb">
-          <Link href={goalsViewHref({ view: "all" }, today)}>전체 흐름</Link>
-          <span aria-hidden>›</span>
-          <span aria-current="page">
-            {goalPeriodLabel(flows[0]!.year)} {flows[0]!.year.title}
-          </span>
-        </div>
-      )}
-      {flows.map((flow) => (
-        <section key={flow.year.id} className="card flow-root" data-flow-year={flow.year.id}>
-          <div className="flow-top-actions">
-            <div>
-              <span className="period-badge">{goalPeriodLabel(flow.year)}</span>
-              <h2 className="flow-year-title">{flow.year.title}</h2>
-              {flow.year.why && <div className="mini">{flow.year.why}</div>}
-            </div>
-            <Link href={`/goals/${flow.year.id}`} className="btn ghost small">
-              목표 상세
-            </Link>
-          </div>
-          <GoalProgress goal={flow.year} goals={goals} days={days} />
-          <div className="flow-stages">
-            {stages.map((stage) => {
-              const items = flow[stage.key];
-              return (
-                <div key={stage.key} className="flow-stage" data-stage={stage.key}>
-                  <div className="flow-stage-label">
-                    <span aria-hidden>↓</span> {stage.label}
-                  </div>
-                  {items.length === 0 ? (
-                    <div className="mini flow-empty">아직 {stage.label} 목표가 없습니다.</div>
-                  ) : (
-                    <div className="flow-stage-items">
-                      {items.map((item) => {
-                        const parent = goals.find((goal) => goal.id === item.parentGoalId);
-                        return (
-                          <Link
-                            key={item.id}
-                            href={`/goals/${item.id}`}
-                            className={`flow-goal${isCurrentGoal(item, today) ? " current" : ""}`}
-                            data-goal-id={item.id}
-                          >
-                            <span className="flow-goal-period">{goalPeriodLabel(item)}</span>
-                            <span className="flow-goal-title">{item.title}</span>
-                            {parent && stage.key !== "quarters" && (
-                              <span className="flow-goal-parent">› {goalPeriodLabel(parent)} {parent.title}</span>
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-/** 연간: YEAR Goals as root cards with their quarter preview (prototype overview/year view). */
-export function GoalYearView({ goals, days, today }: { goals: GoalResponse[]; days: Days; today: string }) {
   const router = useRouter();
   const years = sortGoals(goals.filter((goal) => goal.type === "YEAR"));
   if (years.length === 0) {
@@ -121,6 +39,7 @@ export function GoalYearView({ goals, days, today }: { goals: GoalResponse[]; da
     <div className="goal-root-grid">
       {years.map((goal) => {
         const quarters = childrenOf(goals, goal.id);
+        const detailHref = goalDetailHref(goal.id, listHref);
         return (
           <div
             key={goal.id}
@@ -128,9 +47,9 @@ export function GoalYearView({ goals, days, today }: { goals: GoalResponse[]; da
             tabIndex={0}
             className="goal-root-card"
             data-goal-id={goal.id}
-            onClick={() => router.push(`/goals/${goal.id}`)}
+            onClick={() => router.push(detailHref)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") router.push(`/goals/${goal.id}`);
+              if (event.key === "Enter") router.push(detailHref);
             }}
           >
             <div className="goal-card-meta">
@@ -154,11 +73,11 @@ export function GoalYearView({ goals, days, today }: { goals: GoalResponse[]; da
               )}
             </div>
             <div className="card-actions">
-              <Link href={`/goals/${goal.id}`} className="btn small secondary" onClick={(event) => event.stopPropagation()}>
+              <Link href={detailHref} className="btn small secondary" onClick={(event) => event.stopPropagation()}>
                 목표 열기
               </Link>
               <Link
-                href={goalsViewHref({ view: "all", rootId: goal.id }, today)}
+                href={`/goals/${goal.id}/flow`}
                 className="btn small ghost"
                 onClick={(event) => event.stopPropagation()}
               >
@@ -178,11 +97,13 @@ export function GoalPeriodListView({
   goals,
   days,
   today,
+  listHref,
 }: {
   type: "QUARTER" | "MONTH";
   goals: GoalResponse[];
   days: Days;
   today: string;
+  listHref: string;
 }) {
   const ofType = goals.filter((goal) => goal.type === type).sort((a, b) => a.startDate.localeCompare(b.startDate));
   if (ofType.length === 0) {
@@ -220,7 +141,7 @@ export function GoalPeriodListView({
             {items.map((goal) => (
               <Link
                 key={goal.id}
-                href={`/goals/${goal.id}`}
+                href={goalDetailHref(goal.id, listHref)}
                 className={`period-goal-card${isCurrentGoal(goal, today) ? " current" : ""}`}
                 data-goal-id={goal.id}
               >
@@ -246,11 +167,13 @@ export function GoalWeekView({
   goals,
   days,
   today,
+  listHref,
 }: {
   state: GoalsViewState;
   goals: GoalResponse[];
   days: Days;
   today: string;
+  listHref: string;
 }) {
   const hrefFor = (next: Partial<GoalsViewState>) => goalsViewHref({ ...state, ...next, view: "week" }, today);
   const weekEnd = addDays(state.weekStart, 6);
@@ -289,7 +212,7 @@ export function GoalWeekView({
             <>
               <div className="period-list">
                 {inWeek.map((goal) => (
-                  <Link key={goal.id} href={`/goals/${goal.id}`} className="period-goal-card" data-goal-id={goal.id}>
+                  <Link key={goal.id} href={goalDetailHref(goal.id, listHref)} className="period-goal-card" data-goal-id={goal.id}>
                     <div className="goal-card-meta">
                       <span className="period-badge">{goalPeriodLabel(goal, true)}</span>
                       <span className="mini">{periodRangeLabel(goal)}</span>
@@ -320,7 +243,7 @@ export function GoalWeekView({
           {allWeeks.map((goal) => (
             <Link
               key={goal.id}
-              href={`/goals/${goal.id}`}
+              href={goalDetailHref(goal.id, listHref)}
               className={`week-goal-row${isCurrentGoal(goal, today) ? " current" : ""}`}
               data-goal-id={goal.id}
             >

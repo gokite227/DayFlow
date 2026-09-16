@@ -12,6 +12,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
 import { DayFormModal } from "@/features/days/day-form-modal";
@@ -51,11 +52,14 @@ const collisionDetection: CollisionDetection = (args) => {
 
 export function CalendarView() {
   const today = useToday();
-  return today === null ? <LoadingState /> : <CalendarContent today={today} />;
+  // Deep link from a Goal period label (GOAL-007): /calendar?date=YYYY-MM-DD opens that week.
+  const dateParam = useSearchParams().get("date");
+  const initialDate = dateParam !== null && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
+  return today === null || initialDate === null ? <LoadingState /> : <CalendarContent today={today} initialDate={initialDate} />;
 }
 
-function CalendarContent({ today }: { today: string }) {
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(today));
+function CalendarContent({ today, initialDate }: { today: string; initialDate: string }) {
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(initialDate));
   const [mode, setMode] = useState<"week" | "list">("week");
   const [editingDay, setEditingDay] = useState<DayResponse | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);

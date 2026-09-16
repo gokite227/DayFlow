@@ -8,7 +8,7 @@ import { ErrorNotice, LoadingState } from "@/components/query-state";
 import { useDays } from "@/features/days/day-queries";
 import { useToday } from "@/lib/use-today";
 import { GoalFormModal, type GoalFormTarget } from "./goal-form-modal";
-import { GoalFlowView, GoalPeriodListView, GoalWeekView, GoalYearView } from "./goal-overview-views";
+import { GoalPeriodListView, GoalWeekView, GoalYearView } from "./goal-overview-views";
 import { useGoals } from "./goal-queries";
 import {
   GOALS_VIEWS,
@@ -20,8 +20,8 @@ import {
 } from "./goal-views";
 
 /**
- * Goals home (GOAL-005): quick view tabs 전체/연간/분기/월간/주간, kept in the URL. Clicking a Goal in any view
- * drills down into /goals/[goalId]; browser back returns to the same view.
+ * Goals home (GOAL-005): the 연간/분기/월간/주간 views, kept in the URL (no global "전체" view). Clicking a Goal
+ * in any view drills down into /goals/[goalId]; browser back and "← 목표 목록으로" return to the same view.
  */
 export function GoalsView() {
   const today = useToday();
@@ -44,6 +44,8 @@ function GoalsContent({ today }: { today: string }) {
   const goalsQuery = useGoals();
   const daysQuery = useDays();
   const goals = goalsQuery.data ?? [];
+  // Passed down so each Goal card can link back to the exact view the user is in.
+  const listHref = goalsViewHref(state, today);
 
   const openCreate = () =>
     setFormTarget({
@@ -81,14 +83,18 @@ function GoalsContent({ today }: { today: string }) {
         <LoadingState label="목표를 불러오는 중…" />
       ) : goalsQuery.isError ? (
         <ErrorNotice error={goalsQuery.error} onRetry={() => void goalsQuery.refetch()} />
-      ) : state.view === "all" ? (
-        <GoalFlowView goals={goals} days={daysQuery.data} today={today} rootId={state.rootId} />
       ) : state.view === "year" ? (
-        <GoalYearView goals={goals} days={daysQuery.data} today={today} />
+        <GoalYearView goals={goals} days={daysQuery.data} listHref={listHref} />
       ) : state.view === "quarter" || state.view === "month" ? (
-        <GoalPeriodListView type={VIEW_GOAL_TYPE[state.view] as "QUARTER" | "MONTH"} goals={goals} days={daysQuery.data} today={today} />
+        <GoalPeriodListView
+          type={VIEW_GOAL_TYPE[state.view] as "QUARTER" | "MONTH"}
+          goals={goals}
+          days={daysQuery.data}
+          today={today}
+          listHref={listHref}
+        />
       ) : (
-        <GoalWeekView state={state} goals={goals} days={daysQuery.data} today={today} />
+        <GoalWeekView state={state} goals={goals} days={daysQuery.data} today={today} listHref={listHref} />
       )}
 
       {formTarget && (

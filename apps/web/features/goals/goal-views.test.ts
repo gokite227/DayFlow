@@ -1,8 +1,11 @@
 import type { GoalResponse } from "@dayflow/api-client";
 import { describe, expect, it } from "vitest";
 import {
+  backToGoalsHref,
   datesOfGoal,
+  goalCalendarHref,
   goalContext,
+  goalDetailHref,
   goalFlows,
   goalsViewHref,
   parseGoalsViewState,
@@ -40,19 +43,20 @@ const goals = [
 const params = (query: string) => new URLSearchParams(query);
 
 describe("GOAL-005 view state in the URL", () => {
-  it("reads the view, layout and week and falls back to the overview", () => {
+  it("reads the view, layout and week and falls back to 연간", () => {
     expect(parseGoalsViewState(params(""), "2026-09-16")).toEqual({
-      view: "all",
+      view: "year",
       layout: "week",
       weekStart: "2026-09-14",
-      rootId: null,
     });
     expect(parseGoalsViewState(params("view=week&layout=list&week=2026-09-30"), "2026-09-16")).toMatchObject({
       view: "week",
       layout: "list",
       weekStart: "2026-09-28",
     });
-    expect(parseGoalsViewState(params("view=tree&layout=grid"), "2026-09-16")).toMatchObject({ view: "all", layout: "week" });
+    // There is no global "전체" view any more.
+    expect(parseGoalsViewState(params("view=all"), "2026-09-16")).toMatchObject({ view: "year" });
+    expect(parseGoalsViewState(params("view=tree&layout=grid"), "2026-09-16")).toMatchObject({ view: "year", layout: "week" });
   });
 
   it("builds hrefs with only the parameters of the view", () => {
@@ -63,7 +67,25 @@ describe("GOAL-005 view state in the URL", () => {
     expect(goalsViewHref({ view: "week", layout: "week", weekStart: "2026-09-21" }, "2026-09-16")).toBe(
       "/goals?view=week&layout=week&week=2026-09-21",
     );
-    expect(goalsViewHref({ view: "all", rootId: "y" }, "2026-09-16")).toBe("/goals?view=all&root=y");
+  });
+
+  it("remembers the list a detail was opened from and returns to it", () => {
+    expect(goalDetailHref("g1", "/goals?view=week&layout=list")).toBe("/goals/g1?back=view%3Dweek%26layout%3Dlist");
+    expect(goalDetailHref("g1")).toBe("/goals/g1");
+    // Next decodes the query value, so backToGoalsHref receives "view=week&layout=list".
+    expect(backToGoalsHref(decodeURIComponent("view%3Dweek%26layout%3Dlist"), "WEEK")).toBe("/goals?view=week&layout=list");
+    // Without a remembered view, fall back to the view that lists this Goal type.
+    expect(backToGoalsHref(null, "QUARTER")).toBe("/goals?view=quarter");
+    expect(backToGoalsHref("view=all", "MONTH")).toBe("/goals?view=month");
+  });
+
+  it("links a MONTH/WEEK period label to the Calendar (GOAL-007)", () => {
+    const week = { type: "WEEK" as const, startDate: "2026-09-14", endDate: "2026-09-20" };
+    const month = { type: "MONTH" as const, startDate: "2026-09-01", endDate: "2026-09-30" };
+    expect(goalCalendarHref(week, "2026-09-16")).toBe("/calendar?date=2026-09-14");
+    expect(goalCalendarHref(month, "2026-09-16")).toBe("/calendar?date=2026-09-16");
+    expect(goalCalendarHref(month, "2026-11-02")).toBe("/calendar?date=2026-09-01");
+    expect(goalCalendarHref({ type: "YEAR", startDate: "2026-01-01", endDate: "2026-12-31" }, "2026-09-16")).toBeNull();
   });
 });
 

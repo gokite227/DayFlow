@@ -4,31 +4,40 @@ import { goalPeriodLabel } from "./goal-period";
 
 /**
  * GOAL-005 view state for /goals, kept in the URL so a refresh or browser back returns to the same view:
- * /goals?view=all|year|quarter|month|week&layout=week|list&week=YYYY-MM-DD&root={yearGoalId}
+ * /goals?view=year|quarter|month|week&layout=week|list&week=YYYY-MM-DD
+ * There is no global "전체" view; the YEAR flow lives in the Goal detail (/goals/{yearId}/flow, GOAL-006).
  */
-export const GOALS_VIEWS = ["all", "year", "quarter", "month", "week"] as const;
+export const GOALS_VIEWS = ["year", "quarter", "month", "week"] as const;
 export type GoalsViewName = (typeof GOALS_VIEWS)[number];
+
+export const DEFAULT_GOALS_VIEW: GoalsViewName = "year";
 
 export const WEEK_LAYOUTS = ["week", "list"] as const;
 export type WeekLayout = (typeof WEEK_LAYOUTS)[number];
 
 export const GOALS_VIEW_LABEL: Record<GoalsViewName, string> = {
-  all: "전체",
   year: "연간",
   quarter: "분기",
   month: "월간",
   week: "주간",
 };
 
-export const WEEK_LAYOUT_LABEL: Record<WeekLayout, string> = { week: "주간 뷰", list: "리스트 뷰" };
+export const WEEK_LAYOUT_LABEL: Record<WeekLayout, string> = { week: "주간형식", list: "리스트형식" };
 
 /** The Goal type a view lists (and the default type for "+ 새 목표" there). */
 export const VIEW_GOAL_TYPE: Record<GoalsViewName, GoalResponse["type"]> = {
-  all: "YEAR",
   year: "YEAR",
   quarter: "QUARTER",
   month: "MONTH",
   week: "WEEK",
+};
+
+/** The view that lists a Goal of this type, used when returning from a detail without a `back` value. */
+export const GOAL_TYPE_VIEW: Record<GoalResponse["type"], GoalsViewName> = {
+  YEAR: "year",
+  QUARTER: "quarter",
+  MONTH: "month",
+  WEEK: "week",
 };
 
 export interface GoalsViewState {
@@ -36,8 +45,6 @@ export interface GoalsViewState {
   layout: WeekLayout;
   /** Monday of the week shown by the week layout. */
   weekStart: string;
-  /** Limits the "전체" flow to one YEAR Goal. */
-  rootId: string | null;
 }
 
 const isDate = (value: string | null): value is string => value !== null && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -47,10 +54,9 @@ export function parseGoalsViewState(params: { get(name: string): string | null }
   const layout = params.get("layout");
   const week = params.get("week");
   return {
-    view: (GOALS_VIEWS as readonly string[]).includes(view ?? "") ? (view as GoalsViewName) : "all",
+    view: (GOALS_VIEWS as readonly string[]).includes(view ?? "") ? (view as GoalsViewName) : DEFAULT_GOALS_VIEW,
     layout: (WEEK_LAYOUTS as readonly string[]).includes(layout ?? "") ? (layout as WeekLayout) : "week",
     weekStart: startOfWeek(isDate(week) ? week : today),
-    rootId: params.get("root"),
   };
 }
 
@@ -61,8 +67,38 @@ export function goalsViewHref(state: Partial<GoalsViewState> & { view: GoalsView
     query.set("layout", state.layout ?? "week");
     if (state.weekStart && state.weekStart !== startOfWeek(today)) query.set("week", state.weekStart);
   }
-  if (state.view === "all" && state.rootId) query.set("root", state.rootId);
   return `/goals?${query.toString()}`;
+}
+
+/**
+ * Detail link that remembers the list the user came from, so "← 목표 목록으로" returns to that exact view
+ * (`/goals/{id}?back=view%3Dweek%26layout%3Dlist`).
+ */
+export function goalDetailHref(goalId: string, listHref?: string): string {
+  const query = listHref?.split("?")[1];
+  return query ? `/goals/${goalId}?back=${encodeURIComponent(query)}` : `/goals/${goalId}`;
+}
+
+/** Where "← 목표 목록으로" goes: the remembered view, otherwise the view listing this Goal type. */
+export function backToGoalsHref(back: string | null, type: GoalResponse["type"]): string {
+  if (back !== null && back !== "") {
+    const params = new URLSearchParams(back);
+    const view = params.get("view");
+    if ((GOALS_VIEWS as readonly string[]).includes(view ?? "")) return `/goals?${params.toString()}`;
+  }
+  return `/goals?view=${GOAL_TYPE_VIEW[type]}`;
+}
+
+/** Calendar deep link (GOAL-007): the week of a WEEK Goal, or today inside a MONTH Goal, else its first day. */
+export function goalCalendarHref(
+  goal: Pick<GoalResponse, "type" | "startDate" | "endDate">,
+  today: string,
+): string | null {
+  if (goal.type !== "WEEK" && goal.type !== "MONTH") return null;
+  const inside = goal.startDate <= today && today <= goal.endDate;
+  // WEEK: its own (month-cut) start. MONTH: today when we are inside that month, otherwise its first day.
+  const target = goal.type === "WEEK" ? goal.startDate : inside ? today : goal.startDate;
+  return `/calendar?date=${target}`;
 }
 
 export function overlapsRange(goal: Pick<GoalResponse, "startDate" | "endDate">, start: string, end: string): boolean {

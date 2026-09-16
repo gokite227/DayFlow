@@ -13,6 +13,7 @@ import { doneToggleRequest } from "@/features/days/day-values";
 import { useGoals } from "@/features/goals/goal-queries";
 import { GOAL_TYPE_LABEL, goalPath, sortGoals } from "@/features/goals/goal-tree";
 import { shortDate } from "@/features/recovery/recovery-plan";
+import { TodayWeekGoals } from "./today-goals";
 import { useRecoveryDays } from "@/features/recovery/recovery-queries";
 import { isOpen } from "@/features/review/review-summary";
 import { useToday } from "@/lib/use-today";
@@ -36,6 +37,8 @@ function TodayContent({ today }: { today: string }) {
   const [editingDay, setEditingDay] = useState<DayResponse | null>(null);
   const daysQuery = useDays({ from: today, to: today });
   const goalsQuery = useGoals();
+  // Progress counts every Day of a Goal, not only today's, so the whole list is needed.
+  const allDaysQuery = useDays();
   const updateDay = useUpdateDay();
 
   const goals = goalsQuery.data ?? [];
@@ -54,6 +57,8 @@ function TodayContent({ today }: { today: string }) {
   return (
     <div className="stack">
       <RecoveryEntry today={today} />
+
+      <TodayWeekGoals today={today} goalsQuery={goalsQuery} days={allDaysQuery.data} />
 
       <section className="card">
         <h3 className="card-title">Current Goal Path</h3>
