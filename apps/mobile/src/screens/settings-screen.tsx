@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { TAB_META } from "@/features/navigation/tab-navigation";
 import { useOpenScreen } from "@/features/navigation/use-open-screen";
 import { PERMISSION_STATE_LABEL } from "@/features/notifications/permission-state";
@@ -72,6 +72,15 @@ export default function SettingsScreen() {
             <View style={layout.flex}>
               <Text style={text.body}>알림 예약 상태 (개발 빌드)</Text>
               <Text style={text.muted}>{apiConfig.ok ? `API ${apiConfig.baseUrl}` : "API 미설정"}</Text>
+            </View>
+            <Text style={text.muted}>›</Text>
+          </ListRow>
+        ) : null}
+        {__DEV__ && Platform.OS === "android" ? (
+          <ListRow onPress={() => router.push("/dev/focus")} accessibilityLabel="Focus 차단 POC">
+            <View style={layout.flex}>
+              <Text style={text.body}>Focus 앱 차단 POC (Android 개발 빌드)</Text>
+              <Text style={text.muted}>접근성 서비스 · 차단 package · 5분 Focus</Text>
             </View>
             <Text style={text.muted}>›</Text>
           </ListRow>

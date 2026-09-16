@@ -1,0 +1,37 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Android 11+ package visibility: resolve the launcher and Settings packages that are always allowed. -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.HOME" />
+    </intent>
+    <intent>
+      <action android:name="android.settings.SETTINGS" />
+    </intent>
+  </queries>
+
+  <application>
+    <service
+      android:name="app.dayflow.focus.FocusAccessibilityService"
+      android:exported="true"
+      android:label="@string/dayflow_focus_accessibility_label"
+      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+      </intent-filter>
+      <meta-data
+        android:name="android.accessibilityservice"
+        android:resource="@xml/dayflow_focus_accessibility_service" />
+    </service>
+
+    <!-- Own task, so "back" from the block screen never lands in DayFlow's React Native activity. -->
+    <activity
+      android:name="app.dayflow.focus.FocusBlockActivity"
+      android:exported="false"
+      android:excludeFromRecents="true"
+      android:launchMode="singleTask"
+      android:taskAffinity="app.dayflow.focus.block"
+      android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+  </application>
+</manifest>

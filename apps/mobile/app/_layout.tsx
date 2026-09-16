@@ -71,6 +71,7 @@ function AppNavigator() {
         <Stack.Screen name="settings/tabs" options={{ title: "하단 탭 설정" }} />
         <Stack.Screen name="settings/notifications" options={{ title: "알림" }} />
         <Stack.Screen name="dev/notifications" options={{ title: "알림 디버그 (dev)" }} />
+        <Stack.Screen name="dev/focus" options={{ title: "Focus 차단 POC (dev)" }} />
       </Stack>
     </>
   );
