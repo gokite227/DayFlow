@@ -3096,3 +3096,60 @@ a.kpt-goal-chip {
 .coach-trust {
   margin: 14px 0 0;
 }
+
+/* Review AI Coach: draft card (reuses the Today .coach-* styles), unsaved draft lines and the draft save bar */
+.review-coach-card {
+  margin-bottom: 14px;
+}
+.coach-conflict {
+  display: grid;
+  gap: 6px;
+  background: var(--lav);
+  border: 1px solid #e6d8f2;
+}
+.kpt-drafts {
+  display: grid;
+  gap: 8px;
+}
+.kpt-draft-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 8px;
+  align-items: start;
+  border: 1px dashed #d9c5ea;
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: #fcfaff;
+}
+.kpt-draft-badge {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 760;
+  color: #705687;
+}
+.kpt-draft-line textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.kpt-item.replacing {
+  opacity: 0.55;
+}
+.kpt-item.replacing .kpt-item-content {
+  text-decoration: line-through;
+}
+.review-draft-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e6d8f2;
+  border-radius: 14px;
+  background: var(--lav);
+}

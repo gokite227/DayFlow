@@ -28,7 +28,8 @@ export default function ReviewDetailScreen() {
       <Text style={text.title}>
         {REVIEW_TYPE_LABEL[target.type]} 회고 · {period.label}
       </Text>
-      <ReviewPeriodContent key={`${period.type}:${period.start}`} period={period} today={today} />
+      {/* Archive detail: no AI draft (회고 작성 only). */}
+      <ReviewPeriodContent key={`${period.type}:${period.start}`} period={period} today={today} showCoach={false} />
     </Screen>
   );
 }

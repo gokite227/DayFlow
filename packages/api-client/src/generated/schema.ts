@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/v1/ai/coach/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["getReviewCoachDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/coach/today": {
         parameters: {
             query?: never;
@@ -1117,6 +1133,51 @@ export interface components {
             /** Format: int32 */
             size: number;
         };
+        ReviewCoachRequest: {
+            /** Format: date */
+            periodStart: string;
+            /** @example Asia/Seoul */
+            timezone: string;
+            /** @enum {string} */
+            type: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+        };
+        ReviewCoachResponse: {
+            /** @description Facts DayFlow computed for this period (shown so the user can check the draft) */
+            facts: components["schemas"]["ReviewEvidence"][];
+            /** Format: date-time */
+            generatedAt: string;
+            headline: string;
+            /** @description At most 3 */
+            highlights: components["schemas"]["ReviewHighlight"][];
+            /** @description KEEP drafts, at most 3 */
+            keep: components["schemas"]["ReviewDraftItem"][];
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            periodStart: string;
+            /** @description PROBLEM drafts, at most 3 */
+            problem: components["schemas"]["ReviewDraftItem"][];
+            summary: string;
+            /** @description TRY drafts, at most 3 */
+            try: components["schemas"]["ReviewDraftItem"][];
+            /** @enum {string} */
+            type: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+        };
+        ReviewDraftItem: {
+            evidence: components["schemas"]["ReviewEvidence"][];
+            reason: string;
+            text: string;
+        };
+        ReviewEvidence: {
+            /** @example CORE_COMPLETION */
+            key: string;
+            /** @example 핵심 Day 4개 중 3개 완료 */
+            label: string;
+        };
+        ReviewHighlight: {
+            evidence: components["schemas"]["ReviewEvidence"][];
+            message: string;
+        };
         ReviewItemRequest: {
             content: string;
             /**
@@ -1361,6 +1422,86 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getReviewCoachDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewCoachRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewCoachResponse"];
+                };
+            };
+            /** @description Invalid period (INVALID_REVIEW_PERIOD), future period or timezone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_BUSY: a Review Coach request of this user is still running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_RATE_LIMITED: provider rate limit; see Retry-After */
+            429: {
+                headers: {
+                    /** @description Seconds to wait, when known */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_FAILED: provider error, timeout or unusable answer */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_UNAVAILABLE: no AI provider configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
     getTodayCoach: {
         parameters: {
             query?: never;

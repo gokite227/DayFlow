@@ -1,5 +1,6 @@
 package com.dayflow.api.ai.today;
 
+import com.dayflow.api.ai.CoachText;
 import com.dayflow.api.ai.today.TodayCoachContext.DayFact;
 import com.dayflow.api.ai.today.TodayCoachContext.GoalFact;
 import com.dayflow.api.ai.today.TodayCoachContext.MetricFact;
@@ -417,10 +418,6 @@ public class TodayCoachContextService {
 
     /** One line, control characters removed, at most {@code max} characters. */
     static String clip(String text, int max) {
-        if (text == null) {
-            return "";
-        }
-        String clean = text.replaceAll("\\p{Cntrl}+", " ").strip();
-        return clean.length() <= max ? clean : clean.substring(0, max - 1) + "…";
+        return CoachText.clip(text, max);
     }
 }

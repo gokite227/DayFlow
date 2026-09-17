@@ -1,5 +1,6 @@
 package com.dayflow.api.recovery;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -13,6 +14,9 @@ public interface RecoveryEventRepository extends JpaRepository<RecoveryEvent, UU
 
     /** Newest first, for the /recovery history. */
     List<RecoveryEvent> findAllByUserIdOrderByAppliedAtDesc(UUID userId, Pageable pageable);
+
+    /** AI Review Coach: plans applied on the user's local dates of a review period. */
+    List<RecoveryEvent> findByUserIdAndLocalDateBetween(UUID userId, LocalDate from, LocalDate to);
 
     /**
      * The latest decision per Day among {@code dayIds}: rows are newest first, so the caller keeps the

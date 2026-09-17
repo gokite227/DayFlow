@@ -261,3 +261,24 @@ Tests never call Groq. To check a real key locally:
 5. Remove `GROQ_API_KEY` and restart → the card shows "AI 코치가 아직 연결되지 않았어요." and the rest works.
 
 For local UI work without a key use `AI_COACH_PROVIDER=fixture` (never on a server).
+
+### 4.5 Review Coach (`POST /api/v1/ai/coach/review`)
+
+Same provider, variables, limits and logging as the Today Coach (task `review-coach`); no extra configuration.
+It returns a KPT draft for one review period (`type` + `periodStart`, the same canonical periods as
+`PUT /api/v1/reviews/{type}/{periodStart}`; periods that have not started are refused). It never saves: the
+apps put the draft into unsaved lines of the Review editor and only the user's [초안 저장] writes the review.
+
+Data sent: numbers the API computes itself (completion, core/priority completion, scheduled vs unscheduled
+Days, overlapping schedules, Days per time of day and weekday — only called a pattern with at least 3 Days —,
+per date/week/month breakdown, the same numbers for the previous period, Recovery decision counts), titles of
+overlapping Goals (≤ 8), Day titles for DAY (≤ 12) and WEEK (≤ 30) reviews, only a few important unfinished
+Days for MONTH (≤ 10) and QUARTER (≤ 5), none for YEAR, up to 3 TRY lines of the previous review and up to 3
+lines per KPT kind already written for the period. Not sent: identity, ids, Event data, Focus data, the review
+archive.
+
+Manual smoke test with a real key (not in CI): in a past week create about 10 Days (6 done), 4 of them at
+20:00–21:00 with 3 left unfinished, 3 core Days all done, two Recovery "날짜 바꾸기" decisions, and a previous
+week review with the TRY "저녁 일정 하루 1개". Review → 주간 → [AI 초안 만들기]. Expect KEEP about the core Days,
+PROBLEM about the evening Days, TRY limiting evening Days — do not expect exact wording; check that every
+number matches the evidence chips and the 기간 요약. Then [초안 적용] → edit → [초안 저장] → reload.

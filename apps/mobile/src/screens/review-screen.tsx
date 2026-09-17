@@ -1,6 +1,6 @@
 import type { GoalResponse, ReviewItemResponse, ReviewResponse } from "@dayflow/api-client";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { useDays } from "@/features/days/day-queries";
 import { GOAL_TYPE_LABEL, formatRate, goalChipLabel, summarizeDays, summarizeGoal } from "@/features/goals/goal-helpers";
@@ -27,6 +27,10 @@ import {
   type ReviewType,
 } from "@/features/review/review-helpers";
 import { useReview, useSaveReview } from "@/features/review/review-queries";
+import { createReviewCoachFlow, keptOnReplace } from "@/features/review/review-coach-flow";
+import { ReviewCoachCard, ReviewDraftBar, ReviewDraftLines } from "@/features/review/review-coach-card";
+import { getDayFlowApiClient } from "@/lib/api-client";
+import { expectData } from "@/lib/api-error";
 import { koreanShortDate } from "@/lib/dates";
 import { useOpenScreen } from "@/features/navigation/use-open-screen";
 import { useToday } from "@/lib/use-today";
@@ -88,8 +92,11 @@ export default function ReviewScreen() {
   );
 }
 
-/** One review period: summary, Goals and the KPT editor. Also used by /review/detail. */
-export function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: string }) {
+/**
+ * One review period: summary, Goals and the KPT editor. Also used by /review/detail (opened from 회고 모아보기), which
+ * passes showCoach={false}: the AI draft belongs to 회고 작성 only.
+ */
+export function ReviewPeriodContent({ period, today, showCoach = true }: { period: ReviewPeriod; today: string; showCoach?: boolean }) {
   const text = useTextStyles();
   const styles = useStyles();
   const openScreen = useOpenScreen();
@@ -182,6 +189,7 @@ export function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; t
       ) : (
         <KptEditor
           period={period}
+          showCoach={showCoach}
           review={reviewQuery.data}
           goalsById={new Map(allGoals.map((goal) => [goal.id, goal]))}
           sourceCandidates={[...periodGoals, ...overlappingPeriodGoals]}
@@ -209,6 +217,7 @@ function Metric({ value, label }: { value: string; label: string }) {
 
 function KptEditor({
   period,
+  showCoach,
   review,
   goalsById,
   sourceCandidates,
@@ -216,6 +225,7 @@ function KptEditor({
   convertedDayTitle,
 }: {
   period: ReviewPeriod;
+  showCoach: boolean;
   review: ReviewResponse | null;
   goalsById: Map<string, GoalResponse>;
   sourceCandidates: GoalResponse[];
@@ -231,6 +241,12 @@ function KptEditor({
   const [draftGoals, setDraftGoals] = useState<Record<ReviewItemKind, string | null>>({ KEEP: null, PROBLEM: null, TRY: null });
   const [picking, setPicking] = useState<{ itemId: string; mode: "goal" | "next" } | null>(null);
   const persist = (change: ReviewChange, onSaved?: () => void) => save.mutate(saveReviewRequest(review, change), { onSuccess: onSaved });
+  // AI 회고 초안 (writing view only): drafts stay here until the user saves them.
+  const [coach] = useState(() =>
+    createReviewCoachFlow({ requestDraft: (body) => expectData(getDayFlowApiClient().POST("/api/v1/ai/coach/review", { body })) }),
+  );
+  const coachState = useSyncExternalStore(coach.subscribe, coach.getState, coach.getState);
+  const typing = Object.values(drafts).some((value) => value.trim() !== "");
   const items = review?.items ?? [];
   const rating = review?.rating ?? null;
   const completed = review?.completed ?? false;
@@ -246,16 +262,20 @@ function KptEditor({
   return (
     <>
       {save.error ? <ErrorState error={save.error} /> : null}
+      {showCoach ? <ReviewCoachCard flow={coach} state={coachState} period={period} review={review} typing={typing} /> : null}
       {KPT_SECTIONS.map(({ kind, title, hint, placeholder }) => (
         <Card key={kind}>
           <SectionHeader title={title} subtitle={hint} />
-          {items.filter((item) => item.kind === kind).length === 0 ? <Text style={text.muted}>아직 작성한 내용이 없어요.</Text> : null}
+          {items.filter((item) => item.kind === kind).length === 0 && !coachState.drafts.some((line) => line.kind === kind) ? (
+            <Text style={text.muted}>아직 작성한 내용이 없어요.</Text>
+          ) : null}
           {items
             .filter((item) => item.kind === kind)
             .map((item) => (
               <KptItem
                 key={item.id}
                 item={item}
+                replacing={coachState.replacingIds.includes(item.id) && !keptOnReplace(item)}
                 review={review!}
                 goalsById={goalsById}
                 pending={save.isPending}
@@ -268,6 +288,7 @@ function KptEditor({
                 onConvert={() => router.push({ pathname: "/review/try-to-day", params: { itemId: item.id, type: period.type, periodStart: period.start } })}
               />
             ))}
+          <ReviewDraftLines flow={coach} state={coachState} kind={kind} title={title} />
           <TextInput
             accessibilityLabel={`${title} 추가`}
             placeholder={placeholder}
@@ -290,6 +311,8 @@ function KptEditor({
           <Button label="+ 추가" small disabled={save.isPending || drafts[kind].trim() === ""} onPress={() => addItem(kind)} />
         </Card>
       ))}
+
+      <ReviewDraftBar flow={coach} state={coachState} review={review} save={save.mutateAsync} />
 
       <Card>
         <SectionHeader title="회고 마무리" subtitle="완료해도 언제든 다시 수정할 수 있어요" />
@@ -319,6 +342,7 @@ function KptEditor({
 
 function KptItem({
   item,
+  replacing,
   review,
   goalsById,
   pending,
@@ -331,6 +355,8 @@ function KptItem({
   onConvert,
 }: {
   item: ReviewItemResponse;
+  /** Chosen to be replaced by the AI draft on save (shown dimmed; nothing changes before saving). */
+  replacing: boolean;
   review: ReviewResponse;
   goalsById: Map<string, GoalResponse>;
   pending: boolean;
@@ -352,8 +378,9 @@ function KptItem({
   const options = picking === "goal" ? (goal && !sourceCandidates.includes(goal) ? [goal, ...sourceCandidates] : sourceCandidates) : nextCandidates;
 
   return (
-    <View style={styles.item}>
-      <Text style={text.body}>{item.content}</Text>
+    <View style={[styles.item, replacing && { opacity: 0.5 }]}>
+      <Text style={[text.body, replacing && { textDecorationLine: "line-through" }]}>{item.content}</Text>
+      {replacing ? <Text style={text.muted}>초안을 저장하면 이 항목은 교체돼요.</Text> : null}
       {goal ? (
         <Pressable accessibilityRole="link" accessibilityLabel={`${goalChipLabel(goal)} 목표 열기`} onPress={() => openGoal(goal.id)} hitSlop={6} style={{ alignSelf: "flex-start" }}>
           <Badge label={`🎯 ${goalChipLabel(goal)} ›`} soft color={palette.text} />

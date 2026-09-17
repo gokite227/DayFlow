@@ -82,6 +82,13 @@ export type CoachObservation = Schemas["CoachObservation"];
 export type CoachEvidence = Schemas["CoachEvidence"];
 export type CoachSuggestion = Schemas["CoachSuggestion"];
 
+/** AI Review Coach: a KPT draft only. Applying it fills the Review editor; saving stays PUT /reviews/{type}/{periodStart}. */
+export type ReviewCoachRequest = Schemas["ReviewCoachRequest"];
+export type ReviewCoachResponse = Schemas["ReviewCoachResponse"];
+export type ReviewDraftItem = Schemas["ReviewDraftItem"];
+export type ReviewHighlight = Schemas["ReviewHighlight"];
+export type ReviewEvidence = Schemas["ReviewEvidence"];
+
 /**
  * The generated schemas list the timed and all-day fields as independent nullables. The server
  * always sends exactly one pair (requirements §8.4); these types express that correlation.

@@ -2,8 +2,10 @@ package com.dayflow.api.ai;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -33,11 +35,67 @@ public class FixtureAiCoachProvider implements AiCoachProvider {
 
     @Override
     public AiStructuredResult generate(AiStructuredRequest request) {
-        if (!"today-coach".equals(request.task())) {
-            throw new AiProviderException(AiProviderException.Kind.INVALID_OUTPUT, "No fixture for this task.");
-        }
         JsonNode data = jsonMapper.readTree(request.dataJson());
-        return new AiStructuredResult(jsonMapper.valueToTree(todayCoach(data)), "fixture", null, null);
+        Map<String, Object> answer = switch (request.task()) {
+            case "today-coach" -> todayCoach(data);
+            case "review-coach" -> reviewCoach(data);
+            default -> throw new AiProviderException(AiProviderException.Kind.INVALID_OUTPUT, "No fixture for this task.");
+        };
+        return new AiStructuredResult(jsonMapper.valueToTree(answer), "fixture", null, null);
+    }
+
+    /**
+     * A KPT draft that only cites evidence keys present in the context. Evidence keys written into text are turned
+     * into their labels by the Review Coach validator, so the fixture never invents a number.
+     */
+    private static Map<String, Object> reviewCoach(JsonNode data) {
+        Set<String> keys = new LinkedHashSet<>();
+        data.path("evidence").forEach(item -> keys.add(item.path("key").asString()));
+        boolean noDays = keys.contains("NO_DAYS");
+
+        Map<String, Object> answer = new LinkedHashMap<>();
+        answer.put("headline", noDays ? "이번 기간에는 기록이 거의 없어요" : "이번 기간 기록을 바탕으로 정리했어요");
+        answer.put("summary", noDays ? "근거: NO_DAYS" : "근거: COMPLETION");
+
+        List<Map<String, Object>> highlights = new ArrayList<>();
+        keys.stream().filter(key -> !key.startsWith("PREVIOUS_")).limit(2)
+                .forEach(key -> highlights.add(Map.of("message", key, "evidenceKeys", List.of(key))));
+        answer.put("highlights", highlights);
+
+        List<Map<String, Object>> keep = new ArrayList<>();
+        String keepKey = keys.contains("CORE_COMPLETION") ? "CORE_COMPLETION" : keys.contains("COMPLETION") ? "COMPLETION" : null;
+        if (keepKey != null) {
+            keep.add(draft("핵심 Day를 먼저 정해두는 흐름은 유지해 보기", "근거: " + keepKey, keepKey));
+        }
+        answer.put("keep", keep);
+
+        List<Map<String, Object>> problem = new ArrayList<>();
+        if (keys.contains("OVERBOOKED")) {
+            problem.add(draft("같은 시간에 Day가 겹쳐 배치된 날이 있었어요", "근거: OVERBOOKED", "OVERBOOKED"));
+        }
+        if (keys.contains("UNFINISHED")) {
+            problem.add(draft("미완료로 남은 Day가 다음 계획까지 이어졌어요", "근거: UNFINISHED", "UNFINISHED"));
+        }
+        answer.put("problem", problem);
+
+        List<Map<String, Object>> tries = new ArrayList<>();
+        if (keys.contains("OVERBOOKED")) {
+            tries.add(draft("다음 기간에는 같은 시간대에 Day를 1개만 배치하기", "근거: OVERBOOKED", "OVERBOOKED"));
+        } else if (keys.contains("UNFINISHED")) {
+            tries.add(draft("다음 기간 중간에 미완료 Day를 Recovery에서 한 번 정리하기", "근거: UNFINISHED", "UNFINISHED"));
+        } else if (keepKey != null) {
+            tries.add(draft("다음 기간에도 첫날 핵심 Day를 먼저 정하기", "근거: " + keepKey, keepKey));
+        }
+        answer.put("try", tries);
+        return answer;
+    }
+
+    private static Map<String, Object> draft(String text, String reason, String key) {
+        Map<String, Object> draft = new LinkedHashMap<>();
+        draft.put("text", text);
+        draft.put("reason", reason);
+        draft.put("evidenceKeys", List.of(key));
+        return draft;
     }
 
     private static Map<String, Object> todayCoach(JsonNode data) {

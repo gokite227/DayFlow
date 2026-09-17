@@ -10,7 +10,7 @@ import type {
 } from "@dayflow/api-client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
 import { koreanShortDate } from "@/features/calendar/calendar-time";
@@ -21,6 +21,8 @@ import { periodRangeLabel } from "@/features/goals/goal-period";
 import { GOAL_TYPE_LABEL, goalPath, sortGoals } from "@/features/goals/goal-tree";
 import { usePeriodGoals } from "@/features/goals/period-goal-queries";
 import { periodCountLabel, periodProgressLabel, summarizePeriodGoal } from "@/features/goals/period-goal-values";
+import { getDayFlowApiClient } from "@/lib/api-client";
+import { expectData } from "@/lib/api-error";
 import { useToday } from "@/lib/use-today";
 import {
   REVIEW_GOAL_TYPE,
@@ -44,6 +46,8 @@ import { useReview, useSaveReview } from "./review-queries";
 import { formatRate, summarizeDays, summarizeGoal } from "./review-summary";
 import { useRecoveryCandidates } from "@/features/recovery/recovery-queries";
 import { TryToDayModal } from "./try-to-day-modal";
+import { createReviewCoachFlow, keptOnReplace } from "./review-coach-flow";
+import { ReviewCoachCard, ReviewDraftBar, ReviewDraftLines } from "./review-coach-card";
 
 type ItemKind = ReviewItemResponse["kind"];
 
@@ -372,6 +376,14 @@ function KptEditor({
   // Which line has its Goal picker ("goal") or next-Goal picker ("next") open.
   const [editing, setEditing] = useState<{ itemId: string; mode: "goal" | "next" } | null>(null);
   const save = useSaveReview(period.type, period.start);
+  // AI 회고 초안 (writing view only): drafts live here until the user saves them.
+  const [coach] = useState(() =>
+    createReviewCoachFlow({
+      requestDraft: (body) => expectData(getDayFlowApiClient().POST("/api/v1/ai/coach/review", { body })),
+    }),
+  );
+  const coachState = useSyncExternalStore(coach.subscribe, coach.getState, coach.getState);
+  const typing = Object.values(drafts).some((value) => value.trim() !== "");
   const items = review?.items ?? [];
   const completed = review?.completed ?? false;
   const rating = review?.rating ?? null;
@@ -422,6 +434,8 @@ function KptEditor({
           <ErrorNotice error={save.error} />
         </div>
       ) : null}
+      <ReviewCoachCard flow={coach} state={coachState} period={period} review={review} typing={typing} />
+
       <div className="review-kpt">
         {KPT.map(({ kind, title, hint, placeholder }) => {
           const kindItems = items.filter((item) => item.kind === kind);
@@ -432,7 +446,7 @@ function KptEditor({
                 <span className="mini">{hint}</span>
               </div>
               <div className="kpt-items">
-                {kindItems.length === 0 ? (
+                {kindItems.length === 0 && !coachState.drafts.some((line) => line.kind === kind) ? (
                   <div className="mini">아직 작성한 내용이 없습니다.</div>
                 ) : (
                   kindItems.map((item) => {
@@ -442,7 +456,11 @@ function KptEditor({
                     const pickingGoal = editing?.itemId === item.id && editing.mode === "goal";
                     const pickingNext = editing?.itemId === item.id && editing.mode === "next";
                     return (
-                      <div key={item.id} className="kpt-item" data-item-id={item.id}>
+                      <div
+                        key={item.id}
+                        className={`kpt-item${coachState.replacingIds.includes(item.id) && !keptOnReplace(item) ? " replacing" : ""}`}
+                        data-item-id={item.id}
+                      >
                         <div className="kpt-item-main">
                           <div>
                             <div className="kpt-item-content">{item.content}</div>
@@ -546,6 +564,7 @@ function KptEditor({
                     );
                   })
                 )}
+                <ReviewDraftLines flow={coach} state={coachState} kind={kind} title={title} />
               </div>
               <form
                 className="kpt-add"
@@ -590,6 +609,8 @@ function KptEditor({
           );
         })}
       </div>
+
+      <ReviewDraftBar flow={coach} state={coachState} review={review} save={save.mutateAsync} />
 
       <section className="card" style={{ marginTop: 14 }}>
         <strong>회고 마무리</strong>

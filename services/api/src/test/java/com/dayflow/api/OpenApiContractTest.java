@@ -327,6 +327,28 @@ class OpenApiContractTest {
         assertThat(keysOf(coach)).containsExactlyInAnyOrderElementsOf(propertiesOf("TodayCoachResponse"));
     }
 
+    /** AI Review Coach: POST 200, every field required (including "try"), runtime keys match the document. */
+    @Test
+    void documentsReviewCoachResponse() throws Exception {
+        expectOnlySuccessStatus(mockMvc.perform(get("/v3/api-docs")), "/api/v1/ai/coach/review", "post", "200");
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(problemResponse("/api/v1/ai/coach/review", "post", "400"))
+                .andExpect(problemResponse("/api/v1/ai/coach/review", "post", "401"))
+                .andExpect(problemResponse("/api/v1/ai/coach/review", "post", "429"))
+                .andExpect(problemResponse("/api/v1/ai/coach/review", "post", "502"))
+                .andExpect(problemResponse("/api/v1/ai/coach/review", "post", "503"));
+        for (String schema : List.of("ReviewCoachResponse", "ReviewDraftItem", "ReviewHighlight", "ReviewEvidence")) {
+            assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(propertiesOf(schema));
+        }
+        assertThat(propertiesOf("ReviewCoachResponse")).contains("keep", "problem", "try").doesNotContain("tryItems");
+
+        String draft = mvc.perform(post("/api/v1/ai/coach/review").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"WEEK\",\"periodStart\":\"2026-08-03\",\"timezone\":\"Asia/Seoul\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(keysOf(draft)).containsExactlyInAnyOrderElementsOf(propertiesOf("ReviewCoachResponse"));
+    }
+
     /** Runtime bodies must carry exactly the documented fields, including explicit nulls. */
     @Test
     void runtimeBodiesMatchDocumentedFields() throws Exception {
