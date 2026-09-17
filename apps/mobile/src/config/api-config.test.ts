@@ -20,6 +20,14 @@ describe("API base URL validation", () => {
     });
   });
 
+  it("accepts the production Railway API URL as a non-loopback HTTPS base", () => {
+    expect(resolveApiConfig("https://dayflow-api.up.railway.app/")).toEqual({
+      ok: true,
+      baseUrl: "https://dayflow-api.up.railway.app",
+      loopback: false,
+    });
+  });
+
   it("flags loopback hosts, which only work on simulators", () => {
     expect(resolveApiConfig("http://localhost:8080")).toMatchObject({ ok: true, loopback: true });
     expect(resolveApiConfig("http://127.0.0.1:8080")).toMatchObject({ ok: true, loopback: true });
