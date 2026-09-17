@@ -6,6 +6,7 @@ export function goalFixture(overrides: Partial<GoalResponse>): GoalResponse {
     id: "g",
     parentGoalId: null,
     continuedFromGoalId: null,
+    kind: "CALENDAR",
     type: "YEAR",
     title: "Goal",
     why: "",
