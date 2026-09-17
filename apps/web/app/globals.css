@@ -761,6 +761,51 @@ a.btn {
   width: 18px;
   height: 18px;
 }
+/* The Day's Goal on a row; PERIOD Goals read "기간 · 제목". Quiet on purpose. */
+.day-goal-link {
+  flex: 0 1 auto;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.day-goal-link:hover {
+  color: var(--text);
+}
+/* PERIOD Goal status (derived from dates, never stored). */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+.status-badge.active {
+  border-color: #b9e2d8;
+  background: #effaf6;
+  color: #2a927f;
+}
+.period-day-group + .period-day-group {
+  margin-top: 14px;
+}
+.period-day-group-head {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  margin-bottom: 7px;
+}
 .day-title {
   flex: 1;
   min-width: 0;
@@ -994,6 +1039,142 @@ a.btn {
 }
 
 /* Calendar — week view inspired by desktop week calendars, in DayFlow colors. */
+/* 일정만: no Unscheduled panel, the calendar takes the whole width. */
+.tc-layout.no-panel {
+  grid-template-columns: minmax(0, 1fr);
+}
+.tc-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tc-category-select {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+/* 월 view: compact cells, Events with their Category color, Days in lavender. */
+.tc-month {
+  display: grid;
+}
+.tc-month-head,
+.tc-month-body {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.tc-month-weekday {
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+  border-bottom: 1px solid var(--line);
+}
+.tc-month-cell {
+  min-height: 108px;
+  padding: 4px;
+  border-right: 1px solid #f3ecf0;
+  border-bottom: 1px solid #f3ecf0;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+}
+.tc-month-cell.outside {
+  background: #fcfafb;
+}
+.tc-month-cell.outside .tc-month-date,
+.tc-month-cell.outside .tc-month-items {
+  opacity: 0.55;
+}
+.tc-month-cell.today {
+  background: #fffafd;
+}
+.tc-month-date {
+  justify-self: start;
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+.tc-month-cell.today .tc-month-date {
+  background: var(--accent);
+  color: #fff;
+}
+.tc-month-items {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.tc-month-event,
+.tc-month-day {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+}
+.tc-month-event:hover {
+  background: var(--event-soft);
+}
+.tc-month-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--event-color);
+}
+.tc-month-day {
+  background: var(--lav);
+}
+.tc-month-day.done .tc-month-title {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.tc-month-check {
+  flex: none;
+  font-size: 10px;
+  color: #705687;
+}
+.tc-month-time {
+  flex: none;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tc-month-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tc-month-more {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 0 4px;
+}
+.tc-month-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
 .tc-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 220px;
@@ -1567,6 +1748,70 @@ a.btn {
   height: 100%;
   display: block;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+/* Review archive (회고 모아보기): compact cards, pink/lavender like the rest of Review. */
+.review-archive-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.review-archive-search {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 1 1 260px;
+  justify-content: flex-end;
+}
+.review-archive-search input {
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+}
+.review-archive-list {
+  display: grid;
+  gap: 10px;
+}
+.review-archive-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 12px 14px;
+  background: #fff;
+  color: var(--text);
+  text-decoration: none;
+}
+.review-archive-card:hover {
+  background: #fffafd;
+}
+.review-archive-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.review-archive-preview {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.review-archive-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.review-archive-counts .pill {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+a.kpt-goal-chip {
+  text-decoration: none;
 }
 .review-period-nav {
   display: flex;

@@ -6,8 +6,14 @@ import type {
   EventTime,
   UpdateEventRequest,
 } from "@dayflow/api-client";
+import { calendarHref } from "../calendar/calendar-range";
 import { addDays, browserTimeZone, formatMinutes, wallClock, weekdayShort } from "../calendar/calendar-time";
 
+
+/** "캘린더에서 보기" on the Events screen: the month containing `date`, Events only. */
+export function eventsCalendarHref(date: string): string {
+  return calendarHref({ view: "month", date, content: "events" }, date);
+}
 
 export const RECURRENCE_LABEL: Record<EventRecurrence, string> = {
   NONE: "반복 안 함",

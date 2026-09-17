@@ -36,6 +36,11 @@ export interface CalendarLinkParams extends ScreenParams {
   view: CalendarView;
 }
 
+/** "캘린더에서 보기" on the Events screen: the month containing `date`, Events only. */
+export function eventsCalendarParams(date: string): CalendarLinkParams & { content: "events" } {
+  return { date, view: "month", content: "events" };
+}
+
 /**
  * Calendar link of a Goal detail ("이 기간 Calendar 보기"): WEEK opens the week view at the Goal's first day;
  * MONTH opens today when today is in the month, otherwise the month's first day. YEAR / QUARTER have no link.

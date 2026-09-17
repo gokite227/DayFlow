@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventOccurrenceResponse, EventResponse } from "@dayflow/api-client";
+import Link from "next/link";
 import { useState, type CSSProperties } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
@@ -23,6 +24,7 @@ import {
   RECURRENCE_LABEL,
   describeOccurrenceTime,
   eventTime,
+  eventsCalendarHref,
   nextOccurrences,
   reminderLabel,
   shortDate,
@@ -43,6 +45,12 @@ export function EventsView() {
         subtitle="면접·시험·생일·마감처럼 이미 정해진 일정을 따로 관리합니다."
         action={
           <div className="event-header-actions">
+            {/* Events manages; the Calendar visualizes. This opens this month with Events only. */}
+            {today && (
+              <Link href={eventsCalendarHref(today)} className="btn ghost">
+                캘린더에서 보기
+              </Link>
+            )}
             <button type="button" className="btn secondary" onClick={() => setManagingCategories(true)}>
               카테고리 관리
             </button>
