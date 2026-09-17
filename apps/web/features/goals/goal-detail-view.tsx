@@ -265,7 +265,7 @@ function WeekDays({ goal, goals }: { goal: GoalResponse; goals: GoalResponse[] }
 
   return (
     <section className="card">
-      <div className="goal-header-row">
+      <div className="goal-header-row week-days-header">
         <div>
           <strong>이번 주 Days</strong>
           <div className="mini">
@@ -274,7 +274,7 @@ function WeekDays({ goal, goals }: { goal: GoalResponse; goals: GoalResponse[] }
               : "이 주간 목표에 연결된 Day를 날짜 순으로 봅니다."}
           </div>
         </div>
-        <div className="card-actions" style={{ marginTop: 0 }}>
+        <div className="card-actions week-days-actions" style={{ marginTop: 0 }}>
           <WeekLayoutSwitch layout={layout} hrefFor={(next) => `/goals/${goal.id}?layout=${next}`} />
           <button type="button" className="btn small" onClick={() => setCreating(true)}>
             + Day

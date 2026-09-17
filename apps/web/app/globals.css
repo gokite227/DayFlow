@@ -635,6 +635,77 @@ a.btn {
   padding-top: 12px;
   border-top: 1px dashed var(--line);
 }
+/* Phones: the week reads top to bottom — one compact row per weekday (day label | its Days) instead of seven
+   tall columns scrolling sideways. Empty days stay one short line. */
+@media (max-width: 760px) {
+  .week-board {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+  .week-day-col {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr);
+    column-gap: 10px;
+    align-items: start;
+    min-height: 0;
+    padding: 9px 11px;
+    border-radius: 12px;
+  }
+  .week-day-col.empty {
+    align-items: center;
+    padding-block: 7px;
+    background: #fffafd;
+  }
+  .week-day-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    margin: 0;
+    padding-top: 1px;
+  }
+  .week-day-col.empty .week-day-head {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+    padding-top: 0;
+  }
+  .week-day-items {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .week-day-col.empty .week-day-items {
+    text-align: left;
+    font-size: 12px;
+  }
+  .week-day-col .board-day {
+    margin-bottom: 0;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .unscheduled-box .day-item {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .unscheduled-box .day-item input[type="checkbox"],
+  .week-day-col .board-day input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+  }
+  .week-days-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: 10px;
+    margin-bottom: 12px;
+  }
+  .week-days-actions {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
 .week-goal-list {
   display: grid;
   gap: 8px;
@@ -1000,6 +1071,7 @@ a.btn {
 
 .stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 17px;
 }
 .card-title {
@@ -1170,6 +1242,57 @@ a.btn {
   color: var(--accent);
   text-decoration: none;
   padding: 0 4px;
+}
+/* Phones: a cell is about 45px wide. Items are one fixed-height line that never wraps: marker and time keep their
+   width, the title takes what is left (or nothing) with an ellipsis, and "+N 더보기" shortens to "+N". */
+@media (max-width: 760px) {
+  .tc-month-cell {
+    min-height: 92px;
+    padding: 3px 2px;
+    gap: 2px;
+  }
+  .tc-month-date {
+    min-width: 20px;
+    height: 20px;
+    font-size: 11px;
+  }
+  .tc-month-items {
+    gap: 2px;
+  }
+  .tc-month-event,
+  .tc-month-day {
+    gap: 2px;
+    height: 16px;
+    padding: 0 2px;
+    font-size: 10px;
+    line-height: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .tc-month-dot {
+    width: 5px;
+    height: 5px;
+  }
+  .tc-month-check {
+    font-size: 8px;
+  }
+  .tc-month-time {
+    font-size: 9.5px;
+    letter-spacing: -0.2px;
+  }
+  .tc-month-title {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .tc-month-more {
+    font-size: 10px;
+    line-height: 14px;
+    padding: 0 2px;
+    white-space: nowrap;
+  }
+  .tc-month-more-label {
+    display: none;
+  }
 }
 .tc-month-empty {
   padding: 8px 12px;
@@ -2445,6 +2568,44 @@ a.kpt-goal-chip {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+/* Phones: title and description get the full width; below them one action row — the two secondary actions as
+   quiet small buttons, "+ 새 일정" as the main button on the right. The category chips follow closely. */
+@media (max-width: 760px) {
+  .events-topbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .events-topbar .event-header-actions {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .event-header-secondary {
+    padding: 8px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .event-header-primary {
+    margin-left: auto;
+    padding: 9px 13px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .event-category-tabs {
+    margin-bottom: 0;
+    gap: 6px;
+    scrollbar-width: none;
+  }
+  .event-category-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .event-category-tabs button {
+    padding: 7px 11px;
+    font-size: 13px;
+  }
 }
 .event-category-select {
   display: flex;

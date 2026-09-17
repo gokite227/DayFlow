@@ -97,12 +97,18 @@ export function WeekGoalDays({
             {dates.map((date) => {
               const dated = linked.filter((day) => day.plannedDate === date);
               return (
-                <div key={date} className={`week-day-col${date === today ? " today" : ""}`} data-date={date}>
+                <div
+                  key={date}
+                  className={`week-day-col${date === today ? " today" : ""}${dated.length ? "" : " empty"}`}
+                  data-date={date}
+                >
                   <div className="week-day-head">
                     <span className="week-day-name">{WEEKDAY_KR[weekdayShort(date)]}</span>
                     <span className="week-day-date">{date.slice(5)}</span>
                   </div>
-                  {dated.length ? dated.map(dayCard) : <div className="mini">비어 있음</div>}
+                  <div className="week-day-items">
+                    {dated.length ? dated.map(dayCard) : <div className="mini">비어 있음</div>}
+                  </div>
                 </div>
               );
             })}

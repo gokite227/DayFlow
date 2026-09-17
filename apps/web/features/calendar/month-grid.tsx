@@ -54,8 +54,9 @@ export function MonthGrid({
                   <MonthItemButton key={item.key} item={item} onOpenDay={onOpenDay} onOpenEvent={onOpenEvent} />
                 ))}
                 {hidden > 0 && (
-                  <Link href={dayHref(date)} className="tc-month-more">
-                    +{hidden} 더보기
+                  <Link href={dayHref(date)} className="tc-month-more" aria-label={`${hidden}개 더보기`}>
+                    +{hidden}
+                    <span className="tc-month-more-label"> 더보기</span>
                   </Link>
                 )}
               </div>

@@ -43,19 +43,20 @@ export function EventsView() {
       <PageHeader
         title="Events"
         subtitle="면접·시험·생일·마감처럼 이미 정해진 일정을 따로 관리합니다."
+        className="events-topbar"
         action={
           <div className="event-header-actions">
             {/* Events manages; the Calendar visualizes. This opens this month with Events only. */}
             {today && (
-              <Link href={eventsCalendarHref(today)} className="btn ghost">
+              <Link href={eventsCalendarHref(today)} className="btn ghost event-header-secondary">
                 캘린더에서 보기
               </Link>
             )}
-            <button type="button" className="btn secondary" onClick={() => setManagingCategories(true)}>
+            <button type="button" className="btn secondary event-header-secondary" onClick={() => setManagingCategories(true)}>
               카테고리 관리
             </button>
             {today && (
-              <button type="button" className="btn" onClick={() => setTarget({ mode: "create", date: today })}>
+              <button type="button" className="btn event-header-primary" onClick={() => setTarget({ mode: "create", date: today })}>
                 + 새 일정
               </button>
             )}
@@ -111,7 +112,7 @@ function EventsContent({ today, onOpen }: { today: string; onOpen: (target: Even
 
   return (
     <div className="stack">
-      <div className="goal-tabs" role="tablist" aria-label="일정 카테고리">
+      <div className="goal-tabs event-category-tabs" role="tablist" aria-label="일정 카테고리">
         {filters.map((entry) => (
           <button
             key={entry.key}
