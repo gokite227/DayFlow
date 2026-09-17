@@ -10,7 +10,7 @@ export const REVIEW_TYPES: readonly ReviewType[] = ["DAY", "WEEK", "MONTH", "QUA
 export const REVIEW_TYPE_LABEL: Record<ReviewType, string> = { DAY: "일간", WEEK: "주간", MONTH: "월간", QUARTER: "분기", YEAR: "연간" };
 
 /** Daily and weekly reviews look at WEEK Goals (same as the Web). */
-export const REVIEW_GOAL_TYPE: Record<ReviewType, GoalResponse["type"]> = { DAY: "WEEK", WEEK: "WEEK", MONTH: "MONTH", QUARTER: "QUARTER", YEAR: "YEAR" };
+export const REVIEW_GOAL_TYPE: Record<ReviewType, NonNullable<GoalResponse["type"]>> = { DAY: "WEEK", WEEK: "WEEK", MONTH: "MONTH", QUARTER: "QUARTER", YEAR: "YEAR" };
 
 export const KPT_SECTIONS: readonly { kind: ReviewItemKind; title: string; hint: string; placeholder: string }[] = [
   { kind: "KEEP", title: "Keep", hint: "계속 유지하고 싶은 것", placeholder: "예: 오전에 개발하니 집중이 잘 됐다" },
@@ -68,13 +68,23 @@ const overlaps = (goal: Pick<GoalResponse, "startDate" | "endDate">, period: Rev
 
 /** REV-003: Goals a line can reflect on (the review's level, overlapping the period). */
 export function reviewGoalCandidates(goals: readonly GoalResponse[], period: ReviewPeriod): GoalResponse[] {
-  return sortGoals(goals.filter((goal) => goal.type === REVIEW_GOAL_TYPE[period.type] && overlaps(goal, period)));
+  return sortGoals(goals.filter((goal) => goal.kind === "CALENDAR" && goal.type === REVIEW_GOAL_TYPE[period.type] && overlaps(goal, period)));
+}
+
+/**
+ * PERIOD Goals a line can reflect on: every PERIOD Goal overlapping the reviewed period, whatever the review
+ * level (start <= review end and end >= review start). They are never a Try's next Goal.
+ */
+export function reviewPeriodGoalCandidates(goals: readonly GoalResponse[], period: ReviewPeriod): GoalResponse[] {
+  return goals
+    .filter((goal) => goal.kind === "PERIOD" && overlaps(goal, period))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title));
 }
 
 /** REV-004: later Goals of the same level a Try can be carried into, nearest first. */
 export function nextGoalCandidates(goals: readonly GoalResponse[], period: ReviewPeriod): GoalResponse[] {
   return goals
-    .filter((goal) => goal.type === REVIEW_GOAL_TYPE[period.type] && goal.endDate > period.end)
+    .filter((goal) => goal.kind === "CALENDAR" && goal.type === REVIEW_GOAL_TYPE[period.type] && goal.endDate > period.end)
     .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title));
 }
 

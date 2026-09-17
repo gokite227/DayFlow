@@ -1,27 +1,32 @@
-import type { DayResponse, EventOccurrenceResponse } from "@dayflow/api-client";
+import type { DayResponse, EventOccurrenceResponse, GoalResponse } from "@dayflow/api-client";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
 import { Pressable, ScrollView, Text, View, type LayoutChangeEvent } from "react-native";
 import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import { useSharedValue } from "react-native-reanimated";
 import {
+  CALENDAR_CONTENTS,
+  CALENDAR_CONTENT_LABEL,
   CALENDAR_VIEWS,
   CALENDAR_VIEW_LABEL,
-  DEFAULT_CALENDAR_VIEW,
   HOUR_HEIGHT,
   MINUTES_PER_DAY,
   clamp,
   columnPlacement,
+  contentDays,
   dateOnlyItems,
   describeDropAction,
   initialScrollY,
+  parseCalendarContent,
+  parseCalendarView,
   planDrop,
-  rangeLabel,
   resolveDrop,
   selectedDateFromParam,
   shiftViewDate,
   unscheduledDays,
   viewDates,
+  viewRangeLabel,
+  type CalendarContent,
   type CalendarView,
   type DropAction,
   type DropGeometry,
@@ -38,11 +43,12 @@ import {
   UnscheduledDrawer,
   type ScrollRefs,
 } from "@/features/calendar/calendar-parts";
+import { MonthView } from "@/features/calendar/month-view";
 import { CLOSED_DRAWER, drawerReducer } from "@/features/calendar/unscheduled-drawer";
 import { useCalendarDayActions } from "@/features/calendar/use-calendar-day-actions";
 import { useDays } from "@/features/days/day-queries";
 import { useEventOccurrences } from "@/features/events/event-queries";
-import { useGoals } from "@/features/goals/goal-queries";
+import { useGoals, usePeriodGoals } from "@/features/goals/goal-queries";
 import { useSettings } from "@/features/settings/settings-provider";
 import { WEEKDAYS_KR, weekdayIndex } from "@/lib/dates";
 import { useNowMinutes, useToday } from "@/lib/use-today";
@@ -67,16 +73,16 @@ export default function CalendarScreen() {
   const today = useToday();
   const nowMinutes = useNowMinutes();
   const router = useRouter();
-  const params = useLocalSearchParams<{ date?: string; view?: string }>();
+  const params = useLocalSearchParams<{ date?: string; view?: string; content?: string }>();
   const { settings } = useSettings();
 
+  // View, date and content follow the link that opened the Calendar (a Goal, the Events screen) until the user
+  // picks another one here; they are not persisted, like the view and date always were.
   const [pickedView, setPickedView] = useState<{ param: string | undefined; view: CalendarView } | null>(null);
-  const view: CalendarView =
-    pickedView !== null && pickedView.param === params.view
-      ? pickedView.view
-      : (CALENDAR_VIEWS as readonly string[]).includes(params.view ?? "")
-        ? (params.view as CalendarView)
-        : DEFAULT_CALENDAR_VIEW;
+  const view: CalendarView = pickedView !== null && pickedView.param === params.view ? pickedView.view : parseCalendarView(params.view);
+  const [pickedContent, setPickedContent] = useState<{ param: string | undefined; content: CalendarContent } | null>(null);
+  const content: CalendarContent =
+    pickedContent !== null && pickedContent.param === params.content ? pickedContent.content : parseCalendarContent(params.content);
   // A date chosen here belongs to the current ?date= link; opening another link (e.g. from a Goal) starts there.
   const [picked, setPicked] = useState<{ param: string | undefined; date: string } | null>(null);
   const date = picked !== null && picked.param === params.date ? picked.date : selectedDateFromParam(params.date, today);
@@ -90,11 +96,16 @@ export default function CalendarScreen() {
   const daysQuery = useDays();
   const occurrencesQuery = useEventOccurrences(rangeStart, rangeEnd);
   const goalsQuery = useGoals();
-  const actions = useCalendarDayActions();
+  const periodGoalsQuery = usePeriodGoals();
+  const goalsById = useMemo(
+    () => new Map<string, GoalResponse>([...(goalsQuery.data ?? []), ...(periodGoalsQuery.data ?? [])].map((goal) => [goal.id, goal])),
+    [goalsQuery.data, periodGoalsQuery.data],
+  );
+  const actions = useCalendarDayActions((day) => (day.goalId === null ? undefined : goalsById.get(day.goalId)));
 
-  const days = useMemo(() => daysQuery.data ?? [], [daysQuery.data]);
+  // 일정만: no Day reaches the grid, the date-only row, the month or the drawer (nothing hidden stays interactive).
+  const days = useMemo(() => contentDays(daysQuery.data ?? [], content), [daysQuery.data, content]);
   const occurrences = useMemo(() => occurrencesQuery.data ?? [], [occurrencesQuery.data]);
-  const goalsById = useMemo(() => new Map((goalsQuery.data ?? []).map((goal) => [goal.id, goal])), [goalsQuery.data]);
   const unscheduled = useMemo(() => unscheduledDays(days), [days]);
 
   const [width, setWidth] = useState(0);
@@ -259,6 +270,30 @@ export default function CalendarScreen() {
     if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
   }, []);
 
+  /**
+   * Leaving the time grid for good (일정만, or the month view without drop targets) first cancels a running
+   * Day drag: the ghost, the hover label and the auto-scroll timer go away and nothing is applied. 일정만 also
+   * closes the drawer and clears its drag state, so switching back to 전체 starts clean.
+   */
+  const cancelActiveDrag = () => {
+    if (drag.current) controller.end(drag.current.lastX, drag.current.lastY, true);
+  };
+  const changeContent = (next: CalendarContent) => {
+    if (next === "events") {
+      cancelActiveDrag();
+      dispatchDrawer({ type: "close" });
+    }
+    setPickedContent({ param: params.content, content: next });
+  };
+  const changeView = (next: CalendarView) => {
+    // The month view has no drop targets, so the drawer (a drag source) is closed and cannot be opened there.
+    if (next === "month") {
+      cancelActiveDrag();
+      dispatchDrawer({ type: "close" });
+    }
+    setView(next);
+  };
+
   // Week view scrolls horizontally: keep the selected date (or today) in view when the range changes.
   useEffect(() => {
     const index = Math.max(dates.indexOf(date), 0);
@@ -324,7 +359,7 @@ export default function CalendarScreen() {
         <View style={styles.toolbarRow}>
           <ToolbarButton label="‹" accessibilityLabel="이전 기간" onPress={() => setDate(shiftViewDate(view, date, -1))} />
           <Text style={styles.rangeLabel} numberOfLines={1} adjustsFontSizeToFit>
-            {rangeLabel(dates)}
+            {viewRangeLabel(view, date, dates)}
           </Text>
           <ToolbarButton label="›" accessibilityLabel="다음 기간" onPress={() => setDate(shiftViewDate(view, date, 1))} />
           <ToolbarButton
@@ -343,24 +378,55 @@ export default function CalendarScreen() {
                 key={value}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: value === view }}
-                onPress={() => setView(value)}
+                onPress={() => changeView(value)}
                 style={[styles.viewOption, value === view && styles.viewOptionSelected]}
               >
                 <Text style={[styles.viewText, value === view && styles.viewTextSelected]}>{CALENDAR_VIEW_LABEL[value]}</Text>
               </Pressable>
             ))}
           </View>
-          {actions.pending || daysQuery.isFetching ? <Text style={styles.saving}>{actions.pending ? "저장 중…" : "불러오는 중…"}</Text> : null}
-          <View ref={unscheduledButtonRef} collapsable={false} onLayout={measureAll} style={{ marginLeft: "auto" }}>
-            <UnscheduledButton count={unscheduled.length} hoverStore={hoverStore} onPress={openUnscheduledDrawer} />
+          <View style={styles.viewSwitch} accessibilityRole="radiogroup" accessibilityLabel="표시 내용">
+            {CALENDAR_CONTENTS.map((value) => (
+              <Pressable
+                key={value}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: value === content }}
+                onPress={() => changeContent(value)}
+                style={[styles.contentOption, value === content && styles.viewOptionSelected]}
+              >
+                <Text style={[styles.viewText, value === content && styles.viewTextSelected]}>{CALENDAR_CONTENT_LABEL[value]}</Text>
+              </Pressable>
+            ))}
           </View>
+          {content === "all" && view !== "month" ? (
+            <View ref={unscheduledButtonRef} collapsable={false} onLayout={measureAll} style={{ marginLeft: "auto" }}>
+              <UnscheduledButton count={unscheduled.length} hoverStore={hoverStore} onPress={openUnscheduledDrawer} />
+            </View>
+          ) : null}
         </View>
+        {actions.pending || daysQuery.isFetching ? <Text style={styles.saving}>{actions.pending ? "저장 중…" : "불러오는 중…"}</Text> : null}
       </View>
 
+      {actions.problem ? <Text style={styles.problem}>{actions.problem} 날짜를 바꾸지 않았어요.</Text> : null}
       {actions.error ? <ErrorState error={actions.error} onRetry={actions.reset} /> : null}
       {daysQuery.isError ? <ErrorState error={daysQuery.error} onRetry={() => void daysQuery.refetch()} /> : null}
       {occurrencesQuery.isError ? <ErrorState error={occurrencesQuery.error} onRetry={() => void occurrencesQuery.refetch()} /> : null}
 
+      {view === "month" ? (
+        <MonthView
+          dates={dates}
+          selectedDate={date}
+          today={today}
+          content={content}
+          days={days}
+          occurrences={occurrences}
+          goalsById={goalsById}
+          onSelectDate={setDate}
+          onOpenDay={openDay}
+          onOpenEvent={openEvent}
+        />
+      ) : (
+        <>
       <View style={styles.headerRow}>
         <View style={{ width: GUTTER_WIDTH }} />
         <ScrollView ref={headerScrollRef} horizontal scrollEnabled={false} showsHorizontalScrollIndicator={false}>
@@ -479,18 +545,23 @@ export default function CalendarScreen() {
           </View>
         </GestureScrollView>
       </View>
+        </>
+      )}
 
-      <UnscheduledDrawer
-        state={drawer}
-        days={unscheduled}
-        goalsById={goalsById}
-        width={Math.min(Math.max(width * 0.84, 260), 380)}
-        controller={controller}
-        scrollRefs={scrollRefs}
-        listRef={drawerListRef}
-        onClose={closeUnscheduledDrawer}
-        onOpenDay={openDayFromDrawer}
-      />
+      {/* 일정만 has no Days: no drawer at all (its state was already closed and cleared on the switch). */}
+      {content === "all" ? (
+        <UnscheduledDrawer
+          state={drawer}
+          days={unscheduled}
+          goalsById={goalsById}
+          width={Math.min(Math.max(width * 0.84, 260), 380)}
+          controller={controller}
+          scrollRefs={scrollRefs}
+          listRef={drawerListRef}
+          onClose={closeUnscheduledDrawer}
+          onOpenDay={openDayFromDrawer}
+        />
+      ) : null}
       <DragGhost ghost={ghost} x={ghostX} y={ghostY} hoverStore={hoverStore} />
     </View>
   );
@@ -558,9 +629,11 @@ const useStyles = makeStyles((c) => ({
   viewSwitch: { flexDirection: "row", borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, padding: 2, gap: 2 },
   viewOption: { minWidth: 48, height: 32, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.sm },
   viewOptionSelected: { backgroundColor: c.accent },
+  contentOption: { minWidth: 52, height: 32, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.sm },
   viewText: { fontSize: fontSize.caption + 1, color: c.text },
   viewTextSelected: { color: c.onAccent, fontWeight: "800" },
   saving: { fontSize: fontSize.caption, color: c.textSecondary },
+  problem: { fontSize: fontSize.caption, color: c.danger, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
   unscheduledButton: { height: 34, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: c.accent2, backgroundColor: c.surfaceMuted, justifyContent: "center" },
   unscheduledButtonActive: { backgroundColor: c.accent, borderColor: c.accent },
   unscheduledText: { fontSize: fontSize.caption + 1, fontWeight: "700", color: c.text },

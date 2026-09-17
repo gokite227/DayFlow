@@ -42,6 +42,15 @@ export function drawerReducer(state: DrawerModel, event: DrawerEvent): DrawerMod
   }
 }
 
+/**
+ * 일정만 has no Days, so there is nothing for the drawer to show: switching to it closes the drawer and drops
+ * any drag or hidden-for-drag state (the same "close" every other exit uses). 전체 starts from that clean
+ * state, so the drawer opens and closes normally again.
+ */
+export function drawerForContent(state: DrawerModel, content: "all" | "events"): DrawerModel {
+  return content === "events" ? drawerReducer(state, { type: "close" }) : state;
+}
+
 /** The panel is on screen (and the backdrop catches taps). */
 export function isDrawerVisible(state: DrawerModel): boolean {
   return state.open && !state.hiddenForDrag;

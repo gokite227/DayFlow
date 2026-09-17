@@ -1,4 +1,4 @@
-import type { GoalResponse } from "@dayflow/api-client";
+import type { CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 import { describe, expect, it } from "vitest";
 import {
   backToGoalsHref,
@@ -16,6 +16,7 @@ function goal(id: string, type: GoalResponse["type"], startDate: string, endDate
   return {
     id,
     parentGoalId,
+    kind: "CALENDAR",
     type,
     title: `${id} title`,
     why: "",
@@ -49,7 +50,13 @@ describe("GOAL-005 view state in the URL", () => {
       view: "year",
       layout: "week",
       weekStart: "2026-09-14",
+      status: "all",
     });
+    expect(parseGoalsViewState(params("view=period&status=UPCOMING"), "2026-09-16")).toMatchObject({
+      view: "period",
+      status: "UPCOMING",
+    });
+    expect(parseGoalsViewState(params("view=period&status=soon"), "2026-09-16")).toMatchObject({ status: "all" });
     expect(parseGoalsViewState(params("view=week&layout=list&week=2026-09-30"), "2026-09-16")).toMatchObject({
       view: "week",
       layout: "list",
@@ -68,6 +75,8 @@ describe("GOAL-005 view state in the URL", () => {
     expect(goalsViewHref({ view: "week", layout: "week", weekStart: "2026-09-21" }, "2026-09-16")).toBe(
       "/goals?view=week&layout=week&week=2026-09-21",
     );
+    expect(goalsViewHref({ view: "period" }, "2026-09-16")).toBe("/goals?view=period");
+    expect(goalsViewHref({ view: "period", status: "ENDED" }, "2026-09-16")).toBe("/goals?view=period&status=ENDED");
   });
 
   it("remembers the list a detail was opened from and returns to it", () => {

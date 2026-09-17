@@ -1,4 +1,4 @@
-import type { GoalResponse, ReviewResponse } from "@dayflow/api-client";
+import type { CalendarGoalResponse as GoalResponse, ReviewResponse } from "@dayflow/api-client";
 import { addDays, startOfWeek, toLocalDate } from "../calendar/calendar-time";
 
 export type ReviewType = ReviewResponse["type"];

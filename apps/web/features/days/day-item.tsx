@@ -1,19 +1,24 @@
 import type { DayResponse } from "@dayflow/api-client";
+import Link from "next/link";
+import type { GoalLink } from "@/features/goals/period-goal-values";
 import { DayTagPills } from "./day-tag-pills";
 import { DAY_PRIORITY_LABEL, DAY_STATUS_LABEL, PLANNING_MODE_LABEL, describeDaySchedule } from "./day-values";
 
-/** A Day row with a done checkbox; shared by Days and Today. */
+/** A Day row with a done checkbox; shared by Days, Today and the PERIOD Goal detail. */
 export function DayItem({
   day,
-  goalTitle,
+  goal,
   toggling,
   onToggle,
   onOpen,
   highlightCore = false,
 }: {
   day: DayResponse;
-  /** The title of the Day's WEEK Goal, or undefined for a Day without a Goal (DAY-001). */
-  goalTitle: string | undefined;
+  /**
+   * The Day's Goal as a link ("기간 · 중간고사 준비" for a PERIOD Goal), undefined for a Day without a Goal
+   * (DAY-001) or when the row is already shown inside that Goal.
+   */
+  goal: GoalLink | undefined;
   toggling: boolean;
   onToggle: () => void;
   onOpen: () => void;
@@ -43,10 +48,17 @@ export function DayItem({
           <DayTagPills tags={day.tags} />
         </div>
         <div className="mini">
-          {goalTitle ?? "목표 없음"} · {describeDaySchedule(day)} · {DAY_STATUS_LABEL[day.status]} ·{" "}
-          {PLANNING_MODE_LABEL[day.planningMode]} · {day.estimatedMinutes}분
+          {day.goalId === null ? "목표 없음 · " : ""}
+          {describeDaySchedule(day)} · {DAY_STATUS_LABEL[day.status]} · {PLANNING_MODE_LABEL[day.planningMode]} ·{" "}
+          {day.estimatedMinutes}분
         </div>
       </button>
+      {/* Outside the row button: a link inside a button is not a valid (or reliably clickable) control. */}
+      {goal && (
+        <Link href={goal.href} className="day-goal-link" title="목표 열기">
+          {goal.label}
+        </Link>
+      )}
     </div>
   );
 }

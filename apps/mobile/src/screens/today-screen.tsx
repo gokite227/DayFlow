@@ -1,10 +1,11 @@
+import type { GoalResponse } from "@dayflow/api-client";
 import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 import { DayRow } from "@/components/day-row";
 import { useDays, useUpdateDay } from "@/features/days/day-queries";
 import { dayGoalLine, doneToggleRequest } from "@/features/days/day-values";
 import { formatRate, goalPeriodLabel, summarizeGoal } from "@/features/goals/goal-helpers";
-import { useGoals } from "@/features/goals/goal-queries";
+import { useGoals, usePeriodGoals } from "@/features/goals/goal-queries";
 import { useRecoveryCandidates, useRecoveryDays } from "@/features/recovery/recovery-queries";
 import { currentWeekGoals, dayGoalPath, todayDays, todayProgress } from "@/features/today/today-helpers";
 import { formatKoreanDate, koreanShortDate } from "@/lib/dates";
@@ -20,10 +21,15 @@ export default function TodayScreen() {
   // Goal progress counts every Day of the Goal, not only today's.
   const allDaysQuery = useDays();
   const goalsQuery = useGoals();
+  const periodGoalsQuery = usePeriodGoals();
   const updateDay = useUpdateDay();
 
   const goals = goalsQuery.data ?? [];
-  const goalsById = new Map(goals.map((goal) => [goal.id, goal]));
+  // Day rows show either kind of Goal; the path and week progress below stay CALENDAR only.
+  const goalsById = new Map<string, GoalResponse>([...goals, ...(periodGoalsQuery.data ?? [])].map((goal) => [goal.id, goal]));
+  const openGoal = (goalId: string | null) => {
+    if (goalId !== null) router.push({ pathname: "/goals/[goalId]", params: { goalId } });
+  };
   const days = todayDays(daysQuery.data ?? [], today);
   const progress = todayProgress(days);
   const weekGoals = currentWeekGoals(goals, today);
@@ -66,6 +72,7 @@ export default function TodayScreen() {
                 toggling={updateDay.isPending && updateDay.variables?.dayId === day.id}
                 onToggle={() => updateDay.mutate({ dayId: day.id, body: doneToggleRequest(day) })}
                 onPress={() => router.push({ pathname: "/days/edit", params: { dayId: day.id } })}
+                onGoalPress={() => openGoal(day.goalId)}
               />
               {dayGoalPath(day, goals) ? (
                 <Text style={[text.muted, { marginLeft: 48, marginBottom: 4 }]} numberOfLines={1}>

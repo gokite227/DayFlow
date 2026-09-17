@@ -1,4 +1,4 @@
-import type { DayResponse } from "@dayflow/api-client";
+import { isPeriodGoalResponse, type DayResponse, type GoalResponse } from "@dayflow/api-client";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, Text, View } from "react-native";
@@ -17,7 +17,8 @@ import {
   type DayStatus,
 } from "@/features/days/day-values";
 import { goalChipLabel } from "@/features/goals/goal-helpers";
-import { useGoals } from "@/features/goals/goal-queries";
+import { useGoals, usePeriodGoals } from "@/features/goals/goal-queries";
+import { dayDateProblem, periodGoalOptionLabel, selectablePeriodGoals } from "@/features/goals/period-goal-helpers";
 import { isLocalDate } from "@/lib/dates";
 import { useToday } from "@/lib/use-today";
 import { Button, Card, Chip, ChipRow, EmptyState, ErrorState, FieldLabel, layout, LoadingState, Screen, SwitchRow, TextField, useTextStyles } from "@/ui/components";
@@ -45,6 +46,7 @@ function DayForm({ initial, editing }: { initial: DayFormValues; editing: DayRes
   const today = useToday();
   const [values, setValues] = useState(initial);
   const goalsQuery = useGoals();
+  const periodGoalsQuery = usePeriodGoals();
   const tagsQuery = useDayTags();
   const createDay = useCreateDay();
   const updateDay = useUpdateDay();
@@ -55,14 +57,23 @@ function DayForm({ initial, editing }: { initial: DayFormValues; editing: DayRes
   const set = <Key extends keyof DayFormValues>(key: Key, value: DayFormValues[Key]) => setValues((current) => ({ ...current, [key]: value }));
 
   const goals = goalsQuery.data ?? [];
+  const periodGoals = periodGoalsQuery.data ?? [];
   const choices = weekGoalChoices(goals, values.plannedDate);
-  const selectedGoal = goals.find((goal) => goal.id === values.goalId);
+  const periodChoices = selectablePeriodGoals(periodGoals, today, initial.goalId).filter(
+    (goal) => values.plannedDate === "" || (goal.startDate <= values.plannedDate && values.plannedDate <= goal.endDate),
+  );
+  const selectedGoal: GoalResponse | undefined = goals.find((goal) => goal.id === values.goalId) ?? periodGoals.find((goal) => goal.id === values.goalId);
   // A linked Goal that no longer contains the date stays visible, so the conflict is shown instead of hidden.
-  const goalOptions = selectedGoal && !choices.some((goal) => goal.id === selectedGoal.id) ? [selectedGoal, ...choices] : choices;
+  const goalOptions = selectedGoal?.kind === "CALENDAR" && !choices.some((goal) => goal.id === selectedGoal.id) ? [selectedGoal, ...choices] : choices;
+  const periodOptions =
+    selectedGoal && isPeriodGoalResponse(selectedGoal) && !periodChoices.some((goal) => goal.id === selectedGoal.id)
+      ? [selectedGoal, ...periodChoices]
+      : periodChoices;
+  const dateProblem = dayDateProblem(selectedGoal, values.plannedDate);
   const tags = [...(tagsQuery.data ?? [])].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
 
   const submit = () => {
-    if (problem) return;
+    if (problem || dateProblem) return;
     const onSuccess = () => router.back();
     if (editing) updateDay.mutate({ dayId: editing.id, body: toUpdateDayRequest(values, editing) }, { onSuccess });
     else createDay.mutate(toCreateDayRequest(values), { onSuccess });
@@ -84,10 +95,13 @@ function DayForm({ initial, editing }: { initial: DayFormValues; editing: DayRes
         <DateField
           label="실행 날짜 (선택)"
           value={values.plannedDate}
-          fallback={today}
+          fallback={selectedGoal && !(selectedGoal.startDate <= today && today <= selectedGoal.endDate) ? selectedGoal.startDate : today}
+          min={selectedGoal?.startDate}
+          max={selectedGoal?.endDate}
           onChange={(plannedDate) => set("plannedDate", plannedDate)}
           onClear={() => set("plannedDate", "")}
         />
+        {dateProblem ? <Text style={text.danger}>{dateProblem}</Text> : null}
         <TextField label="예상 시간(분)" keyboardType="number-pad" value={values.estimatedMinutes} onChangeText={(text) => set("estimatedMinutes", text)} />
         <SwitchRow label="오늘의 핵심 Day" hint="우선순위와는 다른, 꼭 지키고 싶은 실행이에요." value={values.coreDay} onValueChange={(coreDay) => set("coreDay", coreDay)} />
       </Card>
@@ -134,20 +148,42 @@ function DayForm({ initial, editing }: { initial: DayFormValues; editing: DayRes
       </Card>
 
       <Card>
-        <FieldLabel>주간 목표 (선택)</FieldLabel>
+        <FieldLabel>목표 (선택)</FieldLabel>
         <Text style={text.muted}>
-          {values.plannedDate === "" ? "Goal 없이도 괜찮아요. 날짜를 고르면 그 날짜가 속한 주간 목표만 보여줘요." : "이 날짜를 포함하는 주간 목표만 보여줘요."}
+          {values.plannedDate === "" ? "Goal 없이도 괜찮아요. 날짜를 고르면 그 날짜를 포함하는 목표만 보여줘요." : "이 날짜를 포함하는 목표만 보여줘요."}
         </Text>
         <View style={layout.rowWrap}>
           <Chip label="연결 안 함" selected={values.goalId === ""} onPress={() => set("goalId", "")} />
+        </View>
+        <Text style={text.muted}>계획 목표 (주간)</Text>
+        <View style={layout.rowWrap}>
+          {goalOptions.length === 0 ? <Text style={text.muted}>고를 수 있는 주간 목표가 없어요.</Text> : null}
           {goalOptions.map((goal) => (
             <Chip key={goal.id} label={goalChipLabel(goal)} selected={values.goalId === goal.id} onPress={() => set("goalId", goal.id)} />
           ))}
         </View>
+        <Text style={text.muted}>기간 목표</Text>
+        <View style={layout.rowWrap}>
+          {periodOptions.length === 0 ? <Text style={text.muted}>고를 수 있는 기간 목표가 없어요.</Text> : null}
+          {periodOptions.map((goal) => (
+            <Chip key={goal.id} label={periodGoalOptionLabel(goal, today)} selected={values.goalId === goal.id} onPress={() => set("goalId", goal.id)} />
+          ))}
+        </View>
+        {selectedGoal ? (
+          <Button
+            label="목표 열기"
+            variant="ghost"
+            small
+            onPress={() => {
+              router.back();
+              router.push({ pathname: "/goals/[goalId]", params: { goalId: selectedGoal.id } });
+            }}
+          />
+        ) : null}
       </Card>
 
       {problem ? <Text style={text.danger}>{problem === "title" ? "제목을 입력해주세요." : "예상 시간은 1분 이상이어야 해요."}</Text> : null}
-      <Button label={saving ? "저장 중…" : editing ? "저장" : "추가"} disabled={saving || problem !== null} onPress={submit} />
+      <Button label={saving ? "저장 중…" : editing ? "저장" : "추가"} disabled={saving || problem !== null || dateProblem !== null} onPress={submit} />
       {editing && editing.plannedDate !== null ? (
         <Button
           label="날짜 없음으로 이동"

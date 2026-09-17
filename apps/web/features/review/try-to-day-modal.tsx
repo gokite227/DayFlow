@@ -1,6 +1,6 @@
 "use client";
 
-import type { GoalResponse, ReviewItemResponse } from "@dayflow/api-client";
+import type { CalendarGoalResponse as GoalResponse, ReviewItemResponse } from "@dayflow/api-client";
 import { useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
 import { ErrorNotice } from "@/components/query-state";

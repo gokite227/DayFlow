@@ -69,8 +69,8 @@ export interface MoveRange {
 }
 
 /**
- * Dates a Day can MOVE to: from today (or the Goal start) to its WEEK Goal end. Null when the
- * Goal period is already over — another week is a CARRY_OVER.
+ * Dates a Day can MOVE to: from today (or the Goal start) to its WEEK or PERIOD Goal end. Null when the
+ * Goal period is already over — another week is a CARRY_OVER (a PERIOD Goal Day is unlinked first).
  * A Day without a Goal (DAY-001) can move to today or any later date, never to the past.
  */
 export function moveRange(
@@ -80,6 +80,31 @@ export function moveRange(
   if (!goal) return { min: today, max: null };
   const min = goal.startDate > today ? goal.startDate : today;
   return min <= goal.endDate ? { min, max: goal.endDate } : null;
+}
+
+export const PERIOD_CARRY_OVER_BLOCKED =
+  "기간 목표에 연결된 Day는 이어가기 대신 기간 안에서 이동하거나 목표 연결을 해제해 주세요.";
+
+/**
+ * Why an action cannot be chosen for a Day, or null when it can:
+ * - MOVE needs a date left in the Goal period (a Day without a Goal can always move forward).
+ * - CARRY_OVER continues a CALENDAR WEEK plan. A Day without a Goal moves with MOVE; a PERIOD Goal Day
+ *   is refused by the server, so it stays inside the period or is unlinked first.
+ */
+export function recoveryActionBlockedReason(
+  action: RecoveryChoice,
+  day: Pick<DayResponse, "goalId">,
+  goal: Pick<GoalResponse, "kind"> | undefined,
+  range: MoveRange | null,
+): string | null {
+  if (action === "MOVE" && range === null) {
+    return goal?.kind === "PERIOD" ? "기간 목표가 끝나서 날짜만 바꿀 수는 없어요" : "이 주가 지나서 날짜만 바꿀 수는 없어요";
+  }
+  if (action === "CARRY_OVER") {
+    if (day.goalId === null) return "목표 없는 Day는 날짜 바꾸기로 원하는 날에 옮겨요";
+    if (goal?.kind === "PERIOD") return PERIOD_CARRY_OVER_BLOCKED;
+  }
+  return null;
 }
 
 export type DraftProblem = "reduceMinutes" | "reduceTitle" | "moveDate" | null;

@@ -1,4 +1,4 @@
-import type { DayResponse, GoalResponse } from "@dayflow/api-client";
+import type { DayResponse, CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 import { formatRate, summarizeGoal } from "@/features/review/review-summary";
 
 /**

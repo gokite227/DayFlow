@@ -1,3 +1,4 @@
+import { isPeriodGoalResponse } from "@dayflow/api-client";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Text, View } from "react-native";
 import { DayRow } from "@/components/day-row";
@@ -16,7 +17,9 @@ import {
   summarizeGoal,
   yearFlowStages,
 } from "@/features/goals/goal-helpers";
-import { useGoals } from "@/features/goals/goal-queries";
+import { useGoal, useGoals } from "@/features/goals/goal-queries";
+import { ApiError } from "@/lib/api-error";
+import { PeriodGoalDetail } from "@/screens/period-goal-detail";
 import { koreanShortDate } from "@/lib/dates";
 import { goalCalendarParams } from "@/features/navigation/app-routes";
 import { useOpenScreen } from "@/features/navigation/use-open-screen";
@@ -31,10 +34,29 @@ export default function GoalDetailScreen() {
   const router = useRouter();
   const openScreen = useOpenScreen();
   const today = useToday();
+  const goalQuery = useGoal(goalId);
   const goalsQuery = useGoals();
   const daysQuery = useDays();
   const updateDay = useUpdateDay();
 
+  // The Goal is loaded by id first: a PERIOD Goal has its own detail, and another user's Goal is a 404.
+  if (goalQuery.isPending) {
+    return (
+      <Screen>
+        <LoadingState label="목표를 불러오는 중…" />
+      </Screen>
+    );
+  }
+  if (goalQuery.isError && !(goalQuery.error instanceof ApiError && goalQuery.error.status === 404)) {
+    return (
+      <Screen>
+        <ErrorState error={goalQuery.error} onRetry={() => void goalQuery.refetch()} />
+      </Screen>
+    );
+  }
+  if (goalQuery.data && isPeriodGoalResponse(goalQuery.data)) {
+    return <PeriodGoalDetail goal={goalQuery.data} today={today} />;
+  }
   if (goalsQuery.isPending) {
     return (
       <Screen>

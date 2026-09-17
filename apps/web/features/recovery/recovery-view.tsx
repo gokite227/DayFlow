@@ -20,6 +20,7 @@ import { DAY_PRIORITY_LABEL, DAY_STATUS_LABEL, describeDaySchedule } from "@/fea
 import { goalPeriodLabel } from "@/features/goals/goal-period";
 import { useGoals } from "@/features/goals/goal-queries";
 import { GOAL_TYPE_LABEL } from "@/features/goals/goal-tree";
+import { usePeriodGoals } from "@/features/goals/period-goal-queries";
 import { goalChipLabel } from "@/features/review/review-goals";
 import { isOpen } from "@/features/review/review-summary";
 import { isStaleDataError } from "@/lib/api-error";
@@ -27,6 +28,7 @@ import { useToday } from "@/lib/use-today";
 import {
   CARRY_OVER_MODES,
   CARRY_OVER_MODE_LABEL,
+  PERIOD_CARRY_OVER_BLOCKED,
   RECOVERY_ACTIONS,
   RECOVERY_ACTION_LABEL,
   SKIP_THIS_TIME,
@@ -41,6 +43,7 @@ import {
   moveRange,
   overridesToChoices,
   previewLines,
+  recoveryActionBlockedReason,
   shortDate,
   skippedDays,
   summarizeCarryOver,
@@ -109,13 +112,17 @@ interface Preview {
 function MissedDaysSection({ today }: { today: string }) {
   const candidatesQuery = useRecoveryCandidates(today);
   const goalsQuery = useGoals();
+  const periodGoalsQuery = usePeriodGoals();
   const apply = useApplyRecovery();
   const [drafts, setDrafts] = useState<Record<string, RecoveryDraft>>({});
   const [preview, setPreview] = useState<Preview | null>(null);
   const [applied, setApplied] = useState<ApplyRecoveryResponse | null>(null);
   const [carried, setCarried] = useState<ApplyCarryOverResponse | null>(null);
 
-  const goalsById = new Map((goalsQuery.data ?? []).map((goal) => [goal.id, goal]));
+  // Both kinds: a PERIOD Goal bounds MOVE the same way a WEEK Goal does.
+  const goalsById = new Map<string, GoalResponse>(
+    [...(goalsQuery.data ?? []), ...(periodGoalsQuery.data ?? [])].map((goal) => [goal.id, goal]),
+  );
   const candidates = candidatesQuery.data ?? [];
   const missed = candidates.map((candidate) => candidate.day);
   // A Day without a Goal has no Goal period, so MOVE is only bounded by today (DAY-001).
@@ -190,12 +197,14 @@ function MissedDaysSection({ today }: { today: string }) {
           <ErrorNotice error={apply.error} />
         </div>
       ) : null}
-      {candidatesQuery.isPending || goalsQuery.isPending ? (
+      {candidatesQuery.isPending || goalsQuery.isPending || periodGoalsQuery.isPending ? (
         <LoadingState />
       ) : candidatesQuery.isError ? (
         <ErrorNotice error={candidatesQuery.error} onRetry={() => void candidatesQuery.refetch()} />
       ) : goalsQuery.isError ? (
         <ErrorNotice error={goalsQuery.error} onRetry={() => void goalsQuery.refetch()} />
+      ) : periodGoalsQuery.isError ? (
+        <ErrorNotice error={periodGoalsQuery.error} onRetry={() => void periodGoalsQuery.refetch()} />
       ) : missed.length === 0 ? (
         <EmptyState>
           지금 다시 정리할 계획이 없어요. <Link href="/today">Today</Link>에서 오늘 계획을 이어가세요.
@@ -263,12 +272,8 @@ function MissedDayRow({
 }) {
   const { day } = candidate;
   const problem = draftProblem(day, draft, range);
-  const disabledReason = (action: RecoveryDraft["action"]) =>
-    action === "MOVE" && range === null
-      ? "이 주가 지나서 날짜만 바꿀 수는 없어요"
-      : action === "CARRY_OVER" && day.goalId === null
-        ? "목표 없는 Day는 날짜 바꾸기로 원하는 날에 옮겨요"
-        : null;
+  const disabledReason = (action: RecoveryDraft["action"]) => recoveryActionBlockedReason(action, day, goal, range);
+  const periodGoal = goal?.kind === "PERIOD";
 
   return (
     <div className="recovery-row" data-day-id={day.id}>
@@ -359,7 +364,11 @@ function MissedDayRow({
         <div className="recovery-fields">
           <label className="field">
             <span className="field-label">
-              {range.max ? "이번 주 안의 새 날짜 (시간 배치는 해제돼요)" : "오늘 이후의 새 날짜 (시간 배치는 해제돼요)"}
+              {range.max
+                ? periodGoal
+                  ? "기간 목표 안의 새 날짜 (시간 배치는 해제돼요)"
+                  : "이번 주 안의 새 날짜 (시간 배치는 해제돼요)"
+                : "오늘 이후의 새 날짜 (시간 배치는 해제돼요)"}
             </span>
             <input
               type="date"
@@ -375,11 +384,21 @@ function MissedDayRow({
 
       {range === null && draft.action !== "CARRY_OVER" && (
         <div className="mini" style={{ marginTop: 8 }}>
-          이 주간 목표 기간이 지났어요. 다른 주에 다시 하려면 &lsquo;다음 계획으로 이어가기&rsquo;를 골라주세요.
+          {periodGoal ? (
+            "기간 목표가 끝났어요. 다른 날에 다시 하려면 Day에서 목표 연결을 해제한 뒤 날짜를 바꿔주세요."
+          ) : (
+            <>이 주간 목표 기간이 지났어요. 다른 주에 다시 하려면 &lsquo;다음 계획으로 이어가기&rsquo;를 골라주세요.</>
+          )}
         </div>
       )}
 
-      {draft.action === "CARRY_OVER" && goal && (
+      {periodGoal && (
+        <div className="mini" style={{ marginTop: 8 }} data-carry-over-blocked>
+          {PERIOD_CARRY_OVER_BLOCKED}
+        </div>
+      )}
+
+      {draft.action === "CARRY_OVER" && goal && !periodGoal && (
         <CarryOverPanel day={day} weekGoal={goal} today={today} onCarried={onCarried} />
       )}
 

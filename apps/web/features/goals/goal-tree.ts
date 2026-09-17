@@ -1,4 +1,4 @@
-import type { GoalResponse } from "@dayflow/api-client";
+import type { CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 import { GOAL_TYPES, getExpectedParentGoalType } from "@dayflow/domain";
 
 export type GoalType = GoalResponse["type"];

@@ -1,4 +1,4 @@
-import type { GoalResponse, ReviewItemResponse } from "@dayflow/api-client";
+import type { CalendarGoalResponse as GoalResponse, ReviewItemResponse } from "@dayflow/api-client";
 import { describe, expect, it } from "vitest";
 import {
   dayGoalCandidates,
@@ -12,6 +12,7 @@ import { reviewPeriod } from "./review-period";
 
 const goal = (id: string, type: GoalResponse["type"], startDate: string, endDate: string, title = id): GoalResponse => ({
   id,
+  kind: "CALENDAR",
   type,
   parentGoalId: null,
   title,

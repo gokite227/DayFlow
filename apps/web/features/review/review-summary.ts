@@ -1,4 +1,4 @@
-import type { DayResponse, GoalResponse } from "@dayflow/api-client";
+import type { DayResponse, CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 
 // Only values the current Goal/Day API states exactly. Date changes, actual start times and focus
 // time are not stored yet, so they are not shown.

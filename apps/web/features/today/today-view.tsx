@@ -1,6 +1,8 @@
 "use client";
 
-import type { DayResponse, GoalResponse } from "@dayflow/api-client";
+import type { DayResponse, CalendarGoalResponse as GoalResponse, GoalResponse as AnyGoalResponse } from "@dayflow/api-client";
+import { usePeriodGoals } from "@/features/goals/period-goal-queries";
+import { dayGoalLink } from "@/features/goals/period-goal-values";
 import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
@@ -40,8 +42,11 @@ function TodayContent({ today }: { today: string }) {
   const allDaysQuery = useDays();
   const updateDay = useUpdateDay();
 
+  const periodGoalsQuery = usePeriodGoals();
   const goals = goalsQuery.data ?? [];
   const goalsById = new Map(goals.map((goal) => [goal.id, goal]));
+  // Day rows link to either kind of Goal; the Goal path below stays the CALENDAR hierarchy.
+  const anyGoalsById = new Map<string, AnyGoalResponse>([...goals, ...(periodGoalsQuery.data ?? [])].map((goal) => [goal.id, goal]));
   // Core Days first; no ranking by time or completion.
   const days = [...(daysQuery.data ?? [])].sort((a, b) => Number(b.coreDay) - Number(a.coreDay));
   const weekGoals = sortGoals(goals.filter((goal) => goal.type === "WEEK"));
@@ -49,7 +54,8 @@ function TodayContent({ today }: { today: string }) {
   // Paths of the WEEK Goals behind today's Days (Days without a Goal have no path, DAY-001);
   // without such Days, the WEEK Goals covering today.
   const linkedGoalIds = [...new Set(days.map((day) => day.goalId))].filter(
-    (goalId): goalId is string => goalId !== null,
+    // PERIOD Goals have no hierarchy path; their Days show the Goal link on the row instead.
+    (goalId): goalId is string => goalId !== null && goalsById.has(goalId),
   );
   const pathGoals = linkedGoalIds.length
     ? linkedGoalIds
@@ -104,7 +110,7 @@ function TodayContent({ today }: { today: string }) {
               <DayItem
                 key={day.id}
                 day={day}
-                goalTitle={day.goalId === null ? undefined : goalsById.get(day.goalId)?.title}
+                goal={dayGoalLink(day, anyGoalsById)}
                 highlightCore
                 toggling={updateDay.isPending && updateDay.variables?.dayId === day.id}
                 onToggle={() => updateDay.mutate({ dayId: day.id, body: doneToggleRequest(day) })}

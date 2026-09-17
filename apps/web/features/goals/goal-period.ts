@@ -1,4 +1,4 @@
-import type { GoalResponse } from "@dayflow/api-client";
+import type { CalendarGoalResponse as GoalResponse, GoalResponse as AnyGoalResponse } from "@dayflow/api-client";
 import {
   childPeriodOptions,
   findParentCandidates,
@@ -18,7 +18,8 @@ const parts = (date: string) => ({ year: Number(date.slice(0, 4)), month: Number
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
 
 /** "2026", "3분기", "9월", "9월 3주". `withYear` adds the year where the short label needs context. */
-export function goalPeriodLabel(goal: Pick<GoalResponse, "type" | "startDate" | "endDate">, withYear = false): string {
+export function goalPeriodLabel(goal: Pick<AnyGoalResponse, "type" | "startDate" | "endDate">, withYear = false): string {
+  if (goal.type === null) return periodRangeLabel(goal);
   if (!isCanonicalGoalPeriod(goal.type, goal)) {
     // Data created before GOAL-004 may still have a free range.
     return `${md(goal.startDate)} ~ ${md(goal.endDate)}`;

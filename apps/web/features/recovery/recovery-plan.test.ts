@@ -49,9 +49,10 @@ const base: DayResponse = {
 const week = { startDate: "2026-09-14", endDate: "2026-09-20" };
 const today = "2026-09-16";
 
-const goal = (id: string, type: GoalResponse["type"], startDate: string, endDate: string, version = 0): GoalResponse => ({
+const goal = (id: string, type: NonNullable<GoalResponse["type"]>, startDate: string, endDate: string, version = 0): GoalResponse => ({
   id,
   parentGoalId: null,
+  kind: "CALENDAR",
   type,
   title: `${type} plan`,
   why: "",
@@ -184,7 +185,7 @@ const w5 = goal("w5", "WEEK", "2026-09-28", "2026-09-30");
 const q4 = goal("q4", "QUARTER", "2026-10-01", "2026-12-31", 4);
 
 const level = (
-  type: GoalResponse["type"],
+  type: NonNullable<GoalResponse["type"]>,
   action: CarryOverPreviewResponse["levels"][number]["action"],
   extra: Partial<CarryOverPreviewResponse["levels"][number]> = {},
 ): CarryOverPreviewResponse["levels"][number] => ({

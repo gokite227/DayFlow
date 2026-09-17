@@ -1,6 +1,6 @@
 "use client";
 
-import type { GoalResponse } from "@dayflow/api-client";
+import type { CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 import { yearPeriod, type GoalPeriod } from "@dayflow/domain";
 import { useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
@@ -15,6 +15,7 @@ import {
   type PeriodChoice,
 } from "./goal-period";
 import { useCreateGoal, useUpdateGoal } from "./goal-queries";
+import { GoalKindSwitch, type GoalKindChoice } from "./period-goal-views";
 import {
   GOAL_TYPE_LABEL,
   GOAL_TYPE_ORDER,
@@ -42,11 +43,14 @@ export function GoalFormModal({
   goals,
   onClose,
   onCreated,
+  onSwitchKind,
 }: {
   target: GoalFormTarget;
   goals: readonly GoalResponse[];
   onClose: () => void;
   onCreated?: (goal: GoalResponse) => void;
+  /** Global create form only: switch to a PERIOD Goal. */
+  onSwitchKind?: (kind: GoalKindChoice) => void;
 }) {
   const editing = target.mode === "edit" ? target.goal : null;
   const context = target.mode === "create" ? target.context : null;
@@ -168,6 +172,7 @@ export function GoalFormModal({
         )}
 
         <div className="form-grid">
+          {!editing && !context && onSwitchKind && <GoalKindSwitch kind="CALENDAR" onChange={onSwitchKind} />}
           {!editing && !context && (
             <label className="field wide">
               <span className="field-label">단계</span>

@@ -1,10 +1,11 @@
-import type { DayResponse } from "@dayflow/api-client";
+import type { DayResponse, GoalResponse } from "@dayflow/api-client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { getDayFlowApiClient } from "@/lib/api-client";
 import { expectData, expectNoContent } from "@/lib/api-error";
 import { deviceTimeZone, wallClock } from "@/lib/dates";
 import { queryKeys } from "@/lib/query-keys";
-import { applyDropToDay, scheduleRequest, type DropAction } from "./calendar-grid";
+import { applyDropToDay, dropDateProblem, scheduleRequest, type DropAction } from "./calendar-grid";
 
 type CalendarChange = { day: DayResponse; action: Exclude<DropAction, null> };
 
@@ -16,9 +17,11 @@ const timeZoneOf = (day: DayResponse) => day.schedule?.timezone ?? deviceTimeZon
  * optimistically to the cached full Day list (the Calendar's single source), sends the existing
  * Day/schedule API calls, and restores the snapshot if the server rejects the change.
  */
-export function useCalendarDayActions() {
+export function useCalendarDayActions(goalOf: (day: DayResponse) => Pick<GoalResponse, "kind" | "startDate" | "endDate"> | undefined = () => undefined) {
   const queryClient = useQueryClient();
   const listKey = queryKeys.days.list({});
+  // A drop the Day's Goal period cannot take is refused before the optimistic update, so nothing moves.
+  const [problem, setProblem] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: async ({ day, action }: CalendarChange) => {
@@ -57,16 +60,24 @@ export function useCalendarDayActions() {
   const resize = (day: DayResponse, lengthMinutes: number) => {
     if (!day.schedule) return;
     const start = wallClock(day.schedule.startAt);
+    setProblem(null);
     mutation.mutate({ day, action: { type: "setSchedule", date: start.date, startMinutes: start.minutes, lengthMinutes } });
   };
 
   return {
     apply: (day: DayResponse, action: DropAction) => {
-      if (action !== null) mutation.mutate({ day, action });
+      if (action === null) return;
+      const refusal = dropDateProblem(goalOf(day), action);
+      setProblem(refusal);
+      if (refusal === null) mutation.mutate({ day, action });
     },
     resize,
     pending: mutation.isPending,
     error: mutation.error,
-    reset: mutation.reset,
+    problem,
+    reset: () => {
+      setProblem(null);
+      mutation.reset();
+    },
   };
 }

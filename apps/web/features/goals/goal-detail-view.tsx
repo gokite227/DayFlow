@@ -1,14 +1,17 @@
 "use client";
 
-import type { DayResponse, GoalResponse } from "@dayflow/api-client";
+import { isPeriodGoalResponse, type DayResponse, type CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
 import { DayFormModal } from "@/features/days/day-form-modal";
 import { useDays } from "@/features/days/day-queries";
+import { ApiError } from "@/lib/api-error";
 import { useToday } from "@/lib/use-today";
 import { GoalFormModal, type GoalFormTarget } from "./goal-form-modal";
+import { PeriodGoalDetail } from "./period-goal-detail";
+import { useGoal } from "./period-goal-queries";
 import { goalPeriodLabel, periodRangeLabel } from "./goal-period";
 import { GoalProgress } from "./goal-progress";
 import { useDeleteGoal, useGoals } from "./goal-queries";
@@ -18,18 +21,40 @@ import { backToGoalsHref, datesOfGoal, goalCalendarHref, goalDetailHref, type We
 
 const CHILD_SECTION_TITLE = { YEAR: "분기 목표", QUARTER: "월간 목표", MONTH: "주간 목표" } as const;
 
-/** One Goal and its direct children (drill-down). A WEEK Goal shows its Days instead. */
+/**
+ * One Goal. A CALENDAR Goal shows its direct children (drill-down) or, for WEEK, its Days; a PERIOD Goal
+ * shows its range, status and linked Days. The Goal itself is loaded by id, so a refresh keeps the page and
+ * another user's (or a deleted) Goal ends in the same "not found" state.
+ */
 export function GoalDetailView({ goalId }: { goalId: string }) {
+  const goalQuery = useGoal(goalId);
   const goalsQuery = useGoals();
   const daysQuery = useDays();
   const today = useToday();
   const searchParams = useSearchParams();
 
-  if (goalsQuery.isPending) return <LoadingState label="목표를 불러오는 중…" />;
+  if (goalQuery.isPending || (goalQuery.data?.kind !== "PERIOD" && goalsQuery.isPending)) {
+    return <LoadingState label="목표를 불러오는 중…" />;
+  }
+  if (goalQuery.isError && !(goalQuery.error instanceof ApiError && goalQuery.error.status === 404)) {
+    return <ErrorNotice error={goalQuery.error} onRetry={() => void goalQuery.refetch()} />;
+  }
+  if (goalQuery.data && isPeriodGoalResponse(goalQuery.data)) {
+    if (today === null) return <LoadingState />;
+    const back = searchParams.get("back");
+    return (
+      <PeriodGoalDetail
+        key={goalQuery.data.id}
+        goal={goalQuery.data}
+        today={today}
+        backHref={back ? backToGoalsHref(back, "YEAR") : null}
+      />
+    );
+  }
   if (goalsQuery.isError) {
     return <ErrorNotice error={goalsQuery.error} onRetry={() => void goalsQuery.refetch()} />;
   }
-  const goals = goalsQuery.data;
+  const goals = goalsQuery.data ?? [];
   const goal = goals.find((candidate) => candidate.id === goalId);
   if (!goal) {
     return (

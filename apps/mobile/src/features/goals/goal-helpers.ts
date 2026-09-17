@@ -1,7 +1,7 @@
 import type { DayResponse, GoalResponse } from "@dayflow/api-client";
 import { GOAL_TYPES, isCanonicalGoalPeriod, weekSegmentsOfMonth } from "@dayflow/domain";
 
-export type GoalType = GoalResponse["type"];
+export type GoalType = NonNullable<GoalResponse["type"]>;
 
 export const GOAL_TYPE_ORDER: readonly GoalType[] = GOAL_TYPES;
 
@@ -13,6 +13,7 @@ const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8,
 
 /** "2026", "3분기", "9월", "9월 3주" (GOAL-004: derived from type + dates, never stored). */
 export function goalPeriodLabel(goal: Pick<GoalResponse, "type" | "startDate" | "endDate">, withYear = false): string {
+  if (goal.type === null) return `${md(goal.startDate)} ~ ${md(goal.endDate)}`;
   if (!isCanonicalGoalPeriod(goal.type, goal)) return `${md(goal.startDate)} ~ ${md(goal.endDate)}`;
   const year = Number(goal.startDate.slice(0, 4));
   const month = Number(goal.startDate.slice(5, 7));
@@ -36,8 +37,9 @@ export function periodRangeLabel(goal: Pick<GoalResponse, "startDate" | "endDate
   return goal.startDate === goal.endDate ? md(goal.startDate) : `${md(goal.startDate)} ~ ${md(goal.endDate)}`;
 }
 
-/** "9월 3주 · 백엔드 준비" */
+/** "9월 3주 · 백엔드 준비", or "기간 · 중간고사 준비 (9/21 ~ 10/8)" for a PERIOD Goal. */
 export function goalChipLabel(goal: GoalResponse, withYear = false): string {
+  if (goal.kind === "PERIOD") return `기간 · ${goal.title} (${periodRangeLabel(goal)})`;
   return `${goalPeriodLabel(goal, withYear)} · ${goal.title}`;
 }
 
@@ -45,7 +47,7 @@ export function sortGoals(goals: readonly GoalResponse[]): GoalResponse[] {
   return [...goals].sort(
     (a, b) =>
       a.startDate.localeCompare(b.startDate) ||
-      GOAL_TYPE_ORDER.indexOf(a.type) - GOAL_TYPE_ORDER.indexOf(b.type) ||
+      GOAL_TYPE_ORDER.indexOf(a.type ?? "YEAR") - GOAL_TYPE_ORDER.indexOf(b.type ?? "YEAR") ||
       a.title.localeCompare(b.title),
   );
 }

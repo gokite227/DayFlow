@@ -1,6 +1,9 @@
 "use client";
 
-import type { DayPriority, DayResponse } from "@dayflow/api-client";
+import type { DayPriority, DayResponse, GoalResponse } from "@dayflow/api-client";
+import { sortPeriodGoals } from "@dayflow/domain";
+import { usePeriodGoals } from "@/features/goals/period-goal-queries";
+import { dayGoalLink, periodGoalOptionLabel } from "@/features/goals/period-goal-values";
 import { useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
@@ -54,8 +57,10 @@ function DaysContent({ today }: { today: string }) {
   const tagsQuery = useDayTags();
   const updateDay = useUpdateDay();
 
+  const periodGoalsQuery = usePeriodGoals();
   const weekGoals = sortGoals(weekGoalsQuery.data ?? []);
-  const goalsById = new Map(weekGoals.map((goal) => [goal.id, goal]));
+  const periodGoals = sortPeriodGoals(periodGoalsQuery.data ?? [], today);
+  const goalsById = new Map<string, GoalResponse>([...weekGoals, ...periodGoals].map((goal) => [goal.id, goal]));
   const tags = sortTags(tagsQuery.data ?? []);
   const allDays = daysQuery.data ?? [];
   const counts = countByView(allDays, today);
@@ -110,11 +115,24 @@ function DaysContent({ today }: { today: string }) {
             <option value="all">전체</option>
             <option value="with">목표 있음</option>
             <option value="without">목표 없음</option>
-            {weekGoals.map((goal) => (
-              <option key={goal.id} value={goal.id}>
-                {goal.title} ({formatPeriod(goal)})
-              </option>
-            ))}
+            {weekGoals.length > 0 && (
+              <optgroup label="계획 목표 (주간)">
+                {weekGoals.map((goal) => (
+                  <option key={goal.id} value={goal.id}>
+                    {goal.title} ({formatPeriod(goal)})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {periodGoals.length > 0 && (
+              <optgroup label="기간 목표">
+                {periodGoals.map((goal) => (
+                  <option key={goal.id} value={goal.id}>
+                    {periodGoalOptionLabel(goal, today)}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
 
           <label className="mini" htmlFor="days-priority-filter">
@@ -218,7 +236,7 @@ function DaysContent({ today }: { today: string }) {
               <DayItem
                 key={day.id}
                 day={day}
-                goalTitle={day.goalId === null ? undefined : goalsById.get(day.goalId)?.title}
+                goal={dayGoalLink(day, goalsById)}
                 toggling={updateDay.isPending && updateDay.variables?.dayId === day.id}
                 onToggle={() => updateDay.mutate({ dayId: day.id, body: doneToggleRequest(day) })}
                 onOpen={() => {

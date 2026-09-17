@@ -24,6 +24,18 @@ export type DropAction =
   | { type: "moveDate"; date: string | null }
   | null;
 
+/** The date a Day would have after the action; undefined when the date does not change. */
+export function dropTargetDate(action: NonNullable<DropAction>): string | null | undefined {
+  switch (action.type) {
+    case "setSchedule":
+      return action.date;
+    case "unschedule":
+      return action.moveToDate ?? undefined;
+    case "moveDate":
+      return action.date;
+  }
+}
+
 /**
  * Decides what a drop means. `offsetPx` is how far the dragged item's top edge sits below the
  * top of the target time column; times snap to CALENDAR_SNAP_MINUTES.

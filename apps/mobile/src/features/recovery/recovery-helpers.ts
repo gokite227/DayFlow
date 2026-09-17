@@ -58,17 +58,29 @@ export function initialDraft(day: DayResponse, moveDate: string | null): Recover
   return { action: "KEEP", estimatedMinutes: Math.max(1, Math.floor(day.estimatedMinutes / 2)), title: day.title, plannedDate: moveDate ?? "" };
 }
 
-/** MOVE stays inside the WEEK Goal (null once that week is over); without a Goal: today or later. */
+/** MOVE stays inside the WEEK or PERIOD Goal (null once it is over); without a Goal: today or later. */
 export function moveRange(goal: Pick<GoalResponse, "startDate" | "endDate"> | undefined, today: string): MoveRange | null {
   if (!goal) return { min: today, max: null };
   const min = goal.startDate > today ? goal.startDate : today;
   return min <= goal.endDate ? { min, max: goal.endDate } : null;
 }
 
-/** Why an action cannot be picked for this Day, or null when it can. */
-export function actionUnavailableReason(action: RecoveryAction, day: Pick<DayResponse, "goalId">, range: MoveRange | null): string | null {
-  if (action === "MOVE" && range === null) return "이 주가 지나서 날짜만 바꿀 수는 없어요";
+export const PERIOD_CARRY_OVER_BLOCKED = "기간 목표에 연결된 Day는 이어가기 대신 기간 안에서 이동하거나 목표 연결을 해제해 주세요.";
+
+/**
+ * Why an action cannot be picked for this Day, or null when it can. A PERIOD Goal Day moves only inside its
+ * period and cannot be carried over (the server refuses it); CALENDAR rules are unchanged.
+ */
+export function actionUnavailableReason(
+  action: RecoveryAction,
+  day: Pick<DayResponse, "goalId">,
+  range: MoveRange | null,
+  goal?: Pick<GoalResponse, "kind">,
+): string | null {
+  const period = goal?.kind === "PERIOD";
+  if (action === "MOVE" && range === null) return period ? "기간 목표가 끝나서 날짜만 바꿀 수는 없어요" : "이 주가 지나서 날짜만 바꿀 수는 없어요";
   if (action === "CARRY_OVER" && day.goalId === null) return "목표 없는 Day는 날짜 바꾸기로 원하는 날에 옮겨요";
+  if (action === "CARRY_OVER" && period) return PERIOD_CARRY_OVER_BLOCKED;
   return null;
 }
 

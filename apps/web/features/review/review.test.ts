@@ -1,4 +1,4 @@
-import type { DayResponse, GoalResponse } from "@dayflow/api-client";
+import type { DayResponse, CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 import { describe, expect, it } from "vitest";
 import { overlaps, reviewPeriod, shiftAnchor } from "./review-period";
 import { formatRate, goalSubtreeIds, isOpen, summarizeDays, summarizeGoal } from "./review-summary";
@@ -24,6 +24,7 @@ const day = (overrides: Partial<DayResponse>): DayResponse => ({
 
 const goal = (id: string, type: GoalResponse["type"], parentGoalId: string | null): GoalResponse => ({
   id,
+  kind: "CALENDAR",
   type,
   parentGoalId,
   title: id,

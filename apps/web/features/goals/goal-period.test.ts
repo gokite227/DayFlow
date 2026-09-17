@@ -1,4 +1,4 @@
-import type { GoalResponse } from "@dayflow/api-client";
+import type { CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 import { describe, expect, it } from "vitest";
 import { childPeriodChoices, goalPeriodLabel, periodChoicesInYear, resolveParent } from "./goal-period";
 
@@ -6,6 +6,7 @@ function goal(id: string, type: GoalResponse["type"], startDate: string, endDate
   return {
     id,
     parentGoalId,
+    kind: "CALENDAR",
     type,
     title: `${id} title`,
     why: "",

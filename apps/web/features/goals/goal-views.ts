@@ -1,14 +1,17 @@
-import type { GoalResponse } from "@dayflow/api-client";
+import type { CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 import { addDays, startOfWeek } from "../calendar/calendar-time";
 import { goalPeriodLabel } from "./goal-period";
+import { parsePeriodFilter, type PeriodGoalFilter } from "./period-goal-values";
 
 /**
  * GOAL-005 view state for /goals, kept in the URL so a refresh or browser back returns to the same view:
- * /goals?view=year|quarter|month|week&layout=week|list&week=YYYY-MM-DD
+ * /goals?view=year|quarter|month|week|period&layout=week|list&week=YYYY-MM-DD&status=ACTIVE|UPCOMING|ENDED
  * There is no global "전체" view; the YEAR flow lives in the Goal detail (/goals/{yearId}/flow, GOAL-006).
+ * "period" lists the independent PERIOD Goals next to the four CALENDAR levels.
  */
-export const GOALS_VIEWS = ["year", "quarter", "month", "week"] as const;
+export const GOALS_VIEWS = ["year", "quarter", "month", "week", "period"] as const;
 export type GoalsViewName = (typeof GOALS_VIEWS)[number];
+export type CalendarGoalsViewName = Exclude<GoalsViewName, "period">;
 
 export const DEFAULT_GOALS_VIEW: GoalsViewName = "year";
 
@@ -20,12 +23,13 @@ export const GOALS_VIEW_LABEL: Record<GoalsViewName, string> = {
   quarter: "분기",
   month: "월간",
   week: "주간",
+  period: "기간",
 };
 
 export const WEEK_LAYOUT_LABEL: Record<WeekLayout, string> = { week: "주간형식", list: "리스트형식" };
 
-/** The Goal type a view lists (and the default type for "+ 새 목표" there). */
-export const VIEW_GOAL_TYPE: Record<GoalsViewName, GoalResponse["type"]> = {
+/** The Goal type a CALENDAR view lists (and the default type for "+ 새 목표" there). */
+export const VIEW_GOAL_TYPE: Record<CalendarGoalsViewName, GoalResponse["type"]> = {
   year: "YEAR",
   quarter: "QUARTER",
   month: "MONTH",
@@ -45,6 +49,8 @@ export interface GoalsViewState {
   layout: WeekLayout;
   /** Monday of the week shown by the week layout. */
   weekStart: string;
+  /** Status filter of the period view. */
+  status: PeriodGoalFilter;
 }
 
 const isDate = (value: string | null): value is string => value !== null && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -57,6 +63,7 @@ export function parseGoalsViewState(params: { get(name: string): string | null }
     view: (GOALS_VIEWS as readonly string[]).includes(view ?? "") ? (view as GoalsViewName) : DEFAULT_GOALS_VIEW,
     layout: (WEEK_LAYOUTS as readonly string[]).includes(layout ?? "") ? (layout as WeekLayout) : "week",
     weekStart: startOfWeek(isDate(week) ? week : today),
+    status: parsePeriodFilter(params.get("status")),
   };
 }
 
@@ -67,6 +74,7 @@ export function goalsViewHref(state: Partial<GoalsViewState> & { view: GoalsView
     query.set("layout", state.layout ?? "week");
     if (state.weekStart && state.weekStart !== startOfWeek(today)) query.set("week", state.weekStart);
   }
+  if (state.view === "period" && state.status && state.status !== "all") query.set("status", state.status);
   return `/goals?${query.toString()}`;
 }
 

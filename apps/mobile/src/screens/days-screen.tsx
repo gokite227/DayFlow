@@ -1,3 +1,4 @@
+import type { GoalResponse } from "@dayflow/api-client";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
@@ -19,7 +20,7 @@ import {
   type DaysFilters,
   type GoalFilter,
 } from "@/features/days/day-values";
-import { useGoals } from "@/features/goals/goal-queries";
+import { useGoals, usePeriodGoals } from "@/features/goals/goal-queries";
 import { useToday } from "@/lib/use-today";
 import { Button, Card, Chip, ChipRow, EmptyState, ErrorState, FieldLabel, layout, LoadingState, Screen, useTextStyles } from "@/ui/components";
 import { fontSize, radius, spacing, TOUCH_TARGET, usePalette } from "@/ui/theme";
@@ -44,7 +45,8 @@ export default function DaysScreen() {
   const allDays = daysQuery.data ?? [];
   const counts = countByView(allDays, today);
   const days = sortDays(filterDays(allDays, filters, today));
-  const goalsById = new Map((goalsQuery.data ?? []).map((goal) => [goal.id, goal]));
+  const periodGoalsQuery = usePeriodGoals();
+  const goalsById = new Map<string, GoalResponse>([...(goalsQuery.data ?? []), ...(periodGoalsQuery.data ?? [])].map((goal) => [goal.id, goal]));
   const tags = [...(tagsQuery.data ?? [])].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   const update = (change: Partial<DaysFilters>) => setFilters((current) => ({ ...current, ...change }));
 
@@ -147,6 +149,7 @@ export default function DaysScreen() {
               toggling={updateDay.isPending && updateDay.variables?.dayId === day.id}
               onToggle={() => updateDay.mutate({ dayId: day.id, body: doneToggleRequest(day) })}
               onPress={() => router.push({ pathname: "/days/edit", params: { dayId: day.id } })}
+              onGoalPress={day.goalId === null ? undefined : () => router.push({ pathname: "/goals/[goalId]", params: { goalId: day.goalId ?? "" } })}
             />
           ))
         )}

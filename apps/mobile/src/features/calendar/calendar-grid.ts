@@ -1,6 +1,7 @@
-import type { DayResponse, DayScheduleResponse, EventOccurrenceResponse, SetDayScheduleRequest } from "@dayflow/api-client";
+import type { DayResponse, DayScheduleResponse, EventOccurrenceResponse, GoalResponse, SetDayScheduleRequest } from "@dayflow/api-client";
 import { formatOffsetDateTime, layoutOverlaps, zonedDateTimeToInstant, type LayoutSlot } from "@dayflow/domain";
 import { addDays, isLocalDate, startOfWeek, wallClock, weekDates } from "../../lib/dates";
+import { dayDateProblem } from "../goals/period-goal-helpers";
 import type { WeekStart } from "../settings/settings-model";
 
 /**
@@ -8,11 +9,33 @@ import type { WeekStart } from "../settings/settings-model";
  * length, drop meanings, overlap lanes (shared @dayflow/domain layoutOverlaps) — with mobile sizes.
  */
 
-export const CALENDAR_VIEWS = ["day", "3day", "week"] as const;
+export const CALENDAR_VIEWS = ["day", "3day", "week", "month"] as const;
 export type CalendarView = (typeof CALENDAR_VIEWS)[number];
-export const CALENDAR_VIEW_LABEL: Record<CalendarView, string> = { day: "하루", "3day": "3일", week: "주" };
+export const CALENDAR_VIEW_LABEL: Record<CalendarView, string> = { day: "하루", "3day": "3일", week: "주", month: "월" };
 /** Mobile opens on a single day: the easiest width to plan and drag times in. */
 export const DEFAULT_CALENDAR_VIEW: CalendarView = "day";
+
+/** Independent of the view: Days and Events, or Events only. */
+export const CALENDAR_CONTENTS = ["all", "events"] as const;
+export type CalendarContent = (typeof CALENDAR_CONTENTS)[number];
+export const CALENDAR_CONTENT_LABEL: Record<CalendarContent, string> = { all: "전체", events: "일정만" };
+
+export function parseCalendarContent(param: string | string[] | undefined): CalendarContent {
+  return (Array.isArray(param) ? param[0] : param) === "events" ? "events" : "all";
+}
+
+export function parseCalendarView(param: string | string[] | undefined): CalendarView {
+  const value = Array.isArray(param) ? param[0] : param;
+  return (CALENDAR_VIEWS as readonly string[]).includes(value ?? "") ? (value as CalendarView) : DEFAULT_CALENDAR_VIEW;
+}
+
+/**
+ * The Days the Calendar works with. 일정만 removes every Day from the data (timed, date-only, unscheduled), so
+ * nothing hidden can be dragged, resized, dropped on or take a lane in the overlap layout.
+ */
+export function contentDays(days: readonly DayResponse[], content: CalendarContent): DayResponse[] {
+  return content === "events" ? [] : [...days];
+}
 
 export const SNAP_MINUTES = 15;
 export const MIN_SCHEDULE_MINUTES = SNAP_MINUTES;
@@ -28,7 +51,35 @@ export function selectedDateFromParam(param: string | string[] | undefined, toda
   return value !== undefined && isLocalDate(value) ? value : today;
 }
 
-/** Dates a view shows: the date, three days from it, or the week containing it (user week start). */
+const pad2 = (value: number) => String(value).padStart(2, "0");
+const daysInMonth = (year: number, month: number) => new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+export function monthStart(date: string): string {
+  return `${date.slice(0, 7)}-01`;
+}
+
+export function monthEnd(date: string): string {
+  return `${date.slice(0, 7)}-${pad2(daysInMonth(Number(date.slice(0, 4)), Number(date.slice(5, 7))))}`;
+}
+
+/** The same day `delta` months away, clamped to that month's length (1/31 → 2/28). */
+export function shiftMonth(date: string, delta: number): string {
+  const index = Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1 + delta;
+  const year = Math.floor(index / 12);
+  const month = index - year * 12 + 1;
+  return `${year}-${pad2(month)}-${pad2(Math.min(Number(date.slice(8, 10)), daysInMonth(year, month)))}`;
+}
+
+/** Whole weeks (user week start) from the week of the 1st to the week of the last day: 5 or 6 rows of 7. */
+export function monthGridDates(date: string, weekStart: WeekStart): string[] {
+  const first = startOfWeek(monthStart(date), weekStart);
+  const last = addDays(startOfWeek(monthEnd(date), weekStart), 6);
+  const dates: string[] = [];
+  for (let current = first; current <= last; current = addDays(current, 1)) dates.push(current);
+  return dates;
+}
+
+/** Dates a view shows: the date, three days from it, the week containing it, or the month grid (user week start). */
 export function viewDates(view: CalendarView, date: string, weekStart: WeekStart): string[] {
   switch (view) {
     case "day":
@@ -37,14 +88,21 @@ export function viewDates(view: CalendarView, date: string, weekStart: WeekStart
       return [0, 1, 2].map((offset) => addDays(date, offset));
     case "week":
       return weekDates(startOfWeek(date, weekStart));
+    case "month":
+      return monthGridDates(date, weekStart);
   }
 }
 
-const STEP_DAYS: Record<CalendarView, number> = { day: 1, "3day": 3, week: 7 };
+const STEP_DAYS: Record<Exclude<CalendarView, "month">, number> = { day: 1, "3day": 3, week: 7 };
 
-/** ‹ / ›: ±1 day, ±3 days or ±7 days. */
+/** ‹ / ›: ±1 day, ±3 days, ±7 days or ±1 month. */
 export function shiftViewDate(view: CalendarView, date: string, direction: -1 | 1): string {
-  return addDays(date, STEP_DAYS[view] * direction);
+  return view === "month" ? shiftMonth(date, direction) : addDays(date, STEP_DAYS[view] * direction);
+}
+
+/** Toolbar title: the date range, or "2026년 9월" for the month view. */
+export function viewRangeLabel(view: CalendarView, date: string, dates: readonly string[]): string {
+  return view === "month" ? `${Number(date.slice(0, 4))}년 ${Number(date.slice(5, 7))}월` : rangeLabel(dates);
 }
 
 const koreanDate = (date: string) => `${Number(date.slice(0, 4))}년 ${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`;
@@ -104,6 +162,26 @@ export type DropAction =
   /** PATCH plannedDate; null clears the date (the server removes any schedule). */
   | { type: "moveDate"; date: string | null }
   | null;
+
+/** The date a Day would have after the action; undefined when its date does not change. */
+export function dropTargetDate(action: Exclude<DropAction, null>): string | null | undefined {
+  switch (action.type) {
+    case "setSchedule":
+      return action.date;
+    case "unschedule":
+      return action.moveToDate ?? undefined;
+    case "moveDate":
+      return action.date;
+  }
+}
+
+/**
+ * Why a drop would put a Day outside its WEEK or PERIOD Goal (the server answers DATE_OUTSIDE_…), or null.
+ * Checked before the optimistic update, so a refused drop never moves the block.
+ */
+export function dropDateProblem(goal: Pick<GoalResponse, "kind" | "startDate" | "endDate"> | undefined, action: Exclude<DropAction, null>): string | null {
+  return dayDateProblem(goal, dropTargetDate(action) ?? null);
+}
 
 /**
  * What a drop means (same as the Web planDrop). `offsetPx` is how far the dragged block's top edge sits

@@ -4,13 +4,14 @@ import { Text, View } from "react-native";
 import { useDays } from "@/features/days/day-queries";
 import { DAY_PRIORITY_LABEL, DAY_STATUS_LABEL, describeDaySchedule } from "@/features/days/day-values";
 import { GOAL_TYPE_LABEL, goalChipLabel, goalPeriodLabel, isOpenDay } from "@/features/goals/goal-helpers";
-import { useGoals } from "@/features/goals/goal-queries";
+import { useGoals, usePeriodGoals } from "@/features/goals/goal-queries";
 import {
   CARRY_OVER_MODES,
   CARRY_OVER_MODE_LABEL,
   DRAFT_PROBLEM_MESSAGE,
   RECOVERY_ACTIONS,
   RECOVERY_ACTION_LABEL,
+  PERIOD_CARRY_OVER_BLOCKED,
   SKIP_THIS_TIME,
   SKIP_THIS_TIME_LABEL,
   actionUnavailableReason,
@@ -88,7 +89,9 @@ function MissedDays({ today }: { today: string }) {
   const [carried, setCarried] = useState<ApplyCarryOverResponse | null>(null);
   const [nothingToApply, setNothingToApply] = useState(false);
 
-  const goalsById = new Map((goalsQuery.data ?? []).map((goal) => [goal.id, goal]));
+  const periodGoalsQuery = usePeriodGoals();
+  // Both kinds: a PERIOD Goal bounds MOVE the same way a WEEK Goal does.
+  const goalsById = new Map<string, GoalResponse>([...(goalsQuery.data ?? []), ...(periodGoalsQuery.data ?? [])].map((goal) => [goal.id, goal]));
   const candidates = candidatesQuery.data ?? [];
   const missed = candidates.map((candidate) => candidate.day);
   const goalOf = (day: DayResponse) => (day.goalId === null ? undefined : goalsById.get(day.goalId));
@@ -163,7 +166,7 @@ function MissedDays({ today }: { today: string }) {
           다음 계획으로 이어갔어요. 새 Day {carried.days.length}개{carried.createdGoals.length > 0 ? `, 새 목표 ${carried.createdGoals.length}개` : ""}를 만들었어요.
         </Notice>
       ) : null}
-      {candidatesQuery.isPending || goalsQuery.isPending ? (
+      {candidatesQuery.isPending || goalsQuery.isPending || periodGoalsQuery.isPending ? (
         <LoadingState />
       ) : candidatesQuery.isError ? (
         <ErrorState error={candidatesQuery.error} onRetry={() => void candidatesQuery.refetch()} />
@@ -230,6 +233,7 @@ function MissedDayCard({
   const palette = usePalette();
   const { day } = candidate;
   const problem = draftProblem(day, draft, range);
+  const periodGoal = goal?.kind === "PERIOD";
   return (
     <View style={{ gap: spacing.sm, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: palette.border }}>
       <View style={layout.rowWrap}>
@@ -246,12 +250,14 @@ function MissedDayCard({
       </Text>
       <View style={layout.rowWrap}>
         {RECOVERY_ACTIONS.map((action) => {
-          const reason = actionUnavailableReason(action, day, range);
+          const reason = actionUnavailableReason(action, day, range, goal);
           return <Chip key={action} label={RECOVERY_ACTION_LABEL[action]} selected={draft.action === action} disabled={reason !== null} onPress={() => onChange({ action })} />;
         })}
         <Chip label={SKIP_THIS_TIME_LABEL} selected={draft.action === SKIP_THIS_TIME} onPress={() => onChange({ action: SKIP_THIS_TIME })} />
       </View>
-      {range === null ? <Text style={text.muted}>주간 목표 기간이 지나 날짜만 바꿀 수는 없어요. 다른 주에 하려면 &apos;다음 계획으로 이어가기&apos;를 골라주세요.</Text> : null}
+      {range === null && periodGoal ? <Text style={text.muted}>기간 목표가 끝났어요. 다른 날에 다시 하려면 Day에서 목표 연결을 해제한 뒤 날짜를 바꿔주세요.</Text> : null}
+      {range === null && !periodGoal ? <Text style={text.muted}>주간 목표 기간이 지나 날짜만 바꿀 수는 없어요. 다른 주에 하려면 &apos;다음 계획으로 이어가기&apos;를 골라주세요.</Text> : null}
+      {periodGoal ? <Text style={text.muted}>{PERIOD_CARRY_OVER_BLOCKED}</Text> : null}
       {day.goalId === null ? <Text style={text.muted}>목표 없는 Day는 &apos;날짜 바꾸기&apos;로 오늘 이후 원하는 날에 옮길 수 있어요.</Text> : null}
 
       {draft.action === "KEEP" ? <Text style={text.muted}>날짜와 내용을 바꾸지 않아요. 계획이 바뀌기 전까지 다시 묻지 않아요.</Text> : null}
@@ -270,7 +276,13 @@ function MissedDayCard({
       ) : null}
       {draft.action === "MOVE" && range ? (
         <DateField
-          label={range.max ? "이번 주 안의 새 날짜 (시간 배치는 해제돼요)" : "오늘 이후의 새 날짜 (시간 배치는 해제돼요)"}
+          label={
+            range.max
+              ? periodGoal
+                ? "기간 목표 안의 새 날짜 (시간 배치는 해제돼요)"
+                : "이번 주 안의 새 날짜 (시간 배치는 해제돼요)"
+              : "오늘 이후의 새 날짜 (시간 배치는 해제돼요)"
+          }
           value={draft.plannedDate}
           fallback={range.min}
           min={range.min}
@@ -278,7 +290,7 @@ function MissedDayCard({
           onChange={(plannedDate) => onChange({ plannedDate })}
         />
       ) : null}
-      {draft.action === "CARRY_OVER" && goal ? <CarryOverPanel day={day} weekGoal={goal} today={today} onCarried={onCarried} /> : null}
+      {draft.action === "CARRY_OVER" && goal && !periodGoal ? <CarryOverPanel day={day} weekGoal={goal} today={today} onCarried={onCarried} /> : null}
       {problem ? <Text style={text.danger}>{DRAFT_PROBLEM_MESSAGE[problem]}</Text> : null}
     </View>
   );

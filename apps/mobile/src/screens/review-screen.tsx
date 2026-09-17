@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { useDays } from "@/features/days/day-queries";
 import { GOAL_TYPE_LABEL, formatRate, goalChipLabel, summarizeDays, summarizeGoal } from "@/features/goals/goal-helpers";
-import { useGoals } from "@/features/goals/goal-queries";
+import { useGoals, usePeriodGoals } from "@/features/goals/goal-queries";
+import { periodCountLabel, periodProgressLabel, summarizePeriodGoal } from "@/features/goals/period-goal-helpers";
 import { useRecoveryCandidates } from "@/features/recovery/recovery-queries";
 import {
   KPT_SECTIONS,
@@ -17,6 +18,7 @@ import {
   removeItemChange,
   reviewGoalCandidates,
   reviewPeriod,
+  reviewPeriodGoalCandidates,
   saveReviewRequest,
   shiftAnchor,
   type ReviewChange,
@@ -28,18 +30,46 @@ import { useReview, useSaveReview } from "@/features/review/review-queries";
 import { koreanShortDate } from "@/lib/dates";
 import { useOpenScreen } from "@/features/navigation/use-open-screen";
 import { useToday } from "@/lib/use-today";
-import { Badge, Button, Card, Chip, ChipRow, EmptyState, ErrorState, layout, LoadingState, Notice, ProgressBar, Screen, SectionHeader, useTextStyles } from "@/ui/components";
+import { Badge, Button, Card, Chip, ChipRow, EmptyState, ErrorState, layout, LoadingState, Notice, ProgressBar, Screen, SectionHeader, Segmented, useTextStyles } from "@/ui/components";
+import { DAY_STATUS_LABEL } from "@/features/days/day-values";
+import { ReviewArchiveList } from "./review-archive-list";
 import { fontSize, makeStyles, radius, spacing, TOUCH_TARGET, usePalette } from "@/ui/theme";
 
+type ReviewMode = "write" | "archive";
+
+/** Review: 회고 작성 (the period editor) and 회고 모아보기 (saved reviews; a card opens /review/detail). */
 export default function ReviewScreen() {
   const text = useTextStyles();
   const today = useToday();
+  const [mode, setMode] = useState<ReviewMode>("write");
   const [type, setType] = useState<ReviewType>("WEEK");
   const [anchor, setAnchor] = useState(today);
   const period = reviewPeriod(type, anchor);
 
+  const modeSwitch = (
+    <Segmented
+      label="회고 화면"
+      value={mode}
+      onChange={setMode}
+      options={[
+        { value: "write", label: "회고 작성" },
+        { value: "archive", label: "회고 모아보기" },
+      ]}
+    />
+  );
+
+  if (mode === "archive") {
+    return (
+      <Screen>
+        {modeSwitch}
+        <ReviewArchiveList />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
+      {modeSwitch}
       <ChipRow>
         {REVIEW_TYPES.map((value) => (
           <Chip key={value} label={REVIEW_TYPE_LABEL[value]} selected={value === type} onPress={() => setType(value)} />
@@ -58,11 +88,13 @@ export default function ReviewScreen() {
   );
 }
 
-function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: string }) {
+/** One review period: summary, Goals and the KPT editor. Also used by /review/detail. */
+export function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: string }) {
   const text = useTextStyles();
   const styles = useStyles();
   const openScreen = useOpenScreen();
   const goalsQuery = useGoals();
+  const periodGoalsQuery = usePeriodGoals();
   const daysQuery = useDays({ from: period.start, to: period.end });
   const allDaysQuery = useDays();
   const reviewQuery = useReview(period.type, period.start);
@@ -72,6 +104,9 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
   const days = daysQuery.data ?? [];
   const summary = summarizeDays(days);
   const periodGoals = reviewGoalCandidates(goals, period);
+  // PERIOD Goals overlapping the reviewed period can be reflected on too (never a Try's next Goal).
+  const overlappingPeriodGoals = reviewPeriodGoalCandidates(periodGoalsQuery.data ?? [], period);
+  const allGoals: GoalResponse[] = [...goals, ...(periodGoalsQuery.data ?? [])];
   const missed = (candidatesQuery.data ?? []).filter(({ day }) => day.plannedDate !== null && period.start <= day.plannedDate && day.plannedDate <= period.end).length;
 
   return (
@@ -122,6 +157,22 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
             );
           })
         )}
+        {overlappingPeriodGoals.length > 0 ? <Text style={text.muted}>이 기간과 겹치는 기간 목표</Text> : null}
+        {overlappingPeriodGoals.map((goal) => {
+          const goalSummary = summarizePeriodGoal(days, goal.id);
+          return (
+            <View key={goal.id} style={{ gap: 4, paddingVertical: 4 }}>
+              <View style={layout.spaceBetween}>
+                <Text style={[text.strong, layout.flex]} numberOfLines={2}>
+                  기간 · {goal.title}
+                </Text>
+                <Text style={text.strong}>{periodProgressLabel(goalSummary)}</Text>
+              </View>
+              <Text style={text.muted}>기간 내 Day {periodCountLabel(goalSummary)}</Text>
+              <ProgressBar rate={goalSummary.completionRate ?? 0} />
+            </View>
+          );
+        })}
       </Card>
 
       {reviewQuery.isPending ? (
@@ -132,12 +183,12 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
         <KptEditor
           period={period}
           review={reviewQuery.data}
-          goalsById={new Map(goals.map((goal) => [goal.id, goal]))}
-          sourceCandidates={periodGoals}
+          goalsById={new Map(allGoals.map((goal) => [goal.id, goal]))}
+          sourceCandidates={[...periodGoals, ...overlappingPeriodGoals]}
           nextCandidates={nextGoalCandidates(goals, period)}
           convertedDayTitle={(dayId) => {
             const day = allDaysQuery.data?.find((candidate) => candidate.id === dayId);
-            return day ? `${day.plannedDate ? `${koreanShortDate(day.plannedDate)} · ` : "날짜 미정 · "}${day.title}` : null;
+            return day ? `${day.plannedDate ? `${koreanShortDate(day.plannedDate)} · ` : "날짜 미정 · "}${day.title} · ${DAY_STATUS_LABEL[day.status]}` : null;
           }}
         />
       )}
@@ -294,18 +345,28 @@ function KptItem({
   const text = useTextStyles();
   const palette = usePalette();
   const styles = useStyles();
+  const router = useRouter();
   const goal = item.goalId ? goalsById.get(item.goalId) : undefined;
   const target = item.targetGoalId ? goalsById.get(item.targetGoalId) : undefined;
+  const openGoal = (goalId: string) => router.push({ pathname: "/goals/[goalId]", params: { goalId } });
   const options = picking === "goal" ? (goal && !sourceCandidates.includes(goal) ? [goal, ...sourceCandidates] : sourceCandidates) : nextCandidates;
 
   return (
     <View style={styles.item}>
       <Text style={text.body}>{item.content}</Text>
-      {goal ? <Badge label={`🎯 ${goalChipLabel(goal)}`} soft color={palette.text} /> : null}
+      {goal ? (
+        <Pressable accessibilityRole="link" accessibilityLabel={`${goalChipLabel(goal)} 목표 열기`} onPress={() => openGoal(goal.id)} hitSlop={6} style={{ alignSelf: "flex-start" }}>
+          <Badge label={`🎯 ${goalChipLabel(goal)} ›`} soft color={palette.text} />
+        </Pressable>
+      ) : null}
       {item.kind === "TRY" && item.convertedDayId ? (
         <Text style={[text.muted, { color: palette.success }]}>✓ Day로 추가됨{convertedDayTitle(item.convertedDayId) ? ` → ${convertedDayTitle(item.convertedDayId)}` : ""}</Text>
       ) : null}
-      {item.kind === "TRY" && target ? <Text style={[text.muted, { color: palette.success }]}>✓ 다음 목표에 연결됨 → {goalChipLabel(target)}</Text> : null}
+      {item.kind === "TRY" && target ? (
+        <Text accessibilityRole="link" onPress={() => openGoal(target.id)} style={[text.muted, { color: palette.success }]}>
+          ✓ 다음 목표에 연결됨 → {goalChipLabel(target)} ›
+        </Text>
+      ) : null}
       <View style={layout.rowWrap}>
         <Button label={item.goalId ? "목표 변경" : "목표 연결"} variant="ghost" small disabled={pending} onPress={() => onPick(picking === "goal" ? null : "goal")} />
         {item.kind === "TRY" && !item.convertedDayId ? <Button label="Day로 만들기" variant="ghost" small disabled={pending} onPress={onConvert} /> : null}

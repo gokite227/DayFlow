@@ -1,7 +1,15 @@
 "use client";
 
-import type { DayResponse, GoalResponse, ReviewItemResponse, ReviewResponse } from "@dayflow/api-client";
+import type {
+  DayResponse,
+  CalendarGoalResponse as GoalResponse,
+  GoalResponse as AnyGoalResponse,
+  PeriodGoalResponse,
+  ReviewItemResponse,
+  ReviewResponse,
+} from "@dayflow/api-client";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
@@ -9,7 +17,10 @@ import { koreanShortDate } from "@/features/calendar/calendar-time";
 import { useDays } from "@/features/days/day-queries";
 import { DAY_STATUS_LABEL, describeDaySchedule } from "@/features/days/day-values";
 import { useGoals } from "@/features/goals/goal-queries";
+import { periodRangeLabel } from "@/features/goals/goal-period";
 import { GOAL_TYPE_LABEL, goalPath, sortGoals } from "@/features/goals/goal-tree";
+import { usePeriodGoals } from "@/features/goals/period-goal-queries";
+import { periodCountLabel, periodProgressLabel, summarizePeriodGoal } from "@/features/goals/period-goal-values";
 import { useToday } from "@/lib/use-today";
 import {
   REVIEW_GOAL_TYPE,
@@ -20,7 +31,15 @@ import {
   type ReviewPeriod,
   type ReviewType,
 } from "./review-period";
-import { goalChipLabel, nextGoalCandidates, reviewGoalCandidates, toItemRequest } from "./review-goals";
+import {
+  goalChipLabel,
+  nextGoalCandidates,
+  reviewGoalCandidates,
+  reviewPeriodGoalCandidates,
+  toItemRequest,
+} from "./review-goals";
+import { parseReviewViewState, reviewArchiveHref, reviewWriteHref } from "./review-archive";
+import { ReviewArchiveView } from "./review-archive-view";
 import { useReview, useSaveReview } from "./review-queries";
 import { formatRate, summarizeDays, summarizeGoal } from "./review-summary";
 import { useRecoveryCandidates } from "@/features/recovery/recovery-queries";
@@ -39,50 +58,94 @@ export function ReviewView() {
   return today === null ? <LoadingState /> : <ReviewContent today={today} />;
 }
 
+/**
+ * Review has two areas, 회고 작성 and 회고 모아보기. Both keep their state in the URL (see review-archive.ts), so a
+ * review opened from the archive can be reloaded or shared, and browser back returns to the same archive list.
+ */
 function ReviewContent({ today }: { today: string }) {
-  const [type, setType] = useState<ReviewType>("WEEK");
-  const [anchor, setAnchor] = useState(today);
-  const period = reviewPeriod(type, anchor);
+  const router = useRouter();
+  const state = parseReviewViewState(useSearchParams(), today);
+  const period = reviewPeriod(state.type, state.date);
+  // Moving between periods replaces the URL: back leaves the editor instead of walking through periods.
+  const goToPeriod = (type: ReviewType, date: string) => router.replace(reviewWriteHref(type, date), { scroll: false });
 
   return (
     <>
-      <PageHeader title="Review" subtitle="그 기간의 Goal과 기록을 먼저 보고 KPT 회고를 작성합니다." />
+      <PageHeader title="Review" subtitle="그 기간의 Goal과 기록을 먼저 보고 KPT 회고를 작성하고, 지난 회고를 모아봅니다." />
 
-      <div className="goal-tabs" role="tablist" aria-label="회고 기간">
-        {REVIEW_TYPES.map((value) => (
-          <button
-            key={value}
-            type="button"
+      <div className="goal-tabs-row">
+        <nav className="goal-tabs" role="tablist" aria-label="회고 화면">
+          <Link
+            href={reviewWriteHref(state.type, state.date)}
             role="tab"
-            aria-selected={type === value}
-            className={type === value ? "active" : undefined}
-            onClick={() => setType(value)}
+            aria-selected={state.mode === "write"}
+            className={state.mode === "write" ? "active" : undefined}
           >
-            {REVIEW_TYPE_LABEL[value]}
-          </button>
-        ))}
+            회고 작성
+          </Link>
+          <Link
+            href={reviewArchiveHref({ type: "ALL", q: "" })}
+            role="tab"
+            aria-selected={state.mode === "archive"}
+            className={state.mode === "archive" ? "active" : undefined}
+          >
+            회고 모아보기
+          </Link>
+        </nav>
       </div>
 
-      <div className="review-period-nav">
-        <button type="button" className="btn ghost small" aria-label="이전 기간" onClick={() => setAnchor(shiftAnchor(type, anchor, -1))}>
-          ←
-        </button>
-        <div className="review-period-title">
-          {REVIEW_TYPE_LABEL[type]} 회고 · {period.label}
-        </div>
-        <button type="button" className="btn ghost small" aria-label="다음 기간" onClick={() => setAnchor(shiftAnchor(type, anchor, 1))}>
-          →
-        </button>
-      </div>
+      {state.mode === "archive" ? (
+        <ReviewArchiveView key={state.q} type={state.archiveType} q={state.q} />
+      ) : (
+        <>
+          <div className="goal-tabs" role="tablist" aria-label="회고 기간">
+            {REVIEW_TYPES.map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={state.type === value}
+                className={state.type === value ? "active" : undefined}
+                onClick={() => goToPeriod(value, state.date)}
+              >
+                {REVIEW_TYPE_LABEL[value]}
+              </button>
+            ))}
+          </div>
 
-      {/* Remount per period so drafts and pending state never leak between periods. */}
-      <ReviewPeriodContent key={`${period.type}:${period.start}`} period={period} today={today} />
+          <div className="review-period-nav">
+            <button
+              type="button"
+              className="btn ghost small"
+              aria-label="이전 기간"
+              onClick={() => goToPeriod(state.type, shiftAnchor(state.type, state.date, -1))}
+            >
+              ←
+            </button>
+            <div className="review-period-title">
+              {REVIEW_TYPE_LABEL[state.type]} 회고 · {period.label}
+            </div>
+            <button
+              type="button"
+              className="btn ghost small"
+              aria-label="다음 기간"
+              onClick={() => goToPeriod(state.type, shiftAnchor(state.type, state.date, 1))}
+            >
+              →
+            </button>
+          </div>
+
+          {/* Remount per period so drafts and pending state never leak between periods. */}
+          <ReviewPeriodContent key={`${period.type}:${period.start}`} period={period} today={today} />
+        </>
+      )}
     </>
   );
 }
 
 function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: string }) {
   const goalsQuery = useGoals();
+  const periodGoalsQuery = usePeriodGoals();
   const daysQuery = useDays({ from: period.start, to: period.end });
   const reviewQuery = useReview(period.type, period.start);
   const [convertingItem, setConvertingItem] = useState<ReviewItemResponse | null>(null);
@@ -90,6 +153,8 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
   const goals = goalsQuery.data ?? [];
   const days = daysQuery.data ?? [];
   const periodGoals = reviewGoalCandidates(goals, period);
+  // PERIOD Goals overlapping the reviewed period, next to the CALENDAR Goals of the review level.
+  const overlappingPeriodGoals = reviewPeriodGoalCandidates(periodGoalsQuery.data ?? [], period);
   const summary = summarizeDays(days);
   // Same rule as the Today banner (REC-001/REC-005): missed and not yet handled in this planning state.
   const candidatesQuery = useRecoveryCandidates(today);
@@ -101,8 +166,8 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
   const allDaysQuery = useDays();
   const daysById = new Map((allDaysQuery.data ?? []).map((day) => [day.id, day]));
   const goalLinks: GoalLinks = {
-    goalsById: new Map(goals.map((goal) => [goal.id, goal])),
-    sourceCandidates: reviewGoalCandidates(goals, period),
+    goalsById: new Map<string, AnyGoalResponse>([...goals, ...(periodGoalsQuery.data ?? [])].map((goal) => [goal.id, goal])),
+    sourceCandidates: [...periodGoals, ...overlappingPeriodGoals],
     nextCandidates: nextGoalCandidates(goals, period),
     daysById,
   };
@@ -152,6 +217,18 @@ function ReviewPeriodContent({ period, today }: { period: ReviewPeriod; today: s
                 <ReviewGoalCard key={goal.id} goal={goal} goals={goals} days={days} />
               ))}
             </div>
+          )}
+          {overlappingPeriodGoals.length > 0 && (
+            <>
+              <div className="mini" style={{ margin: "14px 0 8px" }}>
+                이 기간과 겹치는 기간 목표
+              </div>
+              <div className="review-goal-list">
+                {overlappingPeriodGoals.map((goal) => (
+                  <ReviewPeriodGoalCard key={goal.id} goal={goal} days={days} />
+                ))}
+              </div>
+            </>
           )}
         </section>
 
@@ -234,6 +311,25 @@ function ReviewGoalCard({ goal, goals, days }: { goal: GoalResponse; goals: Goal
   );
 }
 
+/** A PERIOD Goal in the review context: Days of the reviewed period linked to it. */
+function ReviewPeriodGoalCard({ goal, days }: { goal: PeriodGoalResponse; days: DayResponse[] }) {
+  const summary = summarizePeriodGoal(days, goal.id);
+  return (
+    <Link href={`/goals/${goal.id}`} className="review-goal-card" style={{ display: "block", color: "inherit", textDecoration: "none" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 9, alignItems: "center" }}>
+        <div>
+          <span className="goal-type">기간</span> <strong style={{ marginLeft: 5 }}>{goal.title}</strong>
+        </div>
+        <strong>{periodProgressLabel(summary)}</strong>
+      </div>
+      <div className="review-goal-path">{periodRangeLabel(goal)}</div>
+      <div className="mini" style={{ marginTop: 4 }}>
+        기간 내 Day {periodCountLabel(summary)}
+      </div>
+    </Link>
+  );
+}
+
 function ReviewDayRow({ day }: { day: DayResponse }) {
   return (
     <div className={`review-day-row${day.status === "DONE" ? " done" : ""}`}>
@@ -249,9 +345,9 @@ function ReviewDayRow({ day }: { day: DayResponse }) {
 
 /** Lookups the KPT editor needs to show and change Goal links and Try results. */
 interface GoalLinks {
-  goalsById: Map<string, GoalResponse>;
-  /** REV-003: Goals a line can reflect on (the review's level, overlapping the period). */
-  sourceCandidates: GoalResponse[];
+  goalsById: Map<string, AnyGoalResponse>;
+  /** REV-003: Goals a line can reflect on (CALENDAR of the review's level and PERIOD, overlapping the period). */
+  sourceCandidates: AnyGoalResponse[];
   /** REV-004: later Goals a Try can be carried into. */
   nextCandidates: GoalResponse[];
   daysById: Map<string, DayResponse>;
@@ -350,10 +446,10 @@ function KptEditor({
                         <div className="kpt-item-main">
                           <div>
                             <div className="kpt-item-content">{item.content}</div>
-                            {sourceLabel && (
-                              <span className="kpt-goal-chip" title="이 회고가 가리키는 목표">
+                            {sourceLabel && item.goalId && (
+                              <Link href={`/goals/${item.goalId}`} className="kpt-goal-chip" title="이 회고가 가리키는 목표 열기">
                                 {sourceLabel}
-                              </span>
+                              </Link>
                             )}
                           </div>
                           <div className="kpt-item-buttons">
@@ -393,7 +489,7 @@ function KptEditor({
                                 {convertedDay && (
                                   <span className="mini">
                                     → {convertedDay.plannedDate ? `${koreanShortDate(convertedDay.plannedDate)} · ` : "날짜 미정 · "}
-                                    {convertedDay.title}
+                                    {convertedDay.title} · {DAY_STATUS_LABEL[convertedDay.status]}
                                   </span>
                                 )}
                               </div>
@@ -401,7 +497,11 @@ function KptEditor({
                             {targetLabel ? (
                               <div className="kpt-try-result">
                                 <span className="converted-badge">✓ 다음 목표에 연결됨</span>
-                                <span className="mini">→ {targetLabel}</span>
+                                {item.targetGoalId ? (
+                                  <Link href={`/goals/${item.targetGoalId}`} className="mini">
+                                    → {targetLabel}
+                                  </Link>
+                                ) : null}
                                 <button
                                   type="button"
                                   className="btn ghost small"
@@ -469,11 +569,18 @@ function KptEditor({
                   disabled={save.isPending}
                 >
                   <option value="">목표 연결 안 함</option>
-                  {links.sourceCandidates.map((goal) => (
-                    <option key={goal.id} value={goal.id}>
-                      {goalChipLabel(goal)}
-                    </option>
-                  ))}
+                  {(["CALENDAR", "PERIOD"] as const).map((goalKind) => {
+                    const ofKind = links.sourceCandidates.filter((goal) => goal.kind === goalKind);
+                    return ofKind.length === 0 ? null : (
+                      <optgroup key={goalKind} label={goalKind === "CALENDAR" ? "계획 목표" : "기간 목표"}>
+                        {ofKind.map((goal) => (
+                          <option key={goal.id} value={goal.id}>
+                            {goalChipLabel(goal)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 </select>
                 <button type="submit" className="btn small" disabled={save.isPending || drafts[kind].trim() === ""}>
                   + 추가
@@ -532,9 +639,9 @@ function GoalPicker({
   onCancel,
 }: {
   label: string;
-  candidates: GoalResponse[];
+  candidates: AnyGoalResponse[];
   /** The linked Goal, shown even if it is no longer a candidate (e.g. its period was edited). */
-  current?: GoalResponse;
+  current?: AnyGoalResponse;
   emptyText: string;
   clearLabel?: string;
   disabled: boolean;

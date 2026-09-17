@@ -1,6 +1,6 @@
 "use client";
 
-import type { DayResponse, GoalResponse } from "@dayflow/api-client";
+import type { DayResponse, CalendarGoalResponse as GoalResponse } from "@dayflow/api-client";
 import Link from "next/link";
 import { useState } from "react";
 import { EmptyState, ErrorNotice } from "@/components/query-state";

@@ -1,7 +1,24 @@
-import type { GoalResponse, ReviewItemRequest, ReviewItemResponse } from "@dayflow/api-client";
-import { goalPeriodLabel } from "../goals/goal-period";
+import type {
+  CalendarGoalResponse as GoalResponse,
+  GoalResponse as AnyGoalResponse,
+  PeriodGoalResponse,
+  ReviewItemRequest,
+  ReviewItemResponse,
+} from "@dayflow/api-client";
+import { goalPeriodLabel, periodRangeLabel } from "../goals/goal-period";
 import { sortGoals } from "../goals/goal-tree";
 import { REVIEW_GOAL_TYPE, overlaps, type ReviewPeriod } from "./review-period";
+
+/**
+ * PERIOD Goals a review can reflect on: every PERIOD Goal whose range overlaps the reviewed period
+ * (start <= review end and end >= review start), whatever the review level. The server checks the same rule.
+ * They are never offered as a Try's next Goal (targetGoalId stays CALENDAR only).
+ */
+export function reviewPeriodGoalCandidates(goals: readonly PeriodGoalResponse[], period: ReviewPeriod): PeriodGoalResponse[] {
+  return goals
+    .filter((goal) => overlaps(goal, period))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title));
+}
 
 /**
  * REV-003 candidates for "which Goal does this line reflect on": the same Goals the review's Goals
@@ -23,7 +40,8 @@ export function nextGoalCandidates(goals: readonly GoalResponse[], period: Revie
 }
 
 /** "9월 3주 · 백엔드 준비" — compact enough for a chip, with the period to tell same-named Goals apart. */
-export function goalChipLabel(goal: GoalResponse, withYear = false): string {
+export function goalChipLabel(goal: AnyGoalResponse, withYear = false): string {
+  if (goal.kind === "PERIOD") return `기간 · ${goal.title} (${periodRangeLabel(goal)})`;
   return `${goalPeriodLabel(goal, withYear)} · ${goal.title}`;
 }
 

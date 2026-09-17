@@ -1,10 +1,15 @@
 "use client";
 
-import type { DayResponse, GoalResponse } from "@dayflow/api-client";
+import type { DayResponse, CalendarGoalResponse as GoalResponse, GoalResponse as AnyGoalResponse } from "@dayflow/api-client";
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
 import { ErrorNotice } from "@/components/query-state";
-import { formatPeriod } from "@/features/goals/goal-tree";
+import { useGoals } from "@/features/goals/goal-queries";
+import { formatPeriod, sortGoals } from "@/features/goals/goal-tree";
+import { usePeriodGoals } from "@/features/goals/period-goal-queries";
+import { dayDateProblem, goalLinkLabel, periodGoalOptionLabel, selectablePeriodGoals } from "@/features/goals/period-goal-values";
+import { useToday } from "@/lib/use-today";
 import { useCreateDay, useDeleteDay, useUpdateDay } from "./day-queries";
 import { DayScheduleSection } from "./day-schedule-section";
 import { DayTagPicker } from "./day-tag-picker";
@@ -24,27 +29,38 @@ import {
 } from "./day-values";
 import type { DayPriority } from "@dayflow/api-client";
 
-/** create carries the preselected Goal, which may be "" for a Day without a Goal (DAY-001). */
-export type DayFormTarget = { mode: "create"; goalId: string } | { mode: "edit"; day: DayResponse };
+/** create carries the preselected Goal, which may be "" for a Day without a Goal (DAY-001), and an optional date. */
+export type DayFormTarget = { mode: "create"; goalId: string; plannedDate?: string } | { mode: "edit"; day: DayResponse };
 
 export function DayFormModal({
   target,
-  weekGoals,
+  weekGoals: givenWeekGoals,
   onClose,
 }: {
   target: DayFormTarget;
-  weekGoals: readonly GoalResponse[];
+  /** CALENDAR WEEK Goals the screen already loaded; fetched here when omitted. */
+  weekGoals?: readonly GoalResponse[];
   onClose: () => void;
 }) {
   const [values, setValues] = useState<DayFormValues>(() =>
-    target.mode === "edit" ? dayToValues(target.day) : newDayValues(target.goalId),
+    target.mode === "edit" ? dayToValues(target.day) : newDayValues(target.goalId, target.plannedDate ?? ""),
   );
+  const today = useToday();
+  const weekGoalsQuery = useGoals({ type: "WEEK" });
+  const periodGoalsQuery = usePeriodGoals();
   const createDay = useCreateDay();
   const updateDay = useUpdateDay();
   const deleteDay = useDeleteDay();
 
   const editing = target.mode === "edit" ? target.day : null;
-  const goal = weekGoals.find((candidate) => candidate.id === values.goalId);
+  const weekGoals = givenWeekGoals ?? sortGoals(weekGoalsQuery.data ?? []);
+  // DAY-001 + PERIOD Goals: running and upcoming ones are offered; an ended one only when already linked.
+  const initialGoalId = editing?.goalId ?? (target.mode === "create" ? target.goalId : "");
+  const periodGoals = today === null ? [] : selectablePeriodGoals(periodGoalsQuery.data ?? [], today, initialGoalId);
+  const goal: AnyGoalResponse | undefined =
+    weekGoals.find((candidate) => candidate.id === values.goalId) ??
+    (periodGoalsQuery.data ?? []).find((candidate) => candidate.id === values.goalId);
+  const dateProblem = dayDateProblem(goal, values.plannedDate);
   const saving = createDay.isPending || updateDay.isPending;
   const busy = saving || deleteDay.isPending;
   const error = createDay.error ?? updateDay.error ?? deleteDay.error;
@@ -54,6 +70,7 @@ export function DayFormModal({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (dateProblem) return;
     if (editing) {
       updateDay.mutate(
         { dayId: editing.id, body: toUpdateDayRequest(values, editing.version) },
@@ -74,7 +91,7 @@ export function DayFormModal({
     <Modal
       label="DAY"
       title={editing ? editing.title : "새 Day"}
-      subtitle={goal ? `${goal.title} · ${formatPeriod(goal)}` : undefined}
+      subtitle={goal ? `${goalLinkLabel(goal)} · ${formatPeriod(goal)}` : undefined}
       onClose={onClose}
     >
       <form onSubmit={submit}>
@@ -96,19 +113,43 @@ export function DayFormModal({
             />
           </label>
 
-          <label className="field wide">
-            <span className="field-label">주간 목표</span>
+          <div className="field wide">
+            <label className="field-label" htmlFor="day-goal-select">
+              목표
+            </label>
             {/* DAY-001: a Goal is optional, so "연결 안 함" is a normal choice, not an empty state. */}
-            <select value={values.goalId} onChange={(event) => set("goalId", event.target.value)}>
-              <option value="">연결 안 함</option>
-              {weekGoals.map((weekGoal) => (
-                <option key={weekGoal.id} value={weekGoal.id}>
-                  {weekGoal.title} ({formatPeriod(weekGoal)})
-                </option>
-              ))}
-            </select>
-            <span className="mini">목표 없이도 Day를 만들 수 있습니다. 목표를 연결하면 주간 목표 기간 안의 날짜만 고를 수 있습니다.</span>
-          </label>
+            <div className="field-row">
+              <select id="day-goal-select" value={values.goalId} onChange={(event) => set("goalId", event.target.value)}>
+                <option value="">연결 안 함</option>
+                {weekGoals.length > 0 && (
+                  <optgroup label="계획 목표 (주간)">
+                    {weekGoals.map((weekGoal) => (
+                      <option key={weekGoal.id} value={weekGoal.id}>
+                        {weekGoal.title} ({formatPeriod(weekGoal)})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {periodGoals.length > 0 && today !== null && (
+                  <optgroup label="기간 목표">
+                    {periodGoals.map((periodGoal) => (
+                      <option key={periodGoal.id} value={periodGoal.id}>
+                        {periodGoalOptionLabel(periodGoal, today)}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              {goal && (
+                <Link href={`/goals/${goal.id}`} className="btn ghost small" onClick={onClose}>
+                  목표 열기
+                </Link>
+              )}
+            </div>
+            <span className="mini">
+              목표 없이도 Day를 만들 수 있습니다. 목표를 연결하면 그 목표 기간 안의 날짜만 고를 수 있습니다.
+            </span>
+          </div>
 
           <DayTagPicker selectedIds={values.tagIds} onChange={(tagIds) => set("tagIds", tagIds)} />
 
@@ -132,11 +173,17 @@ export function DayFormModal({
                 날짜 취소
               </button>
             </div>
-            <span className="mini">
-              {editing?.schedule
-                ? `현재 배치: ${describeDaySchedule(editing)}. 날짜를 취소하면 시간 배치도 해제됩니다.`
-                : "날짜 없이 두고 나중에 정해도 됩니다."}
-            </span>
+            {dateProblem ? (
+              <span className="field-error" role="alert">
+                {dateProblem}
+              </span>
+            ) : (
+              <span className="mini">
+                {editing?.schedule
+                  ? `현재 배치: ${describeDaySchedule(editing)}. 날짜를 취소하면 시간 배치도 해제됩니다.`
+                  : "날짜 없이 두고 나중에 정해도 됩니다."}
+              </span>
+            )}
           </div>
 
           {editing && <DayScheduleSection day={editing} plannedDate={values.plannedDate} onSaved={onClose} />}
@@ -213,7 +260,7 @@ export function DayFormModal({
             <button type="button" className="btn secondary" onClick={onClose} disabled={busy}>
               취소
             </button>
-            <button type="submit" className="btn" disabled={busy}>
+            <button type="submit" className="btn" disabled={busy || dateProblem !== null}>
               {saving ? "저장 중…" : editing ? "저장" : "추가"}
             </button>
           </div>

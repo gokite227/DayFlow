@@ -13,6 +13,8 @@ import {
   type CategoryFilter,
 } from "@/features/events/event-display";
 import { useEventCategories, useEventOccurrences, useEvents } from "@/features/events/event-queries";
+import { eventsCalendarParams } from "@/features/navigation/app-routes";
+import { useOpenScreen } from "@/features/navigation/use-open-screen";
 import { addDays } from "@/lib/dates";
 import { useToday } from "@/lib/use-today";
 import { Button, Card, Chip, ChipRow, EmptyState, ErrorState, layout, LoadingState, Screen, SectionHeader, useTextStyles } from "@/ui/components";
@@ -26,6 +28,7 @@ export default function EventsScreen() {
   const text = useTextStyles();
   const today = useToday();
   const router = useRouter();
+  const openScreen = useOpenScreen();
   const [selected, setSelected] = useState<CategoryFilter>("ALL");
   const occurrencesQuery = useEventOccurrences(today, addDays(today, UPCOMING_DAYS));
   const eventsQuery = useEvents();
@@ -61,6 +64,8 @@ export default function EventsScreen() {
         <Text style={[text.muted, layout.flex]}>면접·시험·생일·마감처럼 이미 정해진 일정</Text>
         <Button label="+ 새 일정" small onPress={() => router.push({ pathname: "/events/edit", params: { date: today } })} />
       </View>
+      {/* Events manages; the Calendar visualizes. This opens this month with Events only. */}
+      <Button label="캘린더에서 보기 (월 · 일정만)" variant="secondary" small onPress={() => openScreen("calendar", eventsCalendarParams(today))} />
 
       <ChipRow>
         {filters.map((entry) => (
