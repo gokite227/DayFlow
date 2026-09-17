@@ -12,6 +12,7 @@ import {
   HOUR_HEIGHT,
   MINUTES_PER_DAY,
   clamp,
+  columnGeometry,
   columnPlacement,
   contentDays,
   dateOnlyItems,
@@ -337,7 +338,14 @@ export default function CalendarScreen() {
   const resize = useCallback((day: DayResponse, length: number) => actions.resize(day, length), [actions]);
 
   const topItems = useMemo(() => dates.map((column) => dateOnlyItems(column, days, occurrences)), [dates, days, occurrences]);
-  const columns = useMemo(() => dates.map((column) => columnPlacement(column, days, occurrences)), [dates, days, occurrences]);
+  const columns = useMemo(
+    () =>
+      dates.map((column) => {
+        const placement = columnPlacement(column, days, occurrences);
+        return { ...placement, geometry: columnGeometry(placement) };
+      }),
+    [dates, days, occurrences],
+  );
   const topCount = Math.min(Math.max(...topItems.map((items) => items.allDayEvents.length + items.dateOnlyDays.length), 0), DATE_ONLY_VISIBLE + 1);
   const topHeight = Math.max(topCount, 1) * DATE_ONLY_ITEM_HEIGHT + 8;
   const syncHorizontal = (x: number) => {
@@ -521,13 +529,14 @@ export default function CalendarScreen() {
                   return (
                     <View key={column} style={[styles.column, { left: index * columnWidth, width: columnWidth }, column === today && styles.todayColumn]}>
                       {placement.events.map((event) => (
-                        <EventBlock key={event.key} placement={event} slot={placement.slots.get(event.key)} columnWidth={columnWidth} onOpen={openEvent} />
+                        <EventBlock key={event.key} placement={event} slot={placement.slots.get(event.key)} geometry={placement.geometry.get(event.key)!} columnWidth={columnWidth} onOpen={openEvent} />
                       ))}
                       {placement.days.map((day) => (
                         <DayBlock
                           key={day.key}
                           placement={day}
                           slot={placement.slots.get(day.key)}
+                          geometry={placement.geometry.get(day.key)!}
                           columnWidth={columnWidth}
                           dimmed={ghost?.dayId === day.day.id}
                           controller={controller}

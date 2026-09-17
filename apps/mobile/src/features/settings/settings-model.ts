@@ -17,7 +17,7 @@ export type WeekStart = (typeof WEEK_STARTS)[number];
 export const WEEK_START_LABEL: Record<WeekStart, string> = { monday: "월요일", sunday: "일요일" };
 
 /** Screens that can occupy the four configurable bottom tab slots. Settings is always the fifth tab. */
-export const TAB_SCREENS = ["today", "days", "calendar", "events", "goals", "review", "recovery"] as const;
+export const TAB_SCREENS = ["today", "days", "calendar", "events", "goals", "review", "recovery", "focus"] as const;
 export type TabScreen = (typeof TAB_SCREENS)[number];
 export const MAIN_TAB_COUNT = 4;
 export const DEFAULT_BOTTOM_TABS: readonly TabScreen[] = ["today", "days", "calendar", "events"];

@@ -10,6 +10,7 @@ export const TAB_META: Record<TabRoute, { title: string; glyph: string; subtitle
   goals: { title: "Goals", glyph: "◎", subtitle: "연간 · 분기 · 월간 · 주간 목표" },
   review: { title: "Review", glyph: "✎", subtitle: "KPT 회고" },
   recovery: { title: "Recovery", glyph: "↺", subtitle: "놓친 계획 정리 · Recovery Day" },
+  focus: { title: "Focus", glyph: "◉", subtitle: "집중 시간 · 앱 차단" },
   settings: { title: "Settings", glyph: "⚙︎", subtitle: "화면 · 캘린더 · 알림" },
 };
 

@@ -2,7 +2,14 @@ import { isPeriodGoalResponse, type DayResponse, type GoalResponse } from "@dayf
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, Text, View } from "react-native";
-import { useCreateDay, useDayTags, useDays, useDeleteDay, useUpdateDay } from "@/features/days/day-queries";
+import { DayScheduleSaveError, useDayTags, useDays, useDeleteDay, useSaveDay, useUpdateDay } from "@/features/days/day-queries";
+import {
+  SCHEDULE_FORM_PROBLEM_MESSAGE,
+  planScheduleSave,
+  scheduleFormProblem,
+  scheduleFormValues,
+  type ScheduleFormValues,
+} from "@/features/days/day-schedule-values";
 import {
   DAY_PRIORITIES,
   DAY_PRIORITY_LABEL,
@@ -17,12 +24,16 @@ import {
   type DayStatus,
 } from "@/features/days/day-values";
 import { goalChipLabel } from "@/features/goals/goal-helpers";
+import { DayFocusSettingsCard } from "@/features/focus/day-focus-settings-card";
+import { canFocusOnDay } from "@/features/focus/focus-display";
+import { useFocus } from "@/features/focus/focus-provider";
 import { useGoals, usePeriodGoals } from "@/features/goals/goal-queries";
+import { useOpenScreen } from "@/features/navigation/use-open-screen";
 import { dayDateProblem, periodGoalOptionLabel, selectablePeriodGoals } from "@/features/goals/period-goal-helpers";
 import { isLocalDate } from "@/lib/dates";
 import { useToday } from "@/lib/use-today";
 import { Button, Card, Chip, ChipRow, EmptyState, ErrorState, FieldLabel, layout, LoadingState, Screen, SwitchRow, TextField, useTextStyles } from "@/ui/components";
-import { DateField } from "@/ui/date-fields";
+import { DateField, TimeField } from "@/ui/date-fields";
 
 const STATUSES = Object.keys(DAY_STATUS_LABEL) as DayStatus[];
 const MAX_TAGS_PER_DAY = 10;
@@ -48,11 +59,18 @@ function DayForm({ initial, editing }: { initial: DayFormValues; editing: DayRes
   const goalsQuery = useGoals();
   const periodGoalsQuery = usePeriodGoals();
   const tagsQuery = useDayTags();
-  const createDay = useCreateDay();
+  const saveDay = useSaveDay();
   const updateDay = useUpdateDay();
   const deleteDay = useDeleteDay();
-  const saving = createDay.isPending || updateDay.isPending;
-  const error = createDay.error ?? updateDay.error ?? deleteDay.error;
+  // The exact stored times; only a real change of them is sent (planScheduleSave).
+  const [scheduleInitial] = useState(() => scheduleFormValues(editing, Number(initial.estimatedMinutes) || 60));
+  const [schedule, setScheduleValues] = useState<ScheduleFormValues>(scheduleInitial);
+  const openScreen = useOpenScreen();
+  const { state: focusState } = useFocus();
+  const runningFocus = focusState.current?.status === "ACTIVE" ? focusState.current : null;
+  const saving = saveDay.isPending || updateDay.isPending;
+  const error = saveDay.error ?? updateDay.error ?? deleteDay.error;
+  const scheduleProblem = scheduleFormProblem(schedule, values.plannedDate);
   const problem = dayFormProblem(values);
   const set = <Key extends keyof DayFormValues>(key: Key, value: DayFormValues[Key]) => setValues((current) => ({ ...current, [key]: value }));
 
@@ -73,10 +91,20 @@ function DayForm({ initial, editing }: { initial: DayFormValues; editing: DayRes
   const tags = [...(tagsQuery.data ?? [])].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
 
   const submit = () => {
-    if (problem || dateProblem) return;
-    const onSuccess = () => router.back();
-    if (editing) updateDay.mutate({ dayId: editing.id, body: toUpdateDayRequest(values, editing) }, { onSuccess });
-    else createDay.mutate(toCreateDayRequest(values), { onSuccess });
+    if (problem || dateProblem || scheduleProblem) return;
+    const plan = planScheduleSave(editing, scheduleInitial, schedule, values.plannedDate);
+    saveDay.mutate(
+      editing
+        ? { dayId: editing.id, update: toUpdateDayRequest(values, editing), schedule: plan }
+        : { dayId: null, create: toCreateDayRequest(values), schedule: plan },
+      {
+        onSuccess: () => router.back(),
+        // A new Day was created but its time could not be placed: continue on that Day, so saving again never duplicates it.
+        onError: (failure) => {
+          if (failure instanceof DayScheduleSaveError) router.replace({ pathname: "/days/edit", params: { dayId: failure.day.id } });
+        },
+      },
+    );
   };
 
   const confirmDelete = () => {
@@ -102,6 +130,19 @@ function DayForm({ initial, editing }: { initial: DayFormValues; editing: DayRes
           onClear={() => set("plannedDate", "")}
         />
         {dateProblem ? <Text style={text.danger}>{dateProblem}</Text> : null}
+        <SwitchRow
+          label="시간 정하기"
+          hint="Calendar에 이 시간으로 배치해요. 분 단위로 정할 수 있어요."
+          value={schedule.enabled}
+          onValueChange={(enabled) => setScheduleValues((current) => ({ ...current, enabled }))}
+        />
+        {schedule.enabled ? (
+          <View style={layout.row}>
+            <TimeField label="시작" value={schedule.start} onChange={(start) => setScheduleValues((current) => ({ ...current, start }))} />
+            <TimeField label="종료" value={schedule.end} onChange={(end) => setScheduleValues((current) => ({ ...current, end }))} />
+          </View>
+        ) : null}
+        {scheduleProblem ? <Text style={text.danger}>{SCHEDULE_FORM_PROBLEM_MESSAGE[scheduleProblem]}</Text> : null}
         <TextField label="예상 시간(분)" keyboardType="number-pad" value={values.estimatedMinutes} onChangeText={(text) => set("estimatedMinutes", text)} />
         <SwitchRow label="오늘의 핵심 Day" hint="우선순위와는 다른, 꼭 지키고 싶은 실행이에요." value={values.coreDay} onValueChange={(coreDay) => set("coreDay", coreDay)} />
       </Card>
@@ -183,7 +224,7 @@ function DayForm({ initial, editing }: { initial: DayFormValues; editing: DayRes
       </Card>
 
       {problem ? <Text style={text.danger}>{problem === "title" ? "제목을 입력해주세요." : "예상 시간은 1분 이상이어야 해요."}</Text> : null}
-      <Button label={saving ? "저장 중…" : editing ? "저장" : "추가"} disabled={saving || problem !== null || dateProblem !== null} onPress={submit} />
+      <Button label={saving ? "저장 중…" : editing ? "저장" : "추가"} disabled={saving || problem !== null || dateProblem !== null || scheduleProblem !== null} onPress={submit} />
       {editing && editing.plannedDate !== null ? (
         <Button
           label="날짜 없음으로 이동"
@@ -191,6 +232,19 @@ function DayForm({ initial, editing }: { initial: DayFormValues; editing: DayRes
           disabled={saving}
           accessibilityLabel="날짜와 시간 배치를 지우고 날짜 없음으로 이동"
           onPress={() => updateDay.mutate({ dayId: editing.id, body: { plannedDate: null, version: editing.version } }, { onSuccess: () => router.back() })}
+        />
+      ) : null}
+      {editing?.schedule && canFocusOnDay(editing) ? <DayFocusSettingsCard day={editing} /> : null}
+      {editing && canFocusOnDay(editing) ? (
+        <Button
+          label={runningFocus && runningFocus.dayId !== editing.id ? "진행 중인 집중 보기" : "집중 시작"}
+          variant="secondary"
+          accessibilityLabel={`${editing.title} 집중 시작`}
+          onPress={() => {
+            // Focus is a separate screen: close this form, then open Focus with this Day (or the running Focus).
+            router.back();
+            openScreen("focus", { dayId: editing.id });
+          }}
         />
       ) : null}
       {editing ? <Button label={deleteDay.isPending ? "삭제 중…" : "삭제"} variant="danger" disabled={deleteDay.isPending} onPress={confirmDelete} /> : null}

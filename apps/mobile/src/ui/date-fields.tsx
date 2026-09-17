@@ -1,5 +1,6 @@
 import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { Platform, Pressable, Text, View } from "react-native";
+import { timeLabel } from "@/features/days/day-schedule-values";
 import { koreanShortDate } from "@/lib/dates";
 import { FieldLabel } from "./components";
 import { TOUCH_TARGET, fontSize, makeStyles, radius, spacing, useAppTheme } from "./theme";
@@ -96,12 +97,16 @@ export function DateField({
   );
 }
 
-/** "HH:mm" time input (24h values, shown by the platform picker). */
+/**
+ * "HH:mm" time input with 1-minute precision (no minuteInterval): the detail editors keep any minute such as 20:27.
+ * Shows "오후 8:27"; Android opens the system time dialog, iOS the compact inline picker.
+ * `value` "24:00" (end of day) is shown as 자정 and opens the picker at 00:00.
+ */
 export function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const styles = useStyles();
   const { scheme, palette } = useAppTheme();
   const [hour = 9, minute = 0] = value.split(":").map(Number);
-  const current = new Date(2000, 0, 1, hour, minute);
+  const current = new Date(2000, 0, 1, hour % 24, minute);
   const toValue = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
   return (
@@ -113,7 +118,7 @@ export function TimeField({ label, value, onChange }: { label: string; value: st
           mode="time"
           display="compact"
           locale="ko-KR"
-          minuteInterval={5}
+          minuteInterval={1}
           onValueChange={(_, date) => onChange(toValue(date))}
           accentColor={palette.accent}
           themeVariant={scheme}
@@ -121,20 +126,19 @@ export function TimeField({ label, value, onChange }: { label: string; value: st
       ) : (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${label} ${value}`}
+          accessibilityLabel={`${label} ${timeLabel(value)}`}
           style={styles.value}
           onPress={() =>
             DateTimePickerAndroid.open({
               value: current,
               mode: "time",
-              is24Hour: true,
               onChange: (event, date) => {
                 if (event.type === "set" && date) onChange(toValue(date));
               },
             })
           }
         >
-          <Text style={styles.valueText}>{value}</Text>
+          <Text style={styles.valueText}>{timeLabel(value)}</Text>
         </Pressable>
       )}
     </View>

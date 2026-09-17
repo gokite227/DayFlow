@@ -5,8 +5,12 @@ import { dayDateProblem } from "../goals/period-goal-helpers";
 import type { WeekStart } from "../settings/settings-model";
 
 /**
- * Mobile Calendar model (CAL-001..006). Same rules as the Web week grid — 15-minute snap, minimum schedule
- * length, drop meanings, overlap lanes (shared @dayflow/domain layoutOverlaps) — with mobile sizes.
+ * Mobile Calendar model (CAL-001..006). Same drop meanings and overlap lanes as the Web week grid (shared
+ * @dayflow/domain layoutOverlaps), with mobile sizes.
+ *
+ * Time precision and interaction snap are separate:
+ * - stored times, the detail editors and the drawing are minute-precise (20:27 is drawn at 20:27);
+ * - only a Calendar drag, drop or resize that actually moves something snaps to 15 minutes.
  */
 
 export const CALENDAR_VIEWS = ["day", "3day", "week", "month"] as const;
@@ -40,9 +44,9 @@ export function contentDays(days: readonly DayResponse[], content: CalendarConte
 export const SNAP_MINUTES = 15;
 export const MIN_SCHEDULE_MINUTES = SNAP_MINUTES;
 export const MINUTES_PER_DAY = 24 * 60;
-/** Pixel height of one hour. 15 minutes = 12px; blocks are drawn at least MIN_BLOCK_HEIGHT tall. */
+/** Pixel height of one hour: 15 minutes = 12px, 1 minute = 0.8px. */
 export const HOUR_HEIGHT = 48;
-/** Drawing floor only: the stored duration can be shorter than what this height represents. */
+/** Drawing floor of the drag ghost and drawer sizes (grid blocks use blockGeometry). */
 export const MIN_BLOCK_HEIGHT = 24;
 export const NOW_SCROLL_OFFSET_HOURS = 2;
 
@@ -195,17 +199,29 @@ export function planDrop(day: DayResponse, target: DropTarget, offsetPx: number,
   }
   const lengthMinutes = day.schedule ? durationMinutes(day.schedule) : defaultScheduleLength(day.estimatedMinutes);
   const latestStart = Math.max(Math.floor((MINUTES_PER_DAY - lengthMinutes) / SNAP_MINUTES) * SNAP_MINUTES, 0);
-  const startMinutes = clamp(snapMinutes((offsetPx / hourHeight) * 60), 0, latestStart);
+  const rawStart = (offsetPx / hourHeight) * 60;
+  const startMinutes = clamp(snapMinutes(rawStart), 0, latestStart);
   if (day.schedule) {
     const current = wallClock(day.schedule.startAt);
-    if (current.date === target.date && current.minutes === startMinutes) return null;
+    // Put back where it already was (less than half a snap step away): nothing changes, so an off-grid time such
+    // as 20:27 is not rounded just because the block was picked up.
+    if (current.date === target.date && (current.minutes === startMinutes || Math.abs(rawStart - current.minutes) < SNAP_MINUTES / 2)) return null;
   }
   return { type: "setSchedule", date: target.date, startMinutes, lengthMinutes };
 }
 
-/** Resize: the new length after dragging the bottom handle by `deltaPx`, snapped and kept inside the day. */
+/**
+ * Resize: the new length after dragging the bottom handle by `deltaPx`. The end snaps to the 15-minute grid
+ * (20:27–21:27 dragged down → ends at 21:45), the block keeps at least 15 minutes (up to the next grid line) and
+ * never passes midnight. A movement of less than half a snap step changes nothing, so touching the handle of an
+ * off-grid schedule does not round it.
+ */
 export function resizedLength(originLength: number, deltaPx: number, startMinutes: number, hourHeight = HOUR_HEIGHT): number {
-  return clamp(snapMinutes(originLength + (deltaPx / hourHeight) * 60), MIN_SCHEDULE_MINUTES, MINUTES_PER_DAY - startMinutes);
+  const deltaMinutes = (deltaPx / hourHeight) * 60;
+  if (Math.abs(deltaMinutes) < SNAP_MINUTES / 2) return originLength;
+  const shortestEnd = Math.min(Math.ceil((startMinutes + MIN_SCHEDULE_MINUTES) / SNAP_MINUTES) * SNAP_MINUTES, MINUTES_PER_DAY);
+  const end = clamp(snapMinutes(startMinutes + originLength + deltaMinutes), shortestEnd, MINUTES_PER_DAY);
+  return end - startMinutes;
 }
 
 /**
@@ -316,15 +332,126 @@ export function columnPlacement(date: string, days: readonly DayResponse[], occu
       },
     ];
   });
+  // Lanes follow the real times: 20:27–20:32 and 20:35–21:00 do not share lanes although both are drawn taller than
+  // 5 minutes. A zero-length Event counts as one minute so it still gets its own lane next to what covers it.
   const slots = layoutOverlaps([
     ...timedDays.map((placement) => ({
       key: placement.key,
       start: placement.start,
-      end: Math.min(placement.start + Math.max(placement.length, SNAP_MINUTES), MINUTES_PER_DAY),
+      end: Math.min(placement.start + Math.max(placement.length, 1), MINUTES_PER_DAY),
     })),
-    ...events.map((placement) => ({ key: placement.key, start: placement.start, end: Math.max(placement.end, placement.start + SNAP_MINUTES) })),
+    ...events.map((placement) => ({ key: placement.key, start: placement.start, end: Math.max(placement.end, placement.start + 1) })),
   ]);
   return { days: timedDays, events, slots };
+}
+
+/** How much a grid block shows, by its drawn height. */
+export type BlockTier =
+  /** Title and the time range. */
+  | "range"
+  /** Title and the start time. */
+  | "start"
+  /** Title only. */
+  | "title"
+  /** Title only, smaller and without padding. */
+  | "tiny";
+
+/**
+ * Block sizes in px. The tiers are chosen so the lines they show always fit inside the drawn height (the block also
+ * clips), and the resize handle never covers text: inside the block only when there is room below the text,
+ * otherwise just below the block when there is free space, otherwise no handle.
+ */
+export const BLOCK_METRICS = {
+  /** Shortest drawn block (about 22 minutes tall): one readable line. Never reaches into the next block. */
+  minVisualHeight: 18,
+  padding: 2,
+  titleLine: 15,
+  timeLine: 13,
+  tinyTitleLine: 13,
+  handleHeight: 12,
+  /** Smallest comfortable press area; short blocks get hit slop up to this, without reaching into neighbours. */
+  minHitHeight: 32,
+} as const;
+
+const TIER_PAD = BLOCK_METRICS.padding;
+/** Height the text of each tier needs. */
+export const TIER_CONTENT_HEIGHT: Record<BlockTier, number> = {
+  range: TIER_PAD + BLOCK_METRICS.titleLine + BLOCK_METRICS.timeLine + TIER_PAD,
+  start: TIER_PAD + BLOCK_METRICS.titleLine + BLOCK_METRICS.timeLine + TIER_PAD,
+  title: TIER_PAD + BLOCK_METRICS.titleLine + TIER_PAD,
+  tiny: BLOCK_METRICS.tinyTitleLine,
+};
+
+export function blockTier(height: number): BlockTier {
+  if (height >= TIER_CONTENT_HEIGHT.range + BLOCK_METRICS.handleHeight) return "range";
+  if (height >= TIER_CONTENT_HEIGHT.start) return "start";
+  if (height >= TIER_CONTENT_HEIGHT.title) return "title";
+  return "tiny";
+}
+
+export interface BlockGeometry {
+  /** y of the real start time. */
+  top: number;
+  /** Height of the real duration (0 for a point Event). */
+  timeHeight: number;
+  /** Drawn height: the real duration, or the floor when that is taller and there is room. */
+  height: number;
+  /** Drawn taller than its real duration (only the real part is filled, so it does not look longer). */
+  floored: boolean;
+  tier: BlockTier;
+  handle: "inside" | "below" | "none";
+  /** Extra press area above and below the drawn block, never overlapping another block. */
+  hitSlop: { top: number; bottom: number };
+}
+
+/**
+ * Geometry of one block. `roomBelowMinutes`: minutes from its start to the next block sharing horizontal space (or
+ * midnight). `roomAbovePx`: free px between the previous such block (including its handle) and this start.
+ */
+export function blockGeometry(startMinutes: number, lengthMinutes: number, roomBelowMinutes: number, roomAbovePx: number, hourHeight = HOUR_HEIGHT): BlockGeometry {
+  const top = (startMinutes / 60) * hourHeight;
+  const timeHeight = (Math.max(lengthMinutes, 0) / 60) * hourHeight;
+  const roomBelow = (Math.max(roomBelowMinutes, 0) / 60) * hourHeight;
+  // 1px gap to the next block, as before; the floor never reaches into the next block.
+  const height = Math.max(Math.max(timeHeight, Math.min(BLOCK_METRICS.minVisualHeight, roomBelow)) - 1, 1);
+  const tier = blockTier(height);
+  const freeBelow = roomBelow - height - 1;
+  const handle = tier === "range" ? "inside" : freeBelow >= BLOCK_METRICS.handleHeight ? "below" : "none";
+  const missing = Math.max(BLOCK_METRICS.minHitHeight - height, 0);
+  const slopTop = Math.max(Math.min(Math.ceil(missing / 2), Math.floor(roomAbovePx / 2)), 0);
+  const slopBottom = handle === "below" ? 0 : Math.max(Math.min(missing - slopTop, Math.floor(freeBelow / 2)), 0);
+  return { top, timeHeight, height, floored: height > timeHeight, tier, handle, hitSlop: { top: slopTop, bottom: slopBottom } };
+}
+
+export type ColumnBlockGeometry = BlockGeometry & { roomBelowMinutes: number; roomAbovePx: number };
+
+/** Geometry of every block in one column by key, with the room each block has (see blockGeometry). */
+export function columnGeometry(placement: ColumnPlacement, hourHeight = HOUR_HEIGHT): Map<string, ColumnBlockGeometry> {
+  const items = [
+    ...placement.days.map((day) => ({ key: day.key, start: day.start, length: Math.min(day.length, MINUTES_PER_DAY - day.start) })),
+    ...placement.events.map((event) => ({ key: event.key, start: event.start, length: event.point ? 0 : event.end - event.start })),
+  ]
+    .map((item) => {
+      const slot = placement.slots.get(item.key) ?? { lane: 0, lanes: 1 };
+      return { ...item, x0: slot.lane / slot.lanes, x1: (slot.lane + 1) / slot.lanes };
+    })
+    .sort((a, b) => a.start - b.start || a.x0 - b.x0);
+  const shareSpace = (a: { x0: number; x1: number }, b: { x0: number; x1: number }) => a.x0 < b.x1 && b.x0 < a.x1;
+  const result = new Map<string, ColumnBlockGeometry>();
+  const drawnBottom = new Map<string, number>();
+  for (const item of items) {
+    const nextStarts = items.filter((other) => other !== item && other.start > item.start && shareSpace(item, other)).map((other) => other.start);
+    const roomBelowMinutes = Math.min(...nextStarts, MINUTES_PER_DAY) - item.start;
+    const top = (item.start / 60) * hourHeight;
+    const bottomsAbove = items
+      .filter((other) => other !== item && other.start < item.start && shareSpace(item, other))
+      .map((other) => drawnBottom.get(other.key) ?? 0);
+    const roomAbovePx = top - Math.max(...bottomsAbove, 0);
+    const geometry = blockGeometry(item.start, item.length, roomBelowMinutes, roomAbovePx, hourHeight);
+    drawnBottom.set(item.key, geometry.top + geometry.height + (geometry.handle === "below" ? BLOCK_METRICS.handleHeight : 0));
+    result.set(item.key, { ...geometry, roomBelowMinutes, roomAbovePx });
+  }
+  return result;
 }
 
 /** The top area of a date column: all-day Events and date-only Days (planned date, no schedule). */

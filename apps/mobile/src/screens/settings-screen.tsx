@@ -2,6 +2,8 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, Platform, Text, View } from "react-native";
 import { useAuthSession, useAuthState } from "@/features/auth/use-auth";
+import { LOCK_MODE_LABEL, TRIGGER_MODE_LABEL } from "@/features/focus/focus-preferences";
+import { useFocus } from "@/features/focus/focus-provider";
 import { TAB_META } from "@/features/navigation/tab-navigation";
 import { useOpenScreen } from "@/features/navigation/use-open-screen";
 import { PERMISSION_STATE_LABEL } from "@/features/notifications/permission-state";
@@ -18,7 +20,7 @@ import { apiConfig } from "@/lib/api-client";
 import { Button, Card, FieldLabel, ListRow, Notice, Screen, SectionHeader, Segmented, layout, useTextStyles } from "@/ui/components";
 import { usePalette } from "@/ui/theme";
 
-const SHORTCUTS: readonly TabScreen[] = ["goals", "review", "recovery", "days", "events", "calendar", "today"];
+const SHORTCUTS: readonly TabScreen[] = ["focus", "goals", "review", "recovery", "days", "events", "calendar", "today"];
 
 export default function SettingsScreen() {
   const text = useTextStyles();
@@ -26,6 +28,7 @@ export default function SettingsScreen() {
   const openScreen = useOpenScreen();
   const { settings, update } = useSettings();
   const { snapshot } = useNotificationPermission();
+  const { settings: focusSettings } = useFocus();
 
   return (
     <Screen>
@@ -63,6 +66,19 @@ export default function SettingsScreen() {
       </Card>
 
       <Card>
+        <SectionHeader title="Focus" />
+        <ListRow onPress={() => router.push("/settings/focus")} accessibilityLabel="Focus 설정">
+          <View style={layout.flex}>
+            <Text style={text.body}>Focus 설정</Text>
+            <Text style={text.muted}>
+              일정 시작 시 {TRIGGER_MODE_LABEL[focusSettings.triggerMode]} · {LOCK_MODE_LABEL[focusSettings.lockMode]}
+            </Text>
+          </View>
+          <Text style={text.muted}>›</Text>
+        </ListRow>
+      </Card>
+
+      <Card>
         <SectionHeader title="알림" />
         <ListRow onPress={() => router.push("/settings/notifications")} accessibilityLabel="알림 설정">
           <View style={layout.flex}>
@@ -81,10 +97,10 @@ export default function SettingsScreen() {
           </ListRow>
         ) : null}
         {__DEV__ && Platform.OS === "android" ? (
-          <ListRow onPress={() => router.push("/dev/focus")} accessibilityLabel="Focus 차단 POC">
+          <ListRow onPress={() => router.push("/dev/focus")} accessibilityLabel="Focus native 디버그">
             <View style={layout.flex}>
-              <Text style={text.body}>Focus 앱 차단 POC (Android 개발 빌드)</Text>
-              <Text style={text.muted}>접근성 서비스 · 차단 package · 5분 Focus</Text>
+              <Text style={text.body}>Focus native 디버그 (개발 빌드)</Text>
+              <Text style={text.muted}>접근성 서비스 · native 차단 상태 · 마지막 감지 앱</Text>
             </View>
             <Text style={text.muted}>›</Text>
           </ListRow>

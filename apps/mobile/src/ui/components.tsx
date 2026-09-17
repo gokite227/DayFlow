@@ -257,19 +257,41 @@ export function ListRow({
   );
 }
 
-export function Checkbox({ checked, onPress, label, busy }: { checked: boolean; onPress: () => void; label: string; busy?: boolean }) {
+/** `mixed`: some but not all of a group are checked (shown as –). */
+export function Checkbox({ checked, onPress, label, busy, mixed }: { checked: boolean; onPress: () => void; label: string; busy?: boolean; mixed?: boolean }) {
   const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="checkbox"
-      accessibilityState={{ checked, busy }}
+      accessibilityState={{ checked: mixed && !checked ? "mixed" : checked, busy }}
       accessibilityLabel={label}
       onPress={onPress}
       disabled={busy}
       hitSlop={8}
-      style={[styles.checkbox, checked && styles.checkboxChecked]}
+      style={[styles.checkbox, (checked || mixed) && styles.checkboxChecked]}
     >
-      {checked ? <Text style={styles.checkboxMark}>✓</Text> : null}
+      {checked ? <Text style={styles.checkboxMark}>✓</Text> : mixed ? <Text style={styles.checkboxMark}>–</Text> : null}
+    </Pressable>
+  );
+}
+
+/** One option of a single-choice list, with an optional explanation under the label. */
+export function RadioRow({ label, hint, selected, onPress, disabled }: { label: string; hint?: string; selected: boolean; onPress: () => void; disabled?: boolean }) {
+  const styles = useStyles();
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected, disabled }}
+      accessibilityLabel={hint ? `${label}. ${hint}` : label}
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.listRow, pressed && styles.listRowPressed, disabled && { opacity: 0.5 }]}
+    >
+      <View style={[styles.radio, selected && styles.radioSelected]}>{selected ? <View style={styles.radioDot} /> : null}</View>
+      <View style={styles.flex}>
+        <Text style={styles.body}>{label}</Text>
+        {hint ? <Text style={styles.muted}>{hint}</Text> : null}
+      </View>
     </Pressable>
   );
 }
@@ -364,6 +386,9 @@ const useStyles = makeStyles((c) => ({
   checkbox: { width: 28, height: 28, borderRadius: 8, borderWidth: 2, borderColor: c.accent2, alignItems: "center", justifyContent: "center", backgroundColor: c.surface },
   checkboxChecked: { backgroundColor: c.accent, borderColor: c.accent },
   checkboxMark: { color: c.onAccent, fontWeight: "900", fontSize: 16 },
+  radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: c.accent2, alignItems: "center", justifyContent: "center", backgroundColor: c.surface },
+  radioSelected: { borderColor: c.accent },
+  radioDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: c.accent },
   segmented: { flexDirection: "row", borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, padding: 3, gap: 3 },
   segment: { flex: 1, minHeight: 34, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.sm },
   segmentSelected: { backgroundColor: c.accent },

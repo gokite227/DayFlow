@@ -4,6 +4,7 @@ import { TAB_META, isTabScreen } from "@/features/navigation/tab-navigation";
 import CalendarScreen from "@/screens/calendar-screen";
 import DaysScreen from "@/screens/days-screen";
 import EventsScreen from "@/screens/events-screen";
+import FocusScreen from "@/screens/focus-screen";
 import GoalsScreen from "@/screens/goals-screen";
 import RecoveryScreen from "@/screens/recovery-screen";
 import ReviewScreen from "@/screens/review-screen";
@@ -18,6 +19,7 @@ const SCREENS = {
   goals: GoalsScreen,
   review: ReviewScreen,
   recovery: RecoveryScreen,
+  focus: FocusScreen,
 } as const;
 
 /**

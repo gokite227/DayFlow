@@ -1,6 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-  <!-- Android 11+ package visibility: resolve the launcher and Settings packages that are always allowed. -->
+  <!-- Day schedule automation: alarms must be armed again after a reboot. -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <!-- Prompt / start notifications (Android 13+ asks the user; expo-notifications declares it as well). -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!-- Optional, user-granted "알람 및 리마인더" (Android 12+; not granted by default on Android 14+). Only used to
+       start a scheduled Focus on time; without it the alarm is inexact. USE_EXACT_ALARM is intentionally not used. -->
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+  <!-- Android 11+ package visibility, without QUERY_ALL_PACKAGES: launchers and Settings for the allow list,
+       and launcher-visible apps for the app picker and the block screen's app name. -->
   <queries>
     <intent>
       <action android:name="android.intent.action.MAIN" />
@@ -8,6 +17,14 @@
     </intent>
     <intent>
       <action android:name="android.settings.SETTINGS" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+    <!-- The phone dialer stays usable during Focus. -->
+    <intent>
+      <action android:name="android.intent.action.DIAL" />
     </intent>
   </queries>
 
@@ -33,5 +50,16 @@
       android:launchMode="singleTask"
       android:taskAffinity="app.dayflow.focus.block"
       android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+
+    <!-- Schedule alarms, "집중 시작" / "나중에" notification actions, reboot and app update. -->
+    <receiver
+      android:name="app.dayflow.focus.FocusScheduleReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+      </intent-filter>
+    </receiver>
   </application>
 </manifest>

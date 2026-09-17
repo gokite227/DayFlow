@@ -10,6 +10,8 @@ import { useAuthSession, useAuthState } from "@/features/auth/use-auth";
 import { configureForegroundPresentation } from "@/features/notifications/notification-adapter";
 import { clearEventReminders } from "@/features/notifications/reconcile-service";
 import { useEventReminderLifecycle } from "@/features/notifications/use-event-reminder-lifecycle";
+import { FocusAutomationSignedOut, FocusAutomationSync } from "@/features/focus/focus-automation-sync";
+import { FocusProvider } from "@/features/focus/focus-provider";
 import { SettingsProvider, useSettings } from "@/features/settings/settings-provider";
 import { apiConfig } from "@/lib/api-client";
 import { createQueryClient, wireAppStateFocus } from "@/lib/query-client";
@@ -76,8 +78,10 @@ function AppNavigator() {
     if (ready && auth.status !== "loading") void SplashScreen.hideAsync().catch(() => undefined);
   }, [ready, auth.status]);
 
+  // Focus is device-local and keeps running (and blocking) across sign-in changes, so it wraps the whole stack.
   return (
-    <>
+    <FocusProvider>
+      {signedIn ? <FocusAutomationSync /> : auth.status === "signedOut" ? <FocusAutomationSignedOut /> : null}
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       <Stack
         screenOptions={{
@@ -98,10 +102,12 @@ function AppNavigator() {
           <Stack.Screen name="days/edit" options={{ title: "Day", presentation: "modal" }} />
           <Stack.Screen name="review/try-to-day" options={{ title: "Day로 만들기", presentation: "modal" }} />
           <Stack.Screen name="review/detail" options={{ title: "회고" }} />
+          <Stack.Screen name="focus/apps" options={{ title: "차단 앱", presentation: "modal" }} />
+          <Stack.Screen name="settings/focus" options={{ title: "Focus 설정" }} />
           <Stack.Screen name="settings/tabs" options={{ title: "하단 탭 설정" }} />
           <Stack.Screen name="settings/notifications" options={{ title: "알림" }} />
           <Stack.Screen name="dev/notifications" options={{ title: "알림 디버그 (dev)" }} />
-          <Stack.Screen name="dev/focus" options={{ title: "Focus 차단 POC (dev)" }} />
+          <Stack.Screen name="dev/focus" options={{ title: "Focus native 디버그 (dev)" }} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -109,7 +115,7 @@ function AppNavigator() {
         {/* `dayflow://auth/callback` (Android delivers the login redirect to the app as well). */}
         <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
       </Stack>
-    </>
+    </FocusProvider>
   );
 }
 

@@ -8,7 +8,18 @@ import { DAY_PRIORITY_LABEL, dayGoalLine } from "@/features/days/day-values";
 import { categoryColors, categoryLabel } from "@/features/events/event-display";
 import { Badge, EmptyState } from "@/ui/components";
 import { fontSize, makeStyles, radius, spacing, useAppTheme, usePalette, withAlpha } from "@/ui/theme";
-import { HOUR_HEIGHT, blockHeight, formatClock, nowLineTop, resizedLength, type TimedDayPlacement, type TimedEventPlacement } from "./calendar-grid";
+import {
+  BLOCK_METRICS,
+  TIER_CONTENT_HEIGHT,
+  blockGeometry,
+  blockHeight,
+  formatClock,
+  nowLineTop,
+  resizedLength,
+  type ColumnBlockGeometry,
+  type TimedDayPlacement,
+  type TimedEventPlacement,
+} from "./calendar-grid";
 import { useHover, type CalendarDragController, type DragSource, type HoverStore } from "./calendar-drag";
 import { isDrawerPanelTouchable, isDrawerVisible, type DrawerModel } from "./unscheduled-drawer";
 
@@ -29,10 +40,15 @@ function useDayGesture(
   size: { width: number; height: number },
   scrollRefs: ScrollRefs,
   onTap: () => void,
+  /** Extra press area above/below a short grid block (never into a neighbour; see blockGeometry). */
+  hitSlopTop = 0,
+  hitSlopBottom = 0,
 ) {
   return useMemo(() => {
+    const slop = { top: hitSlopTop, bottom: hitSlopBottom, left: 0, right: 0 };
     const pan = Gesture.Pan()
       .runOnJS(true)
+      .hitSlop(slop)
       .activateAfterLongPress(DRAG_ACTIVATION_MS)
       .shouldCancelWhenOutside(false)
       .blocksExternalGesture(...(scrollRefs as RefObject<GestureScrollView>[]))
@@ -41,12 +57,13 @@ function useDayGesture(
       .onFinalize((event, success) => controller.end(event.absoluteX, event.absoluteY, !success));
     const tap = Gesture.Tap()
       .runOnJS(true)
+      .hitSlop(slop)
       .maxDuration(DRAG_ACTIVATION_MS - 20)
       .onEnd((_event, success) => {
         if (success) onTap();
       });
     return Gesture.Exclusive(pan, tap);
-  }, [day, source, controller, size, scrollRefs, onTap]);
+  }, [day, source, controller, size, scrollRefs, onTap, hitSlopTop, hitSlopBottom]);
 }
 
 const PRIORITY_TONE = { NONE: null, LOW: "#5fb7a5", MEDIUM: "#d7ae3c", HIGH: "#e0527f" } as const;
@@ -54,6 +71,7 @@ const PRIORITY_TONE = { NONE: null, LOW: "#5fb7a5", MEDIUM: "#d7ae3c", HIGH: "#e
 export const DayBlock = memo(function DayBlock({
   placement,
   slot,
+  geometry,
   columnWidth,
   dimmed,
   controller,
@@ -63,6 +81,7 @@ export const DayBlock = memo(function DayBlock({
 }: {
   placement: TimedDayPlacement;
   slot: LayoutSlot | undefined;
+  geometry: ColumnBlockGeometry;
   columnWidth: number;
   dimmed: boolean;
   controller: CalendarDragController;
@@ -74,22 +93,32 @@ export const DayBlock = memo(function DayBlock({
   const palette = usePalette();
   const { day, start, length } = placement;
   const [preview, setPreview] = useState<number | null>(null);
-  const height = useSharedValue(blockHeight(length));
+  // While resizing, the drawn size follows the preview (same room rules); the handle keeps its place so the
+  // gesture is never unmounted mid-drag.
+  const shownGeometry = preview === null ? geometry : blockGeometry(start, preview, Math.max(geometry.roomBelowMinutes, preview), geometry.roomAbovePx);
+  const height = useSharedValue(geometry.height);
+  const timeHeight = useSharedValue(geometry.timeHeight);
   const origin = useSharedValue(length);
   const lastPreview = useSharedValue<number | null>(null);
 
   useEffect(() => {
-    if (preview === null) height.set(blockHeight(length));
-  }, [length, preview, height]);
+    if (preview !== null) return;
+    height.set(geometry.height);
+    timeHeight.set(geometry.timeHeight);
+  }, [geometry.height, geometry.timeHeight, preview, height, timeHeight]);
 
   const lanes = slot?.lanes ?? 1;
   const lane = slot?.lane ?? 0;
   const width = columnWidth / lanes - 3;
+  const left = (lane / lanes) * columnWidth + 1;
   const size = useMemo(() => ({ width, height: blockHeight(length) }), [width, length]);
   const openDay = useMemo(() => () => onOpen(day), [onOpen, day]);
-  const bodyGesture = useDayGesture(day, "grid", controller, size, scrollRefs, openDay);
+  const bodyGesture = useDayGesture(day, "grid", controller, size, scrollRefs, openDay, geometry.hitSlop.top, geometry.hitSlop.bottom);
+  const handle = geometry.handle;
+  const roomBelowMinutes = geometry.roomBelowMinutes;
+  const roomAbovePx = geometry.roomAbovePx;
 
-  // Resize: drag the bottom handle; 15-minute snap, at least 15 minutes, never past midnight.
+  // Resize: drag the handle; the end snaps to 15 minutes, at least 15 minutes, never past midnight.
   const resizeGesture = useMemo(
     () =>
       Gesture.Pan()
@@ -104,7 +133,9 @@ export const DayBlock = memo(function DayBlock({
         })
         .onUpdate((event) => {
           const next = resizedLength(origin.get(), event.translationY, start);
-          height.set(blockHeight(next));
+          const drawn = blockGeometry(start, next, Math.max(roomBelowMinutes, next), roomAbovePx);
+          height.set(drawn.height);
+          timeHeight.set(drawn.timeHeight);
           if (next !== lastPreview.get()) {
             lastPreview.set(next);
             setPreview(next);
@@ -115,59 +146,82 @@ export const DayBlock = memo(function DayBlock({
           lastPreview.set(null);
           setPreview(null);
           if (success && next !== origin.get()) onResize(day, next);
-          else height.set(blockHeight(length));
         }),
-    [day, length, start, scrollRefs, onResize, height, origin, lastPreview],
+    [day, length, start, scrollRefs, onResize, height, timeHeight, origin, lastPreview, roomBelowMinutes, roomAbovePx],
   );
 
   const animatedHeight = useAnimatedStyle(() => ({ height: height.get() }));
+  const animatedFill = useAnimatedStyle(() => ({ height: Math.max(timeHeight.get(), 2) }));
+  // "below": the handle sits just under the block, in free space, so it never covers the title.
+  const animatedHandle = useAnimatedStyle(() => ({ top: geometry.top + height.get() + (handle === "inside" ? -BLOCK_METRICS.handleHeight : 1) }));
   const shown = preview ?? length;
+  const tier = shownGeometry.tier;
   const tone = PRIORITY_TONE[day.priority];
   const tag = day.tags[0];
+  const end = Math.min(start + shown, 24 * 60);
+  const timeText = tier === "range" || (preview !== null && tier === "start") ? `${formatClock(start)}–${formatClock(end)}` : formatClock(start);
 
   return (
-    <Animated.View
-      style={[
-        styles.dayBlock,
-        { top: (start / 60) * HOUR_HEIGHT, left: (lane / lanes) * columnWidth + 1, width },
-        day.coreDay && styles.dayBlockCore,
-        tone ? { borderLeftColor: tone } : null,
-        (dimmed || day.status === "DONE") && { opacity: dimmed ? 0.3 : 0.6 },
-        animatedHeight,
-      ]}
-    >
+    <>
       <GestureDetector gesture={bodyGesture}>
-        <View style={styles.dayBlockBody} accessible accessibilityRole="button" accessibilityLabel={`${day.title} ${formatClock(start)}부터 ${shown}분. 길게 눌러 옮기기`}>
-          <View style={styles.blockTitleRow}>
-            {tag ? <View style={[styles.tagDot, { backgroundColor: tag.color }]} /> : null}
-            <Text style={[styles.blockTitle, day.status === "DONE" && styles.done]} numberOfLines={shown >= 45 ? 2 : 1}>
-              {day.title}
-            </Text>
+        <Animated.View
+          style={[
+            styles.dayBlock,
+            { top: geometry.top, left, width },
+            geometry.floored && styles.blockFloored,
+            day.coreDay && styles.dayBlockCore,
+            tone ? { borderLeftColor: tone } : null,
+            (dimmed || day.status === "DONE") && { opacity: dimmed ? 0.3 : 0.6 },
+            animatedHeight,
+          ]}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={`${day.title} ${formatClock(start)}부터 ${formatClock(end)}까지 ${shown}분. 길게 눌러 옮기기`}
+        >
+          {/* Only the real duration is filled: a 5-minute block drawn taller does not look like 20 minutes. */}
+          {shownGeometry.floored ? <Animated.View pointerEvents="none" style={[styles.dayFill, animatedFill]} /> : null}
+          <View style={[styles.blockBody, tier === "tiny" && styles.blockBodyTiny, tier === "range" && styles.blockBodyWithHandle]}>
+            <View style={styles.blockTitleRow}>
+              {tag && tier !== "tiny" ? <View style={[styles.tagDot, { backgroundColor: tag.color }]} /> : null}
+              <Text
+                style={[styles.blockTitle, tier === "tiny" && styles.blockTitleTiny, day.status === "DONE" && styles.done]}
+                numberOfLines={tier === "range" && shownGeometry.height >= TIER_CONTENT_HEIGHT.range + BLOCK_METRICS.titleLine + BLOCK_METRICS.handleHeight ? 2 : 1}
+              >
+                {day.title}
+              </Text>
+            </View>
+            {tier === "range" || tier === "start" ? (
+              <Text style={[styles.blockTime, preview !== null && { color: palette.accent }]} numberOfLines={1}>
+                {timeText}
+              </Text>
+            ) : null}
           </View>
-          {shown >= 30 || preview !== null ? (
-            <Text style={[styles.blockTime, preview !== null && { color: palette.accent }]} numberOfLines={1}>
-              {formatClock(start)}–{formatClock(Math.min(start + shown, 24 * 60))}
-            </Text>
-          ) : null}
-        </View>
+        </Animated.View>
       </GestureDetector>
-      <GestureDetector gesture={resizeGesture}>
-        <View style={styles.resizeHandle} hitSlop={{ top: 6, bottom: 10, left: 0, right: 0 }} accessibilityLabel="종료 시간 조절">
-          <View style={styles.resizeGrip} />
-        </View>
-      </GestureDetector>
-    </Animated.View>
+      {handle !== "none" ? (
+        <GestureDetector gesture={resizeGesture}>
+          <Animated.View
+            style={[styles.resizeHandle, { left, width }, animatedHandle, handle === "below" && styles.resizeHandleBelow]}
+            accessibilityLabel="종료 시간 조절"
+          >
+            <View style={styles.resizeGrip} />
+          </Animated.View>
+        </GestureDetector>
+      ) : null}
+    </>
   );
 });
 
 export const EventBlock = memo(function EventBlock({
   placement,
   slot,
+  geometry,
   columnWidth,
   onOpen,
 }: {
   placement: TimedEventPlacement;
   slot: LayoutSlot | undefined;
+  geometry: ColumnBlockGeometry;
   columnWidth: number;
   onOpen: (occurrence: EventOccurrenceResponse) => void;
 }) {
@@ -177,29 +231,43 @@ export const EventBlock = memo(function EventBlock({
   const { color, soft } = categoryColors(occurrence.category);
   const lanes = slot?.lanes ?? 1;
   const lane = slot?.lane ?? 0;
+  const tier = geometry.tier;
+  const fill = scheme === "dark" ? withAlpha(color, 0.22) : soft;
+  const range = point ? formatClock(start) : `${formatClock(start)}–${formatClock(end)}`;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${categoryLabel(occurrence.category)} 일정 ${occurrence.title} ${formatClock(start)}`}
+      accessibilityLabel={`${categoryLabel(occurrence.category)} 일정 ${occurrence.title} ${range}`}
       onPress={() => onOpen(occurrence)}
+      hitSlop={{ top: geometry.hitSlop.top, bottom: geometry.hitSlop.bottom, left: 0, right: 0 }}
       style={[
         styles.eventBlock,
         {
-          top: (start / 60) * HOUR_HEIGHT,
-          height: point ? 20 : blockHeight(end - start),
+          top: geometry.top,
+          height: geometry.height,
           left: (lane / lanes) * columnWidth + 1,
           width: columnWidth / lanes - 3,
           borderColor: color,
-          backgroundColor: scheme === "dark" ? withAlpha(color, 0.22) : soft,
+          backgroundColor: geometry.floored ? "transparent" : fill,
         },
       ]}
     >
-      <Text style={[styles.eventLabel, { color }]} numberOfLines={1}>
-        {categoryLabel(occurrence.category)} · {point ? formatClock(start) : `${formatClock(start)}–${formatClock(end)}`}
-      </Text>
-      <Text style={styles.blockTitle} numberOfLines={end - start >= 60 ? 2 : 1}>
-        {occurrence.title}
-      </Text>
+      {geometry.floored ? <View pointerEvents="none" style={[styles.eventFill, { height: Math.max(geometry.timeHeight, 2), backgroundColor: fill }]} /> : null}
+      <View style={[styles.blockBody, tier === "tiny" && styles.blockBodyTiny]}>
+        {tier === "range" ? (
+          <Text style={[styles.eventLabel, { color }]} numberOfLines={1}>
+            {categoryLabel(occurrence.category)} · {range}
+          </Text>
+        ) : null}
+        <Text style={[styles.blockTitle, tier === "tiny" && styles.blockTitleTiny]} numberOfLines={tier === "range" && geometry.height >= TIER_CONTENT_HEIGHT.range + BLOCK_METRICS.titleLine ? 2 : 1}>
+          {occurrence.title}
+        </Text>
+        {tier === "start" ? (
+          <Text style={[styles.eventLabel, { color }]} numberOfLines={1}>
+            {formatClock(start)}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   );
 });
@@ -442,25 +510,33 @@ function Row({ children }: { children: ReactNode }) {
 const useStyles = makeStyles((c) => ({
   dayBlock: {
     position: "absolute",
-    borderRadius: 6,
+    borderRadius: 4,
     borderWidth: 1,
-    borderLeftWidth: 4,
+    borderLeftWidth: 3,
     borderColor: c.accent2,
     backgroundColor: c.accentSoft,
     overflow: "hidden",
   },
   dayBlockCore: { borderColor: c.accent, borderLeftColor: c.accent },
-  dayBlockBody: { flex: 1, paddingHorizontal: 5, paddingTop: 2, paddingBottom: 12 },
+  /** Drawn taller than the real duration: outlined, with only the real part filled (dayFill / eventFill). */
+  blockFloored: { backgroundColor: c.surface },
+  dayFill: { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: c.accentSoft },
+  eventFill: { position: "absolute", top: 0, left: 0, right: 0 },
+  blockBody: { flex: 1, paddingHorizontal: 4, paddingVertical: BLOCK_METRICS.padding, overflow: "hidden" },
+  blockBodyTiny: { paddingVertical: 0, justifyContent: "center" },
+  blockBodyWithHandle: { paddingBottom: BLOCK_METRICS.handleHeight },
   blockTitleRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  blockTitle: { flexShrink: 1, fontSize: fontSize.caption, fontWeight: "700", color: c.text },
-  blockTime: { fontSize: fontSize.caption - 2, color: c.textSecondary },
+  blockTitle: { flexShrink: 1, fontSize: fontSize.caption, lineHeight: BLOCK_METRICS.titleLine, fontWeight: "700", color: c.text },
+  blockTitleTiny: { fontSize: fontSize.caption - 2, lineHeight: BLOCK_METRICS.tinyTitleLine },
+  blockTime: { fontSize: fontSize.caption - 2, lineHeight: BLOCK_METRICS.timeLine, color: c.textSecondary },
   done: { textDecorationLine: "line-through", color: c.textSecondary },
   tagDot: { width: 6, height: 6, borderRadius: 3 },
   tag: { flexDirection: "row", alignItems: "center", gap: 4 },
-  resizeHandle: { position: "absolute", left: 0, right: 0, bottom: 0, height: 14, alignItems: "center", justifyContent: "center" },
+  resizeHandle: { position: "absolute", height: BLOCK_METRICS.handleHeight, alignItems: "center", justifyContent: "center", zIndex: 2 },
+  resizeHandleBelow: { justifyContent: "flex-start" },
   resizeGrip: { width: 22, height: 3, borderRadius: 2, backgroundColor: c.accent2 },
-  eventBlock: { position: "absolute", borderRadius: 6, borderWidth: 1, borderLeftWidth: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: "hidden" },
-  eventLabel: { fontSize: fontSize.caption - 2, fontWeight: "800" },
+  eventBlock: { position: "absolute", borderRadius: 4, borderWidth: 1, borderLeftWidth: 3, overflow: "hidden" },
+  eventLabel: { fontSize: fontSize.caption - 2, lineHeight: BLOCK_METRICS.timeLine, fontWeight: "800" },
   nowLine: { position: "absolute", left: 0, right: 0, height: 2, backgroundColor: c.nowLine, zIndex: 5 },
   nowDot: { position: "absolute", left: -4, top: -3, width: 8, height: 8, borderRadius: 4, backgroundColor: c.nowLine },
   allDayChip: { height: 22, borderRadius: 5, paddingHorizontal: 6, justifyContent: "center", marginBottom: 3 },

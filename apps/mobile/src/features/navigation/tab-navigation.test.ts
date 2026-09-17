@@ -7,12 +7,12 @@ const custom = ["today", "goals", "calendar", "review"] as const;
 describe("bottom tab navigation", () => {
   it("shows the default tabs with Settings last", () => {
     expect(visibleTabRoutes(DEFAULT_BOTTOM_TABS)).toEqual(["today", "days", "calendar", "events", "settings"]);
-    expect(hiddenTabScreens(DEFAULT_BOTTOM_TABS)).toEqual(["goals", "review", "recovery"]);
+    expect(hiddenTabScreens(DEFAULT_BOTTOM_TABS)).toEqual(["goals", "review", "recovery", "focus"]);
   });
 
   it("follows a customized configuration", () => {
     expect(visibleTabRoutes(custom)).toEqual(["today", "goals", "calendar", "review", "settings"]);
-    expect(hiddenTabScreens(custom)).toEqual(["days", "events", "recovery"]);
+    expect(hiddenTabScreens(custom)).toEqual(["days", "events", "recovery", "focus"]);
   });
 
   it("keeps deep links such as Event detail reachable when Events is not a tab", () => {

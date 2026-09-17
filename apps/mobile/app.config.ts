@@ -23,6 +23,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: "app.dayflow.mobile",
   },
+    extra: {
+    ...config.extra,
+    eas: {
+      projectId: "94328509-c66a-4d83-b9a0-8298e42298d9",
+    },
+  },
   plugins: [
     "expo-router",
     // Local notifications only; no push credentials are needed for Event reminders (NOTI-001).

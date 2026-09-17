@@ -4,21 +4,18 @@ import type { DayResponse } from "@dayflow/api-client";
 import { useState } from "react";
 import { ErrorNotice } from "@/components/query-state";
 import {
-  CALENDAR_SNAP_MINUTES,
   MINUTES_PER_DAY,
-  MIN_SCHEDULE_MINUTES,
   defaultScheduleLength,
   durationMinutes,
   formatMinutes,
   parseTimeInput,
   scheduleRequest,
-  snapMinutes,
   wallClock,
 } from "@/features/calendar/calendar-time";
 import { useDeleteDaySchedule, useSetDaySchedule } from "./day-queries";
 
 /** Latest time a time input can show (24:00 is not a valid input value). */
-const LAST_INPUT_MINUTE = MINUTES_PER_DAY - CALENDAR_SNAP_MINUTES;
+const LAST_INPUT_MINUTE = MINUTES_PER_DAY - 1;
 const DEFAULT_START_MINUTES = 9 * 60;
 
 function initialTimes(day: DayResponse) {
@@ -61,14 +58,14 @@ export function DayScheduleSection({
       setInputError("시작/종료 시간을 입력해주세요.");
       return;
     }
-    const start = snapMinutes(parsedStart);
-    const end = snapMinutes(parsedEnd);
-    if (end - start < MIN_SCHEDULE_MINUTES) {
-      setInputError(`종료 시간은 시작 시간보다 ${MIN_SCHEDULE_MINUTES}분 이상 뒤여야 합니다.`);
+    // Detail input keeps the exact minute (20:27–21:27); only Calendar drag/resize snaps to 15 minutes.
+    const start = parsedStart;
+    const end = parsedEnd;
+    if (end <= start) {
+      setInputError("종료 시간은 시작 시간보다 뒤여야 합니다.");
       return;
     }
     setInputError(null);
-    setTimes({ start: formatMinutes(start), end: formatMinutes(end) });
     setSchedule.mutate(
       { dayId: day.id, body: scheduleRequest(plannedDate, start, end - start, day.schedule) },
       { onSuccess: onSaved },
@@ -87,7 +84,7 @@ export function DayScheduleSection({
           <div className="time-fields">
             <input
               type="time"
-              step={CALENDAR_SNAP_MINUTES * 60}
+              step={60}
               aria-label="시작 시간"
               value={times.start}
               onChange={(event) => setTimes((current) => ({ ...current, start: event.target.value }))}
@@ -95,7 +92,7 @@ export function DayScheduleSection({
             <span className="mini">~</span>
             <input
               type="time"
-              step={CALENDAR_SNAP_MINUTES * 60}
+              step={60}
               aria-label="종료 시간"
               value={times.end}
               onChange={(event) => setTimes((current) => ({ ...current, end: event.target.value }))}
