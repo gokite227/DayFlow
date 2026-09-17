@@ -67,6 +67,19 @@ describe("describeApiError", () => {
     });
   });
 
+  it("explains a date outside a PERIOD Goal in Korean only", () => {
+    const outside = new ApiError(400, {
+      ...problem,
+      code: "DATE_OUTSIDE_GOAL_PERIOD",
+      detail: "The date must be within the Goal period 2026-09-21 ~ 2026-10-08.",
+      fieldErrors: [{ field: "plannedDate", message: "The date must be within the Goal period." }],
+    });
+    const description = describeApiError(outside);
+    expect(description.message).toContain("기간 목표");
+    expect(description.message).not.toContain("The date");
+    expect(description.fieldErrors).toEqual([]);
+  });
+
   it("explains an unreachable API", () => {
     expect(describeApiError(new TypeError("Failed to fetch")).message).toContain("API 서버에 연결할 수 없습니다");
   });

@@ -1,5 +1,5 @@
 import type { DayResponse } from "@dayflow/api-client";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { DAY_PRIORITY_LABEL, DAY_STATUS_LABEL, describeDaySchedule } from "@/features/days/day-values";
 import { Badge, Checkbox, layout, ListRow, useTextStyles } from "@/ui/components";
 import { makeStyles, spacing } from "@/ui/theme";
@@ -16,6 +16,7 @@ export function DayRow({
   onToggle,
   toggling = false,
   onPress,
+  onGoalPress,
   showSchedule = true,
 }: {
   day: DayResponse;
@@ -23,6 +24,8 @@ export function DayRow({
   onToggle?: () => void;
   toggling?: boolean;
   onPress?: () => void;
+  /** Opens the Day's Goal (WEEK or PERIOD detail) from the Goal line. */
+  onGoalPress?: () => void;
   showSchedule?: boolean;
 }) {
   const styles = useStyles();
@@ -45,7 +48,13 @@ export function DayRow({
             {day.status !== "NOT_STARTED" && day.status !== "DONE" ? ` · ${DAY_STATUS_LABEL[day.status]}` : ""}
           </Text>
         ) : null}
-        {goalLine ? (
+        {goalLine && onGoalPress ? (
+          <Pressable accessibilityRole="link" accessibilityLabel={`${goalLine} 목표 열기`} onPress={onGoalPress} hitSlop={6} style={styles.goalLink}>
+            <Text style={[text.muted, styles.goalLinkText]} numberOfLines={1}>
+              🎯 {goalLine} ›
+            </Text>
+          </Pressable>
+        ) : goalLine ? (
           <Text style={text.muted} numberOfLines={1}>
             🎯 {goalLine}
           </Text>
@@ -68,6 +77,8 @@ export function DayRow({
 const useStyles = makeStyles((palette) => ({
   core: { backgroundColor: palette.accentSoft },
   done: { color: palette.textSecondary, textDecorationLine: "line-through" },
+  goalLink: { alignSelf: "flex-start", minHeight: 24, justifyContent: "center" },
+  goalLinkText: { color: palette.accent },
   tag: { flexDirection: "row", alignItems: "center", gap: 4, paddingRight: spacing.xs },
   tagDot: { width: 7, height: 7, borderRadius: 4 },
 }));

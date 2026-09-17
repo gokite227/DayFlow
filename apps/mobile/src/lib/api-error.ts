@@ -45,8 +45,10 @@ const ERROR_HINTS: Partial<Record<string, string>> = {
   VALIDATION_ERROR: "입력값을 확인해주세요.",
   VERSION_CONFLICT: "다른 곳에서 먼저 변경되었어요. 최신 상태를 불러왔으니 다시 시도해주세요.",
   SCHEDULE_VERSION_CONFLICT: "다른 곳에서 일정이 변경되었어요. 최신 상태를 불러왔어요.",
-  DAY_REQUIRES_WEEK_GOAL: "Day는 주간 목표에만 연결할 수 있어요.",
+  DAY_REQUIRES_WEEK_GOAL: "Day는 주간 목표나 기간 목표에만 연결할 수 있어요.",
   DATE_OUTSIDE_WEEK_GOAL_PERIOD: "실행 날짜는 연결된 주간 목표 기간 안이어야 해요.",
+  DATE_OUTSIDE_GOAL_PERIOD: "날짜는 연결된 기간 목표의 시작일과 종료일 사이여야 해요. 기간 안의 날짜를 고르거나 목표 연결을 해제해주세요.",
+  GOAL_IN_USE: "연결된 Day나 하위 목표가 남아 있어 삭제할 수 없어요.",
   REVIEW_ITEM_NOT_TRY: "Try 항목만 Day로 만들 수 있어요.",
   INVALID_RECOVERY_DECISION: "정리 방법을 다시 확인해주세요.",
   INVALID_RECOVERY_RETURN_DATE: "돌아올 날은 Recovery Day 다음 날 이후여야 해요.",
@@ -65,7 +67,8 @@ export function describeError(error: unknown): string {
     const { problem } = error;
     if (!problem) return `요청이 실패했어요. (HTTP ${error.status})`;
     const hint = ERROR_HINTS[problem.code];
-    if (error.status === 409 && hint) return hint;
+    // Conflicts, and the Goal period rule whose hint already says everything, show only the Korean hint.
+    if (hint && (error.status === 409 || problem.code === "DATE_OUTSIDE_GOAL_PERIOD")) return hint;
     const fields = (problem.fieldErrors ?? []).map((violation: FieldViolation) => `${violation.field}: ${violation.message}`);
     return [hint ?? problem.detail, ...fields].join("\n");
   }

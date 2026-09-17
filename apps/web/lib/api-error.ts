@@ -51,8 +51,9 @@ const ERROR_HINTS: Partial<Record<string, string>> = {
   INVALID_GOAL_PARENT: "상위 목표는 바로 위 단계(연간 → 분기 → 월간 → 주간)여야 합니다.",
   GOAL_OUTSIDE_PARENT_PERIOD: "하위 목표 기간은 상위 목표 기간 안에 있어야 합니다.",
   GOAL_IN_USE: "하위 목표나 Day가 남아 있어 삭제할 수 없습니다.",
-  DAY_REQUIRES_WEEK_GOAL: "Day는 주간 목표에만 연결할 수 있습니다.",
+  DAY_REQUIRES_WEEK_GOAL: "Day는 주간 목표나 기간 목표에만 연결할 수 있습니다.",
   DATE_OUTSIDE_WEEK_GOAL_PERIOD: "실행 날짜는 연결된 주간 목표 기간 안이어야 합니다.",
+  DATE_OUTSIDE_GOAL_PERIOD: "날짜는 연결된 기간 목표의 시작일과 종료일 사이여야 해요. 기간 안의 날짜를 고르거나 목표 연결을 해제해주세요.",
   INVALID_SCHEDULE_RANGE: "종료 시간은 시작 시간보다 뒤여야 합니다.",
   VERSION_CONFLICT: "다른 곳에서 먼저 변경되었습니다. 최신 상태를 불러온 뒤 다시 시도해주세요.",
   SCHEDULE_VERSION_CONFLICT: "다른 곳에서 일정이 변경되었습니다. 최신 상태를 불러왔어요.",
@@ -70,6 +71,8 @@ const ERROR_HINTS: Partial<Record<string, string>> = {
   EVENT_NOT_FOUND: "일정을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
 };
 
+const HINT_ONLY_CODES = new Set(["DATE_OUTSIDE_GOAL_PERIOD"]);
+
 export interface ErrorDescription {
   message: string;
   fieldErrors: FieldViolation[];
@@ -82,8 +85,9 @@ export function describeApiError(error: unknown): ErrorDescription {
       return { message: `요청이 실패했습니다. (HTTP ${error.status})`, fieldErrors: [] };
     }
     const hint = ERROR_HINTS[problem.code];
-    // Conflicts are not input mistakes: show only the reload hint, without field errors.
-    if (error.status === 409 && hint) {
+    // Conflicts are not input mistakes: show only the reload hint, without field errors. A hint that already
+    // says everything the user needs (the Goal period rule) also replaces the English server detail.
+    if (hint && (error.status === 409 || HINT_ONLY_CODES.has(problem.code))) {
       return { message: hint, fieldErrors: [] };
     }
     return {

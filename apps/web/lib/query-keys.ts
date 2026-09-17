@@ -10,7 +10,11 @@ export type DayListFilters = NonNullable<paths["/api/v1/days"]["get"]["parameter
 export const queryKeys = {
   goals: {
     all: ["goals"] as const,
+    /** CALENDAR Goals (YEAR → WEEK) with optional filters. */
     list: (filters: GoalListFilters = {}) => ["goals", "list", filters] as const,
+    /** Every PERIOD Goal; status and filters are derived on the client. */
+    periodList: () => ["goals", "period"] as const,
+    detail: (goalId: string) => ["goals", "detail", goalId] as const,
   },
   days: {
     all: ["days"] as const,
@@ -41,6 +45,10 @@ export const queryKeys = {
   reviews: {
     all: ["reviews"] as const,
     period: (type: string, periodStart: string) => ["reviews", type, periodStart] as const,
+    /** Every archive list (any filter); a saved review refreshes them all. */
+    archiveAll: ["reviews", "archive"] as const,
+    /** One archive list: its pages are kept together by useInfiniteQuery. */
+    archive: (type: string, q: string) => ["reviews", "archive", { type, q }] as const,
   },
   recoveryDays: {
     all: ["recovery-days"] as const,

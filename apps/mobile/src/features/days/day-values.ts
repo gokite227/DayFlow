@@ -103,7 +103,8 @@ export function describeDaySchedule(day: Pick<DayResponse, "plannedDate" | "sche
 export function dayGoalLine(day: Pick<DayResponse, "goalId">, goalsById: ReadonlyMap<string, GoalResponse>): string | null {
   if (day.goalId === null) return null;
   const goal = goalsById.get(day.goalId);
-  return goal ? `${goalPeriodLabel(goal)} · ${goal.title}` : null;
+  if (!goal) return null;
+  return goal.kind === "PERIOD" ? `기간 · ${goal.title}` : `${goalPeriodLabel(goal)} · ${goal.title}`;
 }
 
 export interface DayFormValues {

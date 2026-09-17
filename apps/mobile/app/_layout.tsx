@@ -94,8 +94,10 @@ function AppNavigator() {
           <Stack.Screen name="events/[eventId]" options={{ title: "일정" }} />
           <Stack.Screen name="events/edit" options={{ title: "일정", presentation: "modal" }} />
           <Stack.Screen name="goals/[goalId]" options={{ title: "목표" }} />
+          <Stack.Screen name="goals/period-edit" options={{ title: "기간 목표", presentation: "modal" }} />
           <Stack.Screen name="days/edit" options={{ title: "Day", presentation: "modal" }} />
           <Stack.Screen name="review/try-to-day" options={{ title: "Day로 만들기", presentation: "modal" }} />
+          <Stack.Screen name="review/detail" options={{ title: "회고" }} />
           <Stack.Screen name="settings/tabs" options={{ title: "하단 탭 설정" }} />
           <Stack.Screen name="settings/notifications" options={{ title: "알림" }} />
           <Stack.Screen name="dev/notifications" options={{ title: "알림 디버그 (dev)" }} />
