@@ -1,4 +1,5 @@
 import {
+  GOAL_KINDS,
   GOAL_TYPES,
   PROGRESS_POLICIES,
   validateGoalCanonicalPeriod,
@@ -22,7 +23,8 @@ import {
 
 const goalFields = {
   parentGoalId: entityIdSchema.nullable(),
-  type: z.enum(GOAL_TYPES),
+  kind: z.enum(GOAL_KINDS).optional().default("CALENDAR"),
+  type: z.enum(GOAL_TYPES).nullable(),
   title: titleSchema,
   why: z.string().trim().max(2000),
   startDate: localDateSchema,

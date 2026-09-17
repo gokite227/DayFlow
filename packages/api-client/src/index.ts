@@ -2,4 +2,4 @@ export { createDayFlowApiClient } from "./client";
 export type { DayFlowApiClient, DayFlowApiClientOptions } from "./client";
 export type { components, paths } from "./generated/schema";
 export * from "./auth";
-export type * from "./types";
+export * from "./types";

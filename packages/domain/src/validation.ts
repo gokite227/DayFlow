@@ -23,6 +23,7 @@ export type DomainIssueCode =
   | "GOAL_OUTSIDE_PARENT_PERIOD"
   | "DAY_REQUIRES_WEEK_GOAL"
   | "DATE_OUTSIDE_WEEK_GOAL_PERIOD"
+  | "DATE_OUTSIDE_GOAL_PERIOD"
   | "INVALID_SCHEDULE_RANGE"
   | "SCHEDULE_DAY_MISMATCH"
   | "SCHEDULE_DATE_MISMATCH"
@@ -81,9 +82,9 @@ export function validateGoalPeriod(
 
 /** GOAL-004: startDate/endDate must be exactly one calendar period of the Goal type. */
 export function validateGoalCanonicalPeriod(
-  goal: Pick<Goal, "type" | "startDate" | "endDate">,
+  goal: Pick<Goal, "kind" | "type" | "startDate" | "endDate">,
 ): DomainIssue[] {
-  if (!isGoalPeriodOrdered(goal) || isCanonicalGoalPeriod(goal.type, goal)) {
+  if (goal.kind === "PERIOD" || goal.type === null || !isGoalPeriodOrdered(goal) || isCanonicalGoalPeriod(goal.type, goal)) {
     return [];
   }
   return [
@@ -100,8 +101,16 @@ export function validateGoalCanonicalPeriod(
  * a parent. It needs no parent entity, so it can run before the parent is loaded.
  */
 export function validateGoalParentReference(
-  goal: Pick<Goal, "type" | "parentGoalId">,
+  goal: Pick<Goal, "kind" | "type" | "parentGoalId">,
 ): DomainIssue[] {
+  if (goal.kind === "PERIOD") {
+    return goal.parentGoalId === null && goal.type === null
+      ? []
+      : [{ code: "INVALID_GOAL_PARENT", message: "A PERIOD Goal has no parent or calendar type.", path: [goal.parentGoalId !== null ? "parentGoalId" : "type"] }];
+  }
+  if (goal.type === null) {
+    return [{ code: "INVALID_GOAL_PARENT", message: "A CALENDAR Goal requires a calendar type.", path: ["type"] }];
+  }
   const expectedParentType = getExpectedParentGoalType(goal.type);
 
   if (expectedParentType === null && goal.parentGoalId !== null) {
@@ -131,10 +140,13 @@ export function validateGoalParentReference(
  * A missing or forbidden reference is reported by validateGoalParentReference.
  */
 export function validateGoalParent(
-  child: Pick<CreateGoalInput, "type" | "parentGoalId" | "startDate" | "endDate">,
-  parent: Pick<Goal, "id" | "type" | "startDate" | "endDate"> | null,
+  child: Pick<CreateGoalInput, "kind" | "type" | "parentGoalId" | "startDate" | "endDate">,
+  parent: Pick<Goal, "id" | "kind" | "type" | "startDate" | "endDate"> | null,
   options: GoalParentValidationOptions = {},
 ): DomainIssue[] {
+  if (child.kind === "PERIOD" || child.type === null) {
+    return [];
+  }
   const expectedParentType = getExpectedParentGoalType(child.type);
 
   if (expectedParentType === null || child.parentGoalId === null) {
@@ -144,7 +156,7 @@ export function validateGoalParent(
   if (
     parent === null ||
     child.parentGoalId !== parent.id ||
-    parent.type !== expectedParentType
+    parent.kind !== "CALENDAR" || parent.type !== expectedParentType
   ) {
     return [
       {
@@ -183,12 +195,13 @@ export function validateGoalParent(
  */
 export function validateDayGoal(
   day: Pick<CreateDayInput, "goalId">,
-  goal: Pick<Goal, "id" | "type"> | null,
+  goal: Pick<Goal, "id" | "kind" | "type"> | null,
 ): DomainIssue[] {
   if (day.goalId === null) {
     return [];
   }
-  return goal !== null && day.goalId === goal.id && goal.type === "WEEK"
+  return goal !== null && day.goalId === goal.id
+      && (goal.kind === "PERIOD" || goal.kind === "CALENDAR" && goal.type === "WEEK")
     ? []
     : [
         {
@@ -224,6 +237,19 @@ export function validateDayInWeekGoalPeriod(
           path: ["plannedDate"],
         },
       ];
+}
+
+/** The direct-link date rule for either a CALENDAR WEEK or an independent PERIOD Goal. */
+export function validateDayInGoalPeriod(
+  day: Pick<Day, "plannedDate">,
+  goal: Pick<Goal, "kind" | "startDate" | "endDate">,
+): DomainIssue[] {
+  if (day.plannedDate === null || isDateInGoalPeriod(day.plannedDate, goal)) return [];
+  return [{
+    code: goal.kind === "PERIOD" ? "DATE_OUTSIDE_GOAL_PERIOD" : "DATE_OUTSIDE_WEEK_GOAL_PERIOD",
+    message: "Day plannedDate must be within its Goal period.",
+    path: ["plannedDate"],
+  }];
 }
 
 /**

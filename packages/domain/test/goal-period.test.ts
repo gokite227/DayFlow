@@ -72,7 +72,7 @@ describe("GOAL-004 calendar periods", () => {
     expect(isCanonicalGoalPeriod("WEEK", range("2026-09-28", "2026-09-30"))).toBe(true);
     expect(isCanonicalGoalPeriod("WEEK", range("2026-09-28", "2026-10-04"))).toBe(false);
     expect(isCanonicalGoalPeriod("WEEK", range("2026-02-30", "2026-03-01"))).toBe(false);
-    expect(validateGoalCanonicalPeriod({ type: "QUARTER", ...range("2026-01-01", "2026-12-31") })[0]?.code).toBe(
+    expect(validateGoalCanonicalPeriod({ kind: "CALENDAR", type: "QUARTER", ...range("2026-01-01", "2026-12-31") })[0]?.code).toBe(
       "INVALID_GOAL_PERIOD",
     );
   });

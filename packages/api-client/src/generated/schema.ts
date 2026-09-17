@@ -405,6 +405,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reviews/{type}/{periodStart}": {
         parameters: {
             query?: never;
@@ -652,8 +668,13 @@ export interface components {
             /** Format: date */
             endDate: string;
             /**
+             * @description Omit for backward-compatible CALENDAR creation; PERIOD must be explicit
+             * @enum {string}
+             */
+            kind?: "CALENDAR" | "PERIOD";
+            /**
              * Format: uuid
-             * @description null or omitted for YEAR Goals; the parent Goal id otherwise
+             * @description null for YEAR and PERIOD Goals; the parent Goal id otherwise
              */
             parentGoalId?: string | null;
             /** Format: int32 */
@@ -663,8 +684,11 @@ export interface components {
             /** Format: date */
             startDate: string;
             title: string;
-            /** @enum {string} */
-            type: "YEAR" | "QUARTER" | "MONTH" | "WEEK";
+            /**
+             * @description Required for CALENDAR; null for PERIOD
+             * @enum {string|null}
+             */
+            type?: "YEAR" | "QUARTER" | "MONTH" | "WEEK" | null;
             why: string;
         };
         DayResponse: {
@@ -857,9 +881,11 @@ export interface components {
             endDate: string;
             /** Format: uuid */
             id: string;
+            /** @enum {string} */
+            kind: "CALENDAR" | "PERIOD";
             /**
              * Format: uuid
-             * @description null for YEAR Goals
+             * @description null for YEAR and PERIOD Goals
              */
             parentGoalId: string | null;
             /** Format: int32 */
@@ -869,8 +895,11 @@ export interface components {
             /** Format: date */
             startDate: string;
             title: string;
-            /** @enum {string} */
-            type: "YEAR" | "QUARTER" | "MONTH" | "WEEK";
+            /**
+             * @description YEAR/QUARTER/MONTH/WEEK for CALENDAR; null for PERIOD
+             * @enum {string|null}
+             */
+            type: "YEAR" | "QUARTER" | "MONTH" | "WEEK" | null;
             /** Format: date-time */
             updatedAt: string;
             /** Format: int64 */
@@ -941,7 +970,7 @@ export interface components {
             estimatedMinutes?: number | null;
             /**
              * Format: date
-             * @description MOVE: today or later; inside the Day's WEEK Goal when it has one
+             * @description MOVE: today or later; inside the Day's WEEK or PERIOD Goal when it has one
              */
             plannedDate?: string | null;
             /** @description REDUCE: optional new title */
@@ -996,6 +1025,43 @@ export interface components {
         RefreshTokenRequest: {
             /** @description MOBILE only; WEB uses the refresh cookie */
             refreshToken?: string | null;
+        };
+        ReviewArchiveEntry: {
+            completed: boolean;
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            keepCount: number;
+            /**
+             * Format: int32
+             * @description Distinct Goals linked as source or next Goal
+             */
+            linkedGoalCount: number;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            periodStart: string;
+            /** @description The first KPT line, or null for a review without lines */
+            preview: string | null;
+            /** Format: int32 */
+            problemCount: number;
+            /** Format: int32 */
+            rating: number | null;
+            /** Format: int32 */
+            tryCount: number;
+            /** @enum {string} */
+            type: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ReviewArchivePage: {
+            /** @description Whether page + 1 has entries */
+            hasNext: boolean;
+            items: components["schemas"]["ReviewArchiveEntry"][];
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            size: number;
         };
         ReviewItemRequest: {
             content: string;
@@ -2408,6 +2474,7 @@ export interface operations {
     listGoals: {
         parameters: {
             query?: {
+                kind?: "CALENDAR" | "PERIOD";
                 type?: "YEAR" | "QUARTER" | "MONTH" | "WEEK";
                 from?: string;
                 to?: string;
@@ -3131,6 +3198,49 @@ export interface operations {
             };
             /** @description Review item not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    listReviews: {
+        parameters: {
+            query?: {
+                type?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+                q?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewArchivePage"];
+                };
+            };
+            /** @description Invalid request or period */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

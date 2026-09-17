@@ -22,7 +22,11 @@ public class Goal extends VersionedEntity {
     private UUID parentGoalId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, updatable = false)
+    @Column(name = "kind", nullable = false, updatable = false)
+    private GoalKind kind;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", updatable = false)
     private GoalType type;
 
     @Column(name = "title", nullable = false)
@@ -54,10 +58,11 @@ public class Goal extends VersionedEntity {
     protected Goal() {
     }
 
-    public Goal(UUID userId, UUID parentGoalId, GoalType type, String title, String why, LocalDate startDate,
+    public Goal(UUID userId, UUID parentGoalId, GoalKind kind, GoalType type, String title, String why, LocalDate startDate,
             LocalDate endDate, int priority, ProgressPolicy progressPolicy) {
         this.userId = userId;
         this.parentGoalId = parentGoalId;
+        this.kind = kind;
         this.type = type;
         this.title = title;
         this.why = why;
@@ -81,6 +86,22 @@ public class Goal extends VersionedEntity {
 
     public GoalType getType() {
         return type;
+    }
+
+    public GoalKind getKind() {
+        return kind;
+    }
+
+    public boolean isCalendar() {
+        return kind == GoalKind.CALENDAR;
+    }
+
+    public boolean isPeriod() {
+        return kind == GoalKind.PERIOD;
+    }
+
+    public boolean acceptsDays() {
+        return isPeriod() || type == GoalType.WEEK;
     }
 
     public String getTitle() {

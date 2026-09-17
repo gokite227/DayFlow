@@ -33,12 +33,12 @@ class DayFlowApplicationTests {
                 .contains("goals", "days", "day_schedules");
     }
 
-    /** The empty test database is migrated V1 → V8 in order; V8 does not need earlier rows. */
+    /** The empty test database is migrated V1 → V9 in order; V8 does not need earlier rows. */
     @Test
     void freshDatabaseAppliesEveryMigrationThroughUserOwnership() {
         assertThat(jdbc.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
         assertThat(jdbc.queryForList(
                 "select table_name from information_schema.tables where table_schema = 'public'", String.class))
                 .contains("users", "user_identities", "auth_exchange_codes", "auth_refresh_tokens");

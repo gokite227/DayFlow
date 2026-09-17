@@ -29,6 +29,7 @@ const yearGoal: Goal = {
   ...audit,
   id: "year-id",
   parentGoalId: null,
+  kind: "CALENDAR",
   type: "YEAR",
   title: "Annual goal",
   why: "Meaningful outcome",
@@ -118,10 +119,10 @@ describe("GOAL-001 Goal hierarchy", () => {
     expect(validateGoalParentReference(yearGoal)).toEqual([]);
     expect(validateGoalParentReference(quarterGoal)).toEqual([]);
     expect(
-      validateGoalParentReference({ type: "YEAR", parentGoalId: "other-id" }),
+      validateGoalParentReference({ kind: "CALENDAR", type: "YEAR", parentGoalId: "other-id" }),
     ).toContainEqual(expect.objectContaining({ code: "INVALID_GOAL_PARENT" }));
     expect(
-      validateGoalParentReference({ type: "WEEK", parentGoalId: null }),
+      validateGoalParentReference({ kind: "CALENDAR", type: "WEEK", parentGoalId: null }),
     ).toContainEqual(expect.objectContaining({ code: "INVALID_GOAL_PARENT" }));
   });
 

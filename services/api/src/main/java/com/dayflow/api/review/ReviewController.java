@@ -3,6 +3,7 @@ package com.dayflow.api.review;
 import com.dayflow.api.common.ProblemResponse;
 import com.dayflow.api.day.DayDtos.CreateDayRequest;
 import com.dayflow.api.review.ReviewDtos.ConvertReviewItemResponse;
+import com.dayflow.api.review.ReviewDtos.ReviewArchivePage;
 import com.dayflow.api.review.ReviewDtos.ReviewResponse;
 import com.dayflow.api.review.ReviewDtos.SaveReviewRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -33,6 +35,21 @@ public class ReviewController {
 
     public ReviewController(ReviewService reviewService) {
         this.reviewService = reviewService;
+    }
+
+    /**
+     * Review archive: the current user's saved reviews, newest reviewed period first. type filters by period
+     * type; q searches KPT lines and linked Goal titles (case-insensitive, trimmed). Pages start at 0.
+     */
+    @GetMapping("/reviews")
+    @ResponseStatus(HttpStatus.OK)
+    @Operation(operationId = "listReviews")
+    public ReviewArchivePage list(
+            @RequestParam(required = false) ReviewType type,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return reviewService.archive(type, q, page, size);
     }
 
     /** periodStart is the first date of the period (e.g. the week start, the 1st of the month). */

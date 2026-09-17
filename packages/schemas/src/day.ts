@@ -4,7 +4,7 @@ import {
   DAY_STATUSES,
   MAX_DAY_TAGS_PER_DAY,
   validateDayGoal,
-  validateDayInWeekGoalPeriod,
+  validateDayInGoalPeriod,
   type CreateDayInput,
   type Day,
   type DomainIssue,
@@ -64,7 +64,7 @@ function validateDayInGoal(
   const goalIssues = validateDayGoal(day, goal);
   return goalIssues.length > 0 || goal === null
     ? goalIssues
-    : validateDayInWeekGoalPeriod(day, goal);
+    : validateDayInGoalPeriod(day, goal);
 }
 
 /** `goal` is the Goal loaded for the Day's goalId, or null for a Day without a Goal. */

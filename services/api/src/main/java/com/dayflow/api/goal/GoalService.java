@@ -38,11 +38,15 @@ public class GoalService {
     }
 
     public GoalResponse create(CreateGoalRequest request) {
+        GoalKind kind = request.kind() == null ? GoalKind.CALENDAR : request.kind();
         validatePeriod(request.startDate(), request.endDate());
-        validateParent(request.type(), request.parentGoalId(), request.startDate(), request.endDate());
-        validateCanonicalPeriod(request.type(), request.startDate(), request.endDate());
+        validateKindShape(kind, request.type(), request.parentGoalId());
+        if (kind == GoalKind.CALENDAR) {
+            validateParent(request.type(), request.parentGoalId(), request.startDate(), request.endDate());
+            validateCanonicalPeriod(request.type(), request.startDate(), request.endDate());
+        }
 
-        Goal goal = new Goal(currentUser.id(), request.parentGoalId(), request.type(), request.title().strip(),
+        Goal goal = new Goal(currentUser.id(), request.parentGoalId(), kind, request.type(), request.title().strip(),
                 request.why().strip(), request.startDate(), request.endDate(), request.priority(),
                 request.progressPolicy());
         return GoalResponse.from(goals.saveAndFlush(goal));
@@ -59,7 +63,7 @@ public class GoalService {
         validateParent(type, parentGoalId, startDate, endDate);
         validateCanonicalPeriod(type, startDate, endDate);
 
-        Goal goal = new Goal(currentUser.id(), parentGoalId, type, template.getTitle(), template.getWhy(), startDate,
+        Goal goal = new Goal(currentUser.id(), parentGoalId, GoalKind.CALENDAR, type, template.getTitle(), template.getWhy(), startDate,
                 endDate, template.getPriority(), template.getProgressPolicy());
         goal.setContinuedFromGoalId(continuedFrom);
         return goals.saveAndFlush(goal);
@@ -67,7 +71,7 @@ public class GoalService {
 
     /** Goals of a type and/or overlapping the from..to period. */
     @Transactional(readOnly = true)
-    public List<GoalResponse> list(GoalType type, LocalDate from, LocalDate to) {
+    public List<GoalResponse> list(GoalKind kind, GoalType type, LocalDate from, LocalDate to) {
         if (from != null && to != null && from.isAfter(to)) {
             throw new ApiException(ErrorCode.VALIDATION_ERROR, "from must be on or before to.", "from");
         }
@@ -75,6 +79,9 @@ public class GoalService {
         Specification<Goal> filter = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("userId"), userId));
+            if (kind != null) {
+                predicates.add(cb.equal(root.get("kind"), kind));
+            }
             if (type != null) {
                 predicates.add(cb.equal(root.get("type"), type));
             }
@@ -109,8 +116,11 @@ public class GoalService {
         LocalDate endDate = valueOr(request.getEndDate(), goal.getEndDate());
 
         validatePeriod(startDate, endDate);
-        validateParent(goal.getType(), parentGoalId, startDate, endDate);
-        validateCanonicalPeriod(goal.getType(), startDate, endDate);
+        validateKindShape(goal.getKind(), goal.getType(), parentGoalId);
+        if (goal.isCalendar()) {
+            validateParent(goal.getType(), parentGoalId, startDate, endDate);
+            validateCanonicalPeriod(goal.getType(), startDate, endDate);
+        }
         validateContentsStayInside(goal, startDate, endDate);
 
         goal.setParentGoalId(parentGoalId);
@@ -152,6 +162,22 @@ public class GoalService {
         }
     }
 
+    private static void validateKindShape(GoalKind kind, GoalType type, UUID parentGoalId) {
+        if (kind == GoalKind.PERIOD) {
+            if (type != null) {
+                throw new ApiException(ErrorCode.VALIDATION_ERROR,
+                        "A PERIOD Goal must not have a calendar type.", "type");
+            }
+            if (parentGoalId != null) {
+                throw new ApiException(ErrorCode.INVALID_GOAL_PARENT,
+                        "A PERIOD Goal cannot have a parent Goal.", "parentGoalId");
+            }
+        } else if (type == null) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR,
+                    "A CALENDAR Goal requires YEAR, QUARTER, MONTH or WEEK type.", "type");
+        }
+    }
+
     /**
      * GOAL-004: the range must be exactly one calendar period of the type. Checked after the parent
      * rules, so a WEEK is also known to lie inside its parent MONTH.
@@ -183,6 +209,7 @@ public class GoalService {
         }
         // Another user's Goal is not a possible parent: it is reported like an unknown parent.
         Goal parent = goals.findByIdAndUserId(parentGoalId, currentUser.id())
+                .filter(Goal::isCalendar)
                 .filter(candidate -> candidate.getType() == expectedParentType)
                 .orElseThrow(() -> new ApiException(ErrorCode.INVALID_GOAL_PARENT, wrongParent, "parentGoalId"));
 
@@ -211,9 +238,11 @@ public class GoalService {
             violations.add(new FieldViolation("endDate", "Existing child Goals or Days end after this date."));
         }
         if (!violations.isEmpty()) {
-            ErrorCode code = goal.getType() == GoalType.WEEK
-                    ? ErrorCode.DATE_OUTSIDE_WEEK_GOAL_PERIOD
-                    : ErrorCode.GOAL_OUTSIDE_PARENT_PERIOD;
+            ErrorCode code = goal.isPeriod()
+                    ? ErrorCode.DATE_OUTSIDE_GOAL_PERIOD
+                    : goal.getType() == GoalType.WEEK
+                            ? ErrorCode.DATE_OUTSIDE_WEEK_GOAL_PERIOD
+                            : ErrorCode.GOAL_OUTSIDE_PARENT_PERIOD;
             throw new ApiException(code, "The new period would leave existing contents outside the Goal.",
                     violations);
         }

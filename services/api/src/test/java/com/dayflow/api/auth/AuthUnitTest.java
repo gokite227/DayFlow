@@ -95,6 +95,12 @@ class AuthUnitTest {
         assertThat(pasted.web().allowedOrigins()).containsExactly("https://dayflow.vercel.app");
         assertThat(ProductionConfigValidator.problems(pasted)).isEmpty();
 
+        DayFlowProperties mismatched = properties("https://api.dayflow.app", "https://dayflow.vercel.app",
+                List.of("https://other.vercel.app"), new Google("client-id", "client-secret"),
+                "a-real-server-secret-of-at-least-32-bytes!", new RefreshCookie(true, "Lax"), false);
+        assertThat(ProductionConfigValidator.problems(mismatched))
+                .containsExactly("DAYFLOW_ALLOWED_WEB_ORIGINS must contain DAYFLOW_WEB_URL.");
+
         assertThatThrownBy(() -> properties("https://api.dayflow.app", "https://dayflow.app", List.of(),
                 new Google(null, null), "short", new RefreshCookie(true, "Lax"), false))
                 .isInstanceOf(IllegalStateException.class)

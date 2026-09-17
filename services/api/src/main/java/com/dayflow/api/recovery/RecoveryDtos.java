@@ -41,7 +41,7 @@ public final class RecoveryDtos {
             @Schema(types = {"string", "null"}, description = "REDUCE: optional new title")
             @Size(max = 200) String title,
             @Schema(types = {"string", "null"}, format = "date",
-                    description = "MOVE: today or later; inside the Day's WEEK Goal when it has one")
+                    description = "MOVE: today or later; inside the Day's WEEK or PERIOD Goal when it has one")
             LocalDate plannedDate) {
     }
 

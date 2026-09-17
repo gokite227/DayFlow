@@ -11,8 +11,24 @@ export type LogoutRequest = Schemas["LogoutRequest"];
 export type MeResponse = Schemas["MeResponse"];
 
 export type GoalResponse = Schemas["GoalResponse"];
+export type CalendarGoalResponse = GoalResponse & {
+  kind: "CALENDAR";
+  type: Exclude<GoalResponse["type"], null>;
+};
 export type CreateGoalRequest = Schemas["CreateGoalRequest"];
 export type UpdateGoalRequest = Schemas["UpdateGoalRequest"];
+
+/** An independent date-range Goal: no calendar type and no parent. */
+export type PeriodGoalResponse = GoalResponse & { kind: "PERIOD"; type: null; parentGoalId: null };
+
+/** Calendar Goal screens (YEAR → WEEK hierarchy) only work with CALENDAR Goals. */
+export function isCalendarGoalResponse(goal: GoalResponse): goal is CalendarGoalResponse {
+  return goal.kind === "CALENDAR" && goal.type !== null;
+}
+
+export function isPeriodGoalResponse(goal: GoalResponse): goal is PeriodGoalResponse {
+  return goal.kind === "PERIOD";
+}
 
 export type DayResponse = Schemas["DayResponse"];
 export type CreateDayRequest = Schemas["CreateDayRequest"];
@@ -32,6 +48,8 @@ export type ReviewItemResponse = Schemas["ReviewItemResponse"];
 export type SaveReviewRequest = Schemas["SaveReviewRequest"];
 export type ReviewItemRequest = Schemas["ReviewItemRequest"];
 export type ConvertReviewItemResponse = Schemas["ConvertReviewItemResponse"];
+export type ReviewArchiveEntry = Schemas["ReviewArchiveEntry"];
+export type ReviewArchivePage = Schemas["ReviewArchivePage"];
 
 export type ApplyRecoveryRequest = Schemas["ApplyRecoveryRequest"];
 export type RecoveryDecisionRequest = Schemas["RecoveryDecisionRequest"];

@@ -51,9 +51,9 @@ public class DayService {
         this.currentUser = currentUser;
     }
 
-    /** goalId may be null (DAY-001); a Goal, if given, must be a WEEK Goal and contain plannedDate. */
+    /** A Goal is optional; direct links accept CALENDAR WEEK or an independent PERIOD Goal. */
     public DayResponse create(CreateDayRequest request) {
-        Goal goal = findWeekGoal(request.goalId());
+        Goal goal = findDayGoal(request.goalId());
         validateDateInGoal(request.plannedDate(), goal, "plannedDate");
 
         Day day = new Day(currentUser.id(), goal == null ? null : goal.getId(), request.title().strip(), request.status(),
@@ -132,7 +132,7 @@ public class DayService {
         }
 
         // An omitted goalId keeps the current Goal; an explicit null removes the link (DAY-001).
-        Goal goal = findWeekGoal(request.hasGoalId() ? request.getGoalId() : day.getGoalId());
+        Goal goal = findDayGoal(request.hasGoalId() ? request.getGoalId() : day.getGoalId());
         LocalDate plannedDate = request.hasPlannedDate() ? request.getPlannedDate() : day.getPlannedDate();
         validateDateInGoal(plannedDate, goal, "plannedDate");
 
@@ -180,7 +180,7 @@ public class DayService {
      * core Day, and nothing of the source changes. The Goal (optional) follows the normal Day rules.
      */
     public DayResponse createCarriedOver(Day source, UUID goalId, LocalDate date) {
-        Goal goal = findWeekGoal(goalId);
+        Goal goal = findDayGoal(goalId);
         validateDateInGoal(date, goal, "targetDate");
 
         Day day = new Day(currentUser.id(), goal == null ? null : goal.getId(), source.getTitle(), DayStatus.NOT_STARTED,
@@ -215,7 +215,7 @@ public class DayService {
         }
 
         LocalDate scheduleDate = request.startAt().atZoneSameInstant(zone).toLocalDate();
-        validateDateInGoal(scheduleDate, findWeekGoal(day.getGoalId()), "startAt");
+        validateDateInGoal(scheduleDate, findDayGoal(day.getGoalId()), "startAt");
 
         Instant startAt = request.startAt().toInstant();
         Instant endAt = request.endAt().toInstant();
@@ -246,24 +246,27 @@ public class DayService {
     }
 
     /**
-     * null goalId means "no Goal" and is valid; any other value must be an existing WEEK Goal of the current
-     * user. Another user's Goal gets the same answer as an unknown one.
+     * null goalId means "no Goal" and is valid. Otherwise the current user's Goal must be either a
+     * CALENDAR WEEK or a PERIOD Goal. Another user's Goal gets the same answer as an unknown one.
      */
-    private Goal findWeekGoal(UUID goalId) {
+    private Goal findDayGoal(UUID goalId) {
         if (goalId == null) {
             return null;
         }
         return goals.findByIdAndUserId(goalId, currentUser.id())
-                .filter(goal -> goal.getType() == GoalType.WEEK)
+                .filter(Goal::acceptsDays)
                 .orElseThrow(() -> new ApiException(ErrorCode.DAY_REQUIRES_WEEK_GOAL,
-                        "A Day can only belong directly to a WEEK Goal.", "goalId"));
+                        "A Day can only belong directly to a CALENDAR WEEK or PERIOD Goal.", "goalId"));
     }
 
     /** Days without a Goal have no Goal period to stay inside (DAY-001). */
     private static void validateDateInGoal(LocalDate date, Goal goal, String field) {
         if (goal != null && date != null && !goal.contains(date)) {
-            throw new ApiException(ErrorCode.DATE_OUTSIDE_WEEK_GOAL_PERIOD,
-                    "The date must be within the WEEK Goal period " + goal.getStartDate() + " ~ "
+            ErrorCode code = goal.isPeriod()
+                    ? ErrorCode.DATE_OUTSIDE_GOAL_PERIOD
+                    : ErrorCode.DATE_OUTSIDE_WEEK_GOAL_PERIOD;
+            throw new ApiException(code,
+                    "The date must be within the Goal period " + goal.getStartDate() + " ~ "
                             + goal.getEndDate() + ".",
                     field);
         }

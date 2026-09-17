@@ -54,10 +54,11 @@ public class GoalController {
     @ResponseStatus(HttpStatus.OK)
     @Operation(operationId = "listGoals")
     public List<GoalResponse> list(
+            @RequestParam(required = false) GoalKind kind,
             @RequestParam(required = false) GoalType type,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return goalService.list(type, from, to);
+        return goalService.list(kind, type, from, to);
     }
 
     @GetMapping("/{goalId}")

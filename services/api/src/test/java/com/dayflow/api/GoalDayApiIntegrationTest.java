@@ -264,6 +264,26 @@ class GoalDayApiIntegrationTest {
     }
 
     @Test
+    void day001KeepsCalendarDirectLinksWeekOnlyNextToPeriodGoals() throws Exception {
+        String yearId = createYear();
+        String quarterId = createGoal(yearId, "QUARTER", "2026-07-01", "2026-09-30");
+        String monthId = createGoal(quarterId, "MONTH", "2026-09-01", "2026-09-30");
+        String weekId = createGoal(monthId, "WEEK", "2026-09-14", "2026-09-20");
+
+        // A request without kind is still a CALENDAR Goal.
+        mvc.perform(get("/api/v1/goals/" + monthId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.kind").value("CALENDAR"))
+                .andExpect(jsonPath("$.type").value("MONTH"));
+        send(post("/api/v1/days"), dayJson(monthId, "2026-09-15"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DAY_REQUIRES_WEEK_GOAL"));
+        send(post("/api/v1/days"), dayJson(weekId, "2026-09-15"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.goalId").value(weekId));
+    }
+
+    @Test
     void day002RejectsPlannedDateOutsideWeekGoal() throws Exception {
         String weekId = createWeek();
 

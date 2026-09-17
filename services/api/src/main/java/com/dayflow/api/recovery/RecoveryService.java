@@ -40,7 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * REC-001 recovery plans, REC-002 recovery days and REC-005 history/re-surfacing. Day changes go through
- * DayService, so the same rules as PATCH /days apply (versions, WEEK Goal period, schedule handling).
+ * DayService, so the same rules as PATCH /days apply (versions, WEEK/PERIOD Goal period, schedule handling).
  * Candidates, history and Recovery Days only ever contain the current user's data (AUTH-003).
  * CARRY_OVER lives in {@link CarryOverService} because it needs its own preview.
  */
@@ -284,8 +284,8 @@ public class RecoveryService {
     }
 
     /**
-     * MOVE to today or a later date. A Day with a Goal stays inside its WEEK Goal (checked by DayService:
-     * another week is a CARRY_OVER); a Day without a Goal can go to any later date. The schedule is
+     * MOVE to today or a later date. A Day with a Goal stays inside its WEEK or PERIOD Goal (checked by
+     * DayService: another week is a CARRY_OVER); a Day without a Goal can go to any later date. The schedule is
      * removed first so it is not carried to the new date.
      */
     private DayResponse move(Day day, RecoveryDecisionRequest decision, LocalDate today, String field) {

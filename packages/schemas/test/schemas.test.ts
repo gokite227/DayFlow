@@ -31,6 +31,7 @@ const yearGoal: Goal = {
   ...audit,
   id: ids.year,
   parentGoalId: null,
+  kind: "CALENDAR",
   type: "YEAR",
   title: "Annual goal",
   why: "Meaningful outcome",

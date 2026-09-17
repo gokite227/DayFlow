@@ -11,6 +11,8 @@ import com.dayflow.api.goal.Goal;
 import com.dayflow.api.goal.GoalRepository;
 import com.dayflow.api.goal.GoalType;
 import com.dayflow.api.review.ReviewDtos.ConvertReviewItemResponse;
+import com.dayflow.api.review.ReviewDtos.ReviewArchiveEntry;
+import com.dayflow.api.review.ReviewDtos.ReviewArchivePage;
 import com.dayflow.api.review.ReviewDtos.ReviewItemRequest;
 import com.dayflow.api.review.ReviewDtos.ReviewResponse;
 import com.dayflow.api.review.ReviewDtos.SaveReviewRequest;
@@ -35,15 +37,20 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class ReviewService {
 
+    static final int MAX_ARCHIVE_PAGE_SIZE = 50;
+    static final int MAX_SEARCH_LENGTH = 100;
+
     private final ReviewRepository reviews;
+    private final ReviewArchiveQuery archiveQuery;
     private final DayService dayService;
     private final DayRepository days;
     private final GoalRepository goals;
     private final CurrentUser currentUser;
 
-    public ReviewService(ReviewRepository reviews, DayService dayService, DayRepository days, GoalRepository goals,
-            CurrentUser currentUser) {
+    public ReviewService(ReviewRepository reviews, ReviewArchiveQuery archiveQuery, DayService dayService,
+            DayRepository days, GoalRepository goals, CurrentUser currentUser) {
         this.reviews = reviews;
+        this.archiveQuery = archiveQuery;
         this.dayService = dayService;
         this.days = days;
         this.goals = goals;
@@ -57,6 +64,29 @@ public class ReviewService {
                 .map(ReviewResponse::from)
                 .orElseThrow(() -> new ApiException(ErrorCode.REVIEW_NOT_FOUND,
                         "No " + type + " review starting " + periodStart + "."));
+    }
+
+    /**
+     * The current user's saved reviews, newest reviewed period first. {@code type} and {@code q} are optional
+     * and combine; a blank q means no search. One extra row is read to know whether another page exists.
+     */
+    @Transactional(readOnly = true)
+    public ReviewArchivePage archive(ReviewType type, String q, int page, int size) {
+        if (page < 0) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, "page must be 0 or more.", "page");
+        }
+        if (size < 1 || size > MAX_ARCHIVE_PAGE_SIZE) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR,
+                    "size must be between 1 and " + MAX_ARCHIVE_PAGE_SIZE + ".", "size");
+        }
+        String search = q == null || q.isBlank() ? null : q.strip();
+        if (search != null && search.length() > MAX_SEARCH_LENGTH) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR,
+                    "q must be at most " + MAX_SEARCH_LENGTH + " characters.", "q");
+        }
+        List<ReviewArchiveEntry> rows = archiveQuery.find(currentUser.id(), type, search, page * size, size + 1);
+        boolean hasNext = rows.size() > size;
+        return new ReviewArchivePage(hasNext ? rows.subList(0, size) : rows, page, size, hasNext);
     }
 
     /** Creates or replaces the review of a period, with optimistic concurrency on expectedVersion. */
@@ -147,7 +177,7 @@ public class ReviewService {
     /**
      * REV-003/REV-004 Goal links. Only a new or changed link is checked, so saving a rating later
      * never fails because an already linked Goal's period was edited afterwards.
-     * - goalId: a Goal of the review's level that overlaps the reviewed period.
+     * - goalId: an overlapping PERIOD Goal, or a CALENDAR Goal of the review's level.
      * - targetGoalId: TRY only, a Goal of the review's level that is still ahead after the period.
      */
     private void validateLinks(Review review, ReviewItem item, ReviewItemRequest request, String field) {
@@ -159,9 +189,13 @@ public class ReviewService {
             boolean overlapsPeriod = goal != null
                     && !goal.getStartDate().isAfter(review.getPeriodEnd())
                     && !goal.getEndDate().isBefore(review.getPeriodStart());
-            if (goal == null || goal.getType() != level || !overlapsPeriod) {
+            boolean validSource = goal != null && overlapsPeriod
+                    && (goal.isPeriod() || goal.isCalendar() && goal.getType() == level);
+            if (!validSource) {
                 throw new ApiException(ErrorCode.INVALID_REVIEW_GOAL,
-                        "A review line can link a " + level + " Goal of the reviewed period.", field + ".goalId");
+                        "A review line can link an overlapping PERIOD Goal or a " + level
+                                + " CALENDAR Goal of the reviewed period.",
+                        field + ".goalId");
             }
         }
 
@@ -172,7 +206,8 @@ public class ReviewService {
         }
         if (targetGoalId != null && !targetGoalId.equals(item.getTargetGoalId())) {
             Goal target = goals.findByIdAndUserId(targetGoalId, currentUser.id()).orElse(null);
-            if (target == null || target.getType() != level || !target.getEndDate().isAfter(review.getPeriodEnd())) {
+            if (target == null || !target.isCalendar() || target.getType() != level
+                    || !target.getEndDate().isAfter(review.getPeriodEnd())) {
                 throw new ApiException(ErrorCode.INVALID_REVIEW_GOAL,
                         "A Try can be carried into a " + level + " Goal that continues after the reviewed period.",
                         field + ".targetGoalId");

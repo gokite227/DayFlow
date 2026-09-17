@@ -96,6 +96,36 @@ public final class ReviewDtos {
         }
     }
 
+    /**
+     * One card of the review archive: what the list shows, not the KPT lines themselves. A review is opened
+     * with GET /reviews/{type}/{periodStart}.
+     */
+    public record ReviewArchiveEntry(
+            @Schema(requiredMode = REQUIRED) UUID id,
+            @Schema(requiredMode = REQUIRED) ReviewType type,
+            @Schema(requiredMode = REQUIRED) LocalDate periodStart,
+            @Schema(requiredMode = REQUIRED) LocalDate periodEnd,
+            @Schema(requiredMode = REQUIRED, types = {"integer", "null"}, format = "int32") Integer rating,
+            @Schema(requiredMode = REQUIRED) boolean completed,
+            @Schema(requiredMode = REQUIRED, types = {"string", "null"},
+                    description = "The first KPT line, or null for a review without lines")
+            String preview,
+            @Schema(requiredMode = REQUIRED) int keepCount,
+            @Schema(requiredMode = REQUIRED) int problemCount,
+            @Schema(requiredMode = REQUIRED) int tryCount,
+            @Schema(requiredMode = REQUIRED, description = "Distinct Goals linked as source or next Goal")
+            int linkedGoalCount,
+            @Schema(requiredMode = REQUIRED) Instant updatedAt) {
+    }
+
+    /** A page of the archive, newest reviewed period first. */
+    public record ReviewArchivePage(
+            @Schema(requiredMode = REQUIRED) List<ReviewArchiveEntry> items,
+            @Schema(requiredMode = REQUIRED) int page,
+            @Schema(requiredMode = REQUIRED) int size,
+            @Schema(requiredMode = REQUIRED, description = "Whether page + 1 has entries") boolean hasNext) {
+    }
+
     /** Result of converting a Try item: the review (with convertedDayId) and the Day. */
     public record ConvertReviewItemResponse(
             @Schema(requiredMode = REQUIRED) ReviewResponse review,

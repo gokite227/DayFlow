@@ -20,9 +20,12 @@ public final class GoalDtos {
 
     public record CreateGoalRequest(
             @Schema(types = {"string", "null"}, format = "uuid",
-                    description = "null or omitted for YEAR Goals; the parent Goal id otherwise")
+                    description = "null for YEAR and PERIOD Goals; the parent Goal id otherwise")
             UUID parentGoalId,
-            @NotNull GoalType type,
+            @Schema(description = "Omit for backward-compatible CALENDAR creation; PERIOD must be explicit")
+            GoalKind kind,
+            @Schema(types = {"string", "null"}, description = "Required for CALENDAR; null for PERIOD")
+            GoalType type,
             @NotBlank @Size(max = 200) String title,
             @NotNull @Size(max = 2000) String why,
             @NotNull LocalDate startDate,
@@ -136,13 +139,16 @@ public final class GoalDtos {
         }
     }
 
-    /** Every field is always serialized; parentGoalId is null for YEAR Goals. */
+    /** Every field is always serialized; type is null only for independent PERIOD Goals. */
     public record GoalResponse(
             @Schema(requiredMode = REQUIRED) UUID id,
             @Schema(requiredMode = REQUIRED, types = {"string", "null"}, format = "uuid",
-                    description = "null for YEAR Goals")
+                    description = "null for YEAR and PERIOD Goals")
             UUID parentGoalId,
-            @Schema(requiredMode = REQUIRED) GoalType type,
+            @Schema(requiredMode = REQUIRED) GoalKind kind,
+            @Schema(requiredMode = REQUIRED, types = {"string", "null"},
+                    description = "YEAR/QUARTER/MONTH/WEEK for CALENDAR; null for PERIOD")
+            GoalType type,
             @Schema(requiredMode = REQUIRED) String title,
             @Schema(requiredMode = REQUIRED) String why,
             @Schema(requiredMode = REQUIRED) LocalDate startDate,
@@ -157,7 +163,7 @@ public final class GoalDtos {
             @Schema(requiredMode = REQUIRED) long version) {
 
         public static GoalResponse from(Goal goal) {
-            return new GoalResponse(goal.getId(), goal.getParentGoalId(), goal.getType(), goal.getTitle(),
+            return new GoalResponse(goal.getId(), goal.getParentGoalId(), goal.getKind(), goal.getType(), goal.getTitle(),
                     goal.getWhy(), goal.getStartDate(), goal.getEndDate(), goal.getPriority(),
                     goal.getProgressPolicy(), goal.getContinuedFromGoalId(), goal.getCreatedAt(),
                     goal.getUpdatedAt(), goal.getVersion());

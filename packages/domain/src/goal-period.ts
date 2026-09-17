@@ -98,7 +98,7 @@ export function isCanonicalGoalPeriod(type: GoalType, period: GoalPeriod): boole
 }
 
 /** Child period choices inside a parent: quarters of a year, months of a quarter, weeks of a month. */
-export function childPeriodOptions(parent: Pick<Goal, "type" | "startDate">): GoalPeriod[] {
+export function childPeriodOptions(parent: { type: GoalType; startDate: LocalDate }): GoalPeriod[] {
   const { year, month } = parseLocalDate(parent.startDate);
   switch (parent.type) {
     case "YEAR":

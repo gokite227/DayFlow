@@ -1,6 +1,9 @@
 export const GOAL_TYPES = ["YEAR", "QUARTER", "MONTH", "WEEK"] as const;
 export type GoalType = (typeof GOAL_TYPES)[number];
 
+export const GOAL_KINDS = ["CALENDAR", "PERIOD"] as const;
+export type GoalKind = (typeof GOAL_KINDS)[number];
+
 export const PROGRESS_POLICIES = ["AUTO", "MANUAL"] as const;
 export type ProgressPolicy = (typeof PROGRESS_POLICIES)[number];
 
@@ -44,7 +47,9 @@ export interface VersionedEntity {
 export interface Goal extends VersionedEntity {
   id: EntityId;
   parentGoalId: EntityId | null;
-  type: GoalType;
+  kind: GoalKind;
+  /** Calendar hierarchy level; PERIOD Goals deliberately have no level. */
+  type: GoalType | null;
   title: string;
   why: string;
   startDate: LocalDate;
@@ -53,7 +58,10 @@ export interface Goal extends VersionedEntity {
   progressPolicy: ProgressPolicy;
 }
 
-export type CreateGoalInput = Omit<Goal, keyof VersionedEntity | "id">;
+export type CreateGoalInput = Omit<Goal, keyof VersionedEntity | "id" | "kind"> & {
+  /** Omitted by legacy clients means CALENDAR. */
+  kind?: GoalKind;
+};
 
 type GoalMutableFields = Pick<
   Goal,

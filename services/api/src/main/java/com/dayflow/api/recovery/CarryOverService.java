@@ -167,6 +167,10 @@ public class CarryOverService {
                     "This Day was already carried over to a later plan.", "sourceDayId");
         }
         Goal week = goals.findByIdAndUserId(source.getGoalId(), userId).orElseThrow();
+        if (!week.isCalendar() || week.getType() != GoalType.WEEK) {
+            throw invalid("sourceDayId",
+                    "A PERIOD Goal Day is moved with MOVE inside its range, or after removing its Goal link.");
+        }
         if (targetDate.isBefore(today)) {
             throw invalid("targetDate", "Carry the plan over to today or a later date.");
         }

@@ -44,6 +44,9 @@ public class ProductionConfigValidator implements InitializingBean {
         List<String> origins = properties.web().allowedOrigins();
         if (origins.isEmpty() || origins.stream().anyMatch(origin -> !origin.startsWith("https://"))) {
             problems.add("DAYFLOW_ALLOWED_WEB_ORIGINS must list the https:// Web origins.");
+        } else if (webUrl != null && webUrl.startsWith("https://") && !origins.contains(webUrl)) {
+            // The Web calls the API from DAYFLOW_WEB_URL; without it in CORS every Bearer call fails after login.
+            problems.add("DAYFLOW_ALLOWED_WEB_ORIGINS must contain DAYFLOW_WEB_URL.");
         }
         if (!properties.google().configured()) {
             problems.add("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set.");

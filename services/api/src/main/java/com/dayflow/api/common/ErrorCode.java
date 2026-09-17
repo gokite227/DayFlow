@@ -13,6 +13,7 @@ public enum ErrorCode {
     GOAL_OUTSIDE_PARENT_PERIOD(HttpStatus.BAD_REQUEST, "Goal outside parent period"),
     DAY_REQUIRES_WEEK_GOAL(HttpStatus.BAD_REQUEST, "Day requires a WEEK Goal"),
     DATE_OUTSIDE_WEEK_GOAL_PERIOD(HttpStatus.BAD_REQUEST, "Date outside WEEK Goal period"),
+    DATE_OUTSIDE_GOAL_PERIOD(HttpStatus.BAD_REQUEST, "Date outside Goal period"),
     INVALID_SCHEDULE_RANGE(HttpStatus.BAD_REQUEST, "Invalid schedule range"),
     INVALID_REVIEW_PERIOD(HttpStatus.BAD_REQUEST, "Invalid review period"),
     REVIEW_ITEM_NOT_TRY(HttpStatus.BAD_REQUEST, "Only Try items can become a Day"),
