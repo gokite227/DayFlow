@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/api/v1/ai/coach/planning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["getPlanningCoachSuggestions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/coach/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["getRecoveryCoachRecommendations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/coach/review": {
         parameters: {
             query?: never;
@@ -616,6 +648,12 @@ export interface components {
             /** @enum {string} */
             type: "DAY" | "GOAL" | "REVIEW" | "METRIC";
         };
+        CoachFact: {
+            /** @example HISTORY_D1 */
+            key: string;
+            /** @example '보고서 초안' 전에 2번 다시 정리함 */
+            label: string;
+        };
         CoachObservation: {
             evidence: components["schemas"]["CoachEvidence"][];
             message: string;
@@ -987,6 +1025,79 @@ export interface components {
             /** Format: uuid */
             id: string;
         };
+        PlanningCoachObservation: {
+            evidence: components["schemas"]["CoachFact"][];
+            message: string;
+        };
+        PlanningCoachRequest: {
+            /** Format: uuid */
+            goalId: string;
+            /** @example Asia/Seoul */
+            timezone: string;
+            /** Format: date */
+            weekStart?: string | null;
+        };
+        PlanningCoachResponse: {
+            /** @description Facts DayFlow computed for this period */
+            facts: components["schemas"]["CoachFact"][];
+            /** Format: date-time */
+            generatedAt: string;
+            /** Format: uuid */
+            goalId: string;
+            headline: string;
+            /** @description At most 3 */
+            observations: components["schemas"]["PlanningCoachObservation"][];
+            /** @description At most 2; only with a concrete Review TRY behind them */
+            proposals: components["schemas"]["PlanningDayProposal"][];
+            /** @description At most 5, one per Day; never applied automatically */
+            suggestions: components["schemas"]["PlanningDaySuggestion"][];
+            summary: string;
+            /** Format: date */
+            targetEnd: string;
+            /** Format: date */
+            targetStart: string;
+        };
+        PlanningDayProposal: {
+            evidence: components["schemas"]["CoachFact"][];
+            /** @enum {string} */
+            priority: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+            /**
+             * Format: date
+             * @description A date inside the planned period, or null to leave it undecided
+             */
+            proposedDate: string | null;
+            reason: string;
+            title: string;
+        };
+        PlanningDaySuggestion: {
+            /** Format: uuid */
+            dayId: string;
+            dayTitle: string;
+            /**
+             * @description SET_SCHEDULE: local end time HH:mm (the Day's current duration kept)
+             * @example 20:00
+             */
+            endTime: string | null;
+            evidence: components["schemas"]["CoachFact"][];
+            /**
+             * @description SET_PRIORITY only
+             * @enum {string|null}
+             */
+            priority: "NONE" | "LOW" | "MEDIUM" | "HIGH" | null;
+            reason: string;
+            /**
+             * @description SET_SCHEDULE: local start time HH:mm
+             * @example 19:00
+             */
+            startTime: string | null;
+            /**
+             * Format: date
+             * @description SET_DATE / SET_SCHEDULE: the date inside the planned period
+             */
+            targetDate: string | null;
+            /** @enum {string} */
+            type: "OPEN_DAY" | "SET_DATE" | "SET_PRIORITY" | "SET_SCHEDULE";
+        };
         /** @description Error response for every API failure (RFC 9457 Problem Details) */
         ProblemResponse: {
             /** @description Stable code to branch on: an ErrorCode name, VALIDATION_ERROR, or HTTP_<status> */
@@ -1012,6 +1123,38 @@ export interface components {
             lastAction: "KEEP" | "REDUCE" | "MOVE" | "CARRY_OVER" | "DROP" | null;
             /** @enum {string} */
             reason: "PAST_DATE" | "TIME_PASSED";
+        };
+        RecoveryCoachObservation: {
+            evidence: components["schemas"]["CoachFact"][];
+            message: string;
+        };
+        RecoveryCoachRequest: {
+            /** Format: date */
+            localDate: string;
+            /** @example Asia/Seoul */
+            timezone: string;
+        };
+        RecoveryCoachResponse: {
+            /**
+             * Format: int32
+             * @description Recovery candidates of the user now
+             */
+            candidateCount: number;
+            /** Format: date-time */
+            generatedAt: string;
+            headline: string;
+            /** Format: date */
+            localDate: string;
+            /** @description At most 3 */
+            observations: components["schemas"]["RecoveryCoachObservation"][];
+            /** @description At most one per candidate; never applied automatically */
+            recommendations: components["schemas"]["RecoveryRecommendation"][];
+            /**
+             * Format: int32
+             * @description Candidates the Coach looked at in detail
+             */
+            reviewedCount: number;
+            summary: string;
         };
         RecoveryDayResponse: {
             /** Format: date-time */
@@ -1091,6 +1234,20 @@ export interface components {
             items: components["schemas"]["RecoveryEventItemResponse"][];
             /** Format: date */
             localDate: string;
+        };
+        RecoveryRecommendation: {
+            /** @enum {string} */
+            action: "KEEP" | "REDUCE" | "MOVE" | "CARRY_OVER" | "DROP";
+            /** Format: uuid */
+            dayId: string;
+            dayTitle: string;
+            evidence: components["schemas"]["CoachFact"][];
+            reason: string;
+            /**
+             * Format: date
+             * @description MOVE / CARRY_OVER only
+             */
+            targetDate: string | null;
         };
         RefreshTokenRequest: {
             /** @description MOBILE only; WEB uses the refresh cookie */
@@ -1422,6 +1579,175 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getPlanningCoachSuggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanningCoachRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanningCoachResponse"];
+                };
+            };
+            /** @description Not a WEEK/PERIOD Goal, invalid week, ended period or timezone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Goal not found (GOAL_NOT_FOUND) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_BUSY: a Planning Coach request of this user is still running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_RATE_LIMITED: provider rate limit; see Retry-After */
+            429: {
+                headers: {
+                    /** @description Seconds to wait, when known */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_FAILED: provider error, timeout or unusable answer */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_UNAVAILABLE: no AI provider configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
+    getRecoveryCoachRecommendations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoveryCoachRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCoachResponse"];
+                };
+            };
+            /** @description Invalid localDate or timezone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_BUSY: a Recovery Coach request of this user is still running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_RATE_LIMITED: provider rate limit; see Retry-After */
+            429: {
+                headers: {
+                    /** @description Seconds to wait, when known */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_FAILED: provider error, timeout or unusable answer */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_UNAVAILABLE: no AI provider configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
     getReviewCoachDraft: {
         parameters: {
             query?: never;

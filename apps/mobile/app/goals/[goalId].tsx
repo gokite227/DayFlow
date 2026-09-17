@@ -18,6 +18,7 @@ import {
   yearFlowStages,
 } from "@/features/goals/goal-helpers";
 import { useGoal, useGoals } from "@/features/goals/goal-queries";
+import { PlanningCoachCard } from "@/features/goals/planning-coach-card";
 import { ApiError } from "@/lib/api-error";
 import { PeriodGoalDetail } from "@/screens/period-goal-detail";
 import { koreanShortDate } from "@/lib/dates";
@@ -173,6 +174,10 @@ export default function GoalDetailScreen() {
           )}
         </Card>
       )}
+
+      {goal.type === "WEEK" && daysQuery.isSuccess ? (
+        <PlanningCoachCard goal={goal} today={today} openDayCount={weekDays.filter((day) => day.status !== "DONE" && day.status !== "SKIPPED").length} />
+      ) : null}
 
       {goal.type === "YEAR" ? (
         <Card>

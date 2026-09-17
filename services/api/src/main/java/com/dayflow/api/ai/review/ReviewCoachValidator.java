@@ -9,20 +9,19 @@ import static com.dayflow.api.ai.review.ReviewCoachPrompt.MAX_SUMMARY;
 import static com.dayflow.api.ai.review.ReviewCoachPrompt.MAX_TEXT;
 
 import com.dayflow.api.ai.AiProviderException;
+import com.dayflow.api.ai.CoachClaims;
 import com.dayflow.api.ai.CoachText;
 import com.dayflow.api.ai.review.ReviewCoachDtos.ReviewCoachResponse;
 import com.dayflow.api.ai.review.ReviewCoachDtos.ReviewDraftItem;
 import com.dayflow.api.ai.review.ReviewCoachDtos.ReviewEvidence;
 import com.dayflow.api.ai.review.ReviewCoachDtos.ReviewHighlight;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 
@@ -62,17 +61,15 @@ final class ReviewCoachValidator {
         ENUM_WORDS = Map.copyOf(words);
     }
 
-    /** Causes DayFlow has no data for: willpower, motivation, fatigue, focus, health, personality, dislike. */
-    static final Pattern UNSUPPORTED_CAUSE = Pattern.compile(
-            "의지|의욕|동기\\s*부여|동기가|게으|나태|피곤|피로|지쳐|지친|지치|스트레스|번아웃|우울|불안|무기력"
-                    + "|집중력|자기\\s*통제|자제력|성격|싫어하|싫어서|귀찮|컨디션|건강|수면|잠이\\s*부족|체력"
-                    + "|노력이\\s*부족|더\\s*열심히|열심히\\s*하|최선을\\s*다");
+    /** Shared claim rules ({@link CoachClaims}). */
+    static final Pattern UNSUPPORTED_CAUSE = CoachClaims.UNSUPPORTED_CAUSE;
 
-    private static final Pattern TIME_WORDS = Pattern.compile("오전|오후|저녁|밤|새벽|아침|심야|점심");
-    private static final Pattern WEEKDAY_WORDS = Pattern.compile("[월화수목금토일]요일|주말|평일");
-    private static final Pattern NUMBER = Pattern.compile("\\d+(?:\\.\\d+)?");
-    /** "8시", "20시 이후": clock times, not counts ("3시간" is a duration and is checked). */
-    private static final Pattern CLOCK = Pattern.compile("\\d{1,2}\\s*시(?!간)");
+    /** A claim that an earlier TRY worked or was followed; it needs a before/after PREVIOUS_* fact. */
+    private static final Pattern PREVIOUS_EFFECT = Pattern.compile(
+            "(지난|이전).*(지켜|지켰|방지|효과|개선|반영|줄었|늘었|줄어|늘어|적용)");
+
+    private static final Pattern TIME_WORDS = CoachClaims.TIME_WORDS;
+    private static final Pattern WEEKDAY_WORDS = CoachClaims.WEEKDAY_WORDS;
 
     private ReviewCoachValidator() {
     }
@@ -148,22 +145,9 @@ final class ReviewCoachValidator {
 
         Checks(ReviewCoachContext context) {
             this.context = context;
-            context.evidence().values().forEach(label -> addNumbers(label));
-            addDate(context.periodStart());
-            addDate(context.periodEnd());
-        }
-
-        private void addNumbers(String text) {
-            Matcher numbers = NUMBER.matcher(text);
-            while (numbers.find()) {
-                allowedNumbers.add(numbers.group());
-            }
-        }
-
-        private void addDate(LocalDate date) {
-            allowedNumbers.add(String.valueOf(date.getYear()));
-            allowedNumbers.add(String.valueOf(date.getMonthValue()));
-            allowedNumbers.add(String.valueOf(date.getDayOfMonth()));
+            allowedNumbers.addAll(CoachClaims.numbersIn(context.evidence().values()));
+            CoachClaims.addDate(allowedNumbers, context.periodStart());
+            CoachClaims.addDate(allowedNumbers, context.periodEnd());
         }
 
         /**
@@ -178,11 +162,12 @@ final class ReviewCoachValidator {
             if (!noUnsupportedCause(text)) {
                 return false;
             }
-            Matcher numbers = NUMBER.matcher(CLOCK.matcher(own).replaceAll(" "));
-            while (numbers.find()) {
-                if (!allowedNumbers.contains(numbers.group())) {
-                    return false;
-                }
+            if (PREVIOUS_EFFECT.matcher(own).find()
+                    && cited.stream().noneMatch(key -> key.startsWith("PREVIOUS_") && !key.equals("PREVIOUS_TRY"))) {
+                return false;
+            }
+            if (!CoachClaims.numbersAllowed(own, allowedNumbers)) {
+                return false;
             }
             if (TIME_WORDS.matcher(own).find() && !citesAny(cited, context.timeEvidenceKeys(), summaryLevel)
                     && !cited.contains("PATTERN_SAMPLE_LIMITED")) {

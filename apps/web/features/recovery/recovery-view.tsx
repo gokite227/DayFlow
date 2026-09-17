@@ -8,9 +8,10 @@ import type {
   GoalResponse,
   RecoveryCandidateResponse,
   RecoveryDayResponse,
+  RecoveryRecommendation,
 } from "@dayflow/api-client";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorNotice, LoadingState } from "@/components/query-state";
 import { addDays, formatKoreanDate } from "@/features/calendar/calendar-time";
@@ -23,7 +24,18 @@ import { GOAL_TYPE_LABEL } from "@/features/goals/goal-tree";
 import { usePeriodGoals } from "@/features/goals/period-goal-queries";
 import { goalChipLabel } from "@/features/review/review-goals";
 import { isOpen } from "@/features/review/review-summary";
-import { isStaleDataError } from "@/lib/api-error";
+import { getDayFlowApiClient } from "@/lib/api-client";
+import { expectData, isStaleDataError } from "@/lib/api-error";
+import { browserTimezone } from "@/features/today/today-coach-flow";
+import {
+  RECOVERY_COACH_ERROR_COPY,
+  createRecoveryCoachFlow,
+  draftFromRecommendation,
+  recommendationFor,
+  recommendationUsable,
+  type RecoveryCoachFlow,
+  type RecoveryCoachState,
+} from "./recovery-coach-flow";
 import { useToday } from "@/lib/use-today";
 import {
   CARRY_OVER_MODES,
@@ -118,6 +130,15 @@ function MissedDaysSection({ today }: { today: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [applied, setApplied] = useState<ApplyRecoveryResponse | null>(null);
   const [carried, setCarried] = useState<ApplyCarryOverResponse | null>(null);
+  // AI 정리 코치: recommendations only pre-fill a Day's choice; the existing preview and apply do the rest.
+  const [coach] = useState(() =>
+    createRecoveryCoachFlow({
+      requestRecommendations: (body) => expectData(getDayFlowApiClient().POST("/api/v1/ai/coach/recovery", { body })),
+    }),
+  );
+  const coachState = useSyncExternalStore(coach.subscribe, coach.getState, coach.getState);
+  // Carry Over dates chosen through a recommendation (the panel starts there instead of its default).
+  const [carryDates, setCarryDates] = useState<Record<string, string>>({});
 
   // Both kinds: a PERIOD Goal bounds MOVE the same way a WEEK Goal does.
   const goalsById = new Map<string, GoalResponse>(
@@ -137,6 +158,24 @@ function MissedDaysSection({ today }: { today: string }) {
 
   const updateDraft = (day: DayResponse, change: Partial<RecoveryDraft>) =>
     setDrafts((current) => ({ ...current, [day.id]: { ...draftOf(day), ...change } }));
+
+  /** The existing preview, for one Day only: other Days are neither changed nor recorded. */
+  const openSinglePreview = (day: DayResponse, draft: RecoveryDraft) => {
+    apply.reset();
+    setApplied(null);
+    setCarried(null);
+    setNothingToApply(false);
+    setPreview({ days: [day], drafts: { [day.id]: draft } });
+  };
+
+  const chooseRecommendation = (day: DayResponse, recommendation: RecoveryRecommendation) => {
+    const draft = draftFromRecommendation(recommendation, draftOf(day));
+    setDrafts((current) => ({ ...current, [day.id]: draft }));
+    if (recommendation.action === "CARRY_OVER" && recommendation.targetDate) {
+      setCarryDates((current) => ({ ...current, [day.id]: recommendation.targetDate as string }));
+    }
+    return draft;
+  };
 
   const openPreview = () => {
     apply.reset();
@@ -197,6 +236,7 @@ function MissedDaysSection({ today }: { today: string }) {
           <ErrorNotice error={apply.error} />
         </div>
       ) : null}
+      {missed.length > 0 && <RecoveryCoachCard flow={coach} state={coachState} today={today} />}
       {candidatesQuery.isPending || goalsQuery.isPending || periodGoalsQuery.isPending ? (
         <LoadingState />
       ) : candidatesQuery.isError ? (
@@ -220,6 +260,18 @@ function MissedDaysSection({ today }: { today: string }) {
                 goal={goalOf(candidate.day)}
                 draft={draftOf(candidate.day)}
                 range={rangeOf(candidate.day)}
+                recommendation={(() => {
+                  const recommendation = recommendationFor(coachState.result, candidate.day.id);
+                  return recommendation &&
+                    recommendationUsable(recommendation, candidate.day, goalOf(candidate.day), rangeOf(candidate.day), today)
+                    ? recommendation
+                    : null;
+                })()}
+                carryOverDate={carryDates[candidate.day.id]}
+                onUseRecommendation={(recommendation) => chooseRecommendation(candidate.day, recommendation)}
+                onPreviewRecommendation={(recommendation) =>
+                  openSinglePreview(candidate.day, chooseRecommendation(candidate.day, recommendation))
+                }
                 onChange={(change) => updateDraft(candidate.day, change)}
                 onCarried={(result) => {
                   setApplied(null);
@@ -259,6 +311,10 @@ function MissedDayRow({
   goal,
   draft,
   range,
+  recommendation,
+  carryOverDate,
+  onUseRecommendation,
+  onPreviewRecommendation,
   onChange,
   onCarried,
 }: {
@@ -267,6 +323,10 @@ function MissedDayRow({
   goal: GoalResponse | undefined;
   draft: RecoveryDraft;
   range: MoveRange | null;
+  recommendation: RecoveryRecommendation | null;
+  carryOverDate: string | undefined;
+  onUseRecommendation: (recommendation: RecoveryRecommendation) => void;
+  onPreviewRecommendation: (recommendation: RecoveryRecommendation) => void;
   onChange: (change: Partial<RecoveryDraft>) => void;
   onCarried: (result: ApplyCarryOverResponse) => void;
 }) {
@@ -301,6 +361,31 @@ function MissedDayRow({
         </div>
         <span className="mini">{DAY_STATUS_LABEL[day.status]}</span>
       </div>
+
+      {recommendation && (
+        <div className="recovery-recommendation" aria-label={`${day.title} AI 추천`}>
+          <div>
+            <span className="kpt-draft-badge">
+              AI 추천 · {RECOVERY_ACTION_LABEL[recommendation.action]}
+              {recommendation.targetDate ? ` · ${shortDate(recommendation.targetDate)}` : ""}
+            </span>
+            <div className="mini">{recommendation.reason}</div>
+          </div>
+          <span className="coach-actions">
+            <button type="button" className="btn ghost small" onClick={() => onUseRecommendation(recommendation)}>
+              추천대로 선택
+            </button>
+            {recommendation.action !== "CARRY_OVER" && (
+              <button type="button" className="btn small" onClick={() => onPreviewRecommendation(recommendation)}>
+                이 Day만 미리보기
+              </button>
+            )}
+          </span>
+          {recommendation.action === "CARRY_OVER" && draft.action === "CARRY_OVER" && (
+            <div className="mini">아래 이어가기 미리보기에서 확인한 뒤 적용해요.</div>
+          )}
+        </div>
+      )}
 
       <div className="recovery-actions" role="radiogroup" aria-label={`${day.title} 정리 방법`}>
         {RECOVERY_ACTIONS.map((action) => {
@@ -399,7 +484,14 @@ function MissedDayRow({
       )}
 
       {draft.action === "CARRY_OVER" && goal && !periodGoal && (
-        <CarryOverPanel day={day} weekGoal={goal} today={today} onCarried={onCarried} />
+        <CarryOverPanel
+          key={carryOverDate ?? "default"}
+          day={day}
+          weekGoal={goal}
+          today={today}
+          initialTargetDate={carryOverDate}
+          onCarried={onCarried}
+        />
       )}
 
       {draft.action === "DROP" && (
@@ -426,14 +518,17 @@ function CarryOverPanel({
   day,
   weekGoal,
   today,
+  initialTargetDate,
   onCarried,
 }: {
   day: DayResponse;
   weekGoal: GoalResponse;
   today: string;
+  /** A date picked through an AI recommendation; the user can still change it. */
+  initialTargetDate?: string;
   onCarried: (result: ApplyCarryOverResponse) => void;
 }) {
-  const [targetDate, setTargetDate] = useState(defaultCarryOverDate(weekGoal, today));
+  const [targetDate, setTargetDate] = useState(initialTargetDate ?? defaultCarryOverDate(weekGoal, today));
   const [mode, setMode] = useState<CarryOverMode>("DAY_ONLY");
   const [weekGoalId, setWeekGoalId] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Partial<Record<CarryOverLevel["type"], LevelChoice>>>({});
@@ -666,6 +761,68 @@ function CarryOverSummaryNote({ preview }: { preview: CarryOverPreviewResponse }
       {summary.newGoals.length > 0 &&
         ` 새 목표 ${summary.newGoals.length}개(${summary.newGoals.map((level) => GOAL_TYPE_LABEL[level.type]).join(", ")})를 함께 만들어요.`}
       {" "}원래 Day는 날짜와 상태 그대로 기록으로 남고, 새 Day가 원래 Day를 가리켜요. 시간 배치와 핵심 표시는 가져가지 않아요.
+    </div>
+  );
+}
+
+/** "AI 정리 코치": asked only on tap; the result only shows recommendations next to each Day. */
+function RecoveryCoachCard({ flow, state, today }: { flow: RecoveryCoachFlow; state: RecoveryCoachState; today: string }) {
+  const ask = () => void flow.request({ localDate: today, timezone: browserTimezone() });
+  const result = state.result;
+  return (
+    <div className="coach-card recovery-coach-card" aria-label="AI 정리 코치" aria-busy={state.status === "loading"}>
+      <div className="coach-head">
+        <strong>AI 정리 코치</strong>
+        {state.status === "success" && (
+          <button type="button" className="btn ghost small" onClick={ask}>
+            다시 받기
+          </button>
+        )}
+      </div>
+      {state.status === "idle" && (
+        <div className="coach-intro">
+          <p>남은 Day와 최근 정리 기록을 보고 현실적인 선택을 제안해드려요.</p>
+          <button type="button" className="btn small" onClick={ask}>
+            AI 정리 제안 받기
+          </button>
+        </div>
+      )}
+      {state.status === "loading" && (
+        <div className="coach-loading" role="status">
+          <span className="coach-spinner" aria-hidden />
+          남은 Day를 살펴보고 있어요...
+        </div>
+      )}
+      {state.status === "error" && state.error && (
+        <div className="notice error coach-error" role="alert">
+          <span>{RECOVERY_COACH_ERROR_COPY[state.error]}</span>
+          {state.error !== "unavailable" && (
+            <button type="button" className="btn ghost small" onClick={ask}>
+              다시 시도
+            </button>
+          )}
+        </div>
+      )}
+      {state.status === "success" && result && (
+        <div className="coach-result">
+          <div>
+            <strong className="coach-headline">{result.headline}</strong>
+            {result.summary && <p className="coach-summary">{result.summary}</p>}
+          </div>
+          {result.observations.length > 0 && (
+            <ul className="coach-list">
+              {result.observations.map((observation, index) => (
+                <li key={index}>{observation.message}</li>
+              ))}
+            </ul>
+          )}
+          <span className="mini">
+            추천 {result.recommendations.length}개
+            {result.reviewedCount < result.candidateCount ? ` · 정리할 Day ${result.candidateCount}개 중 ${result.reviewedCount}개를 살펴봤어요` : ""}
+            {" "}· 추천은 각 Day 아래에 보여요. 적용 전 미리보기를 꼭 거쳐요.
+          </span>
+        </div>
+      )}
     </div>
   );
 }

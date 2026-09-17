@@ -349,6 +349,70 @@ class OpenApiContractTest {
         assertThat(keysOf(draft)).containsExactlyInAnyOrderElementsOf(propertiesOf("ReviewCoachResponse"));
     }
 
+    /** AI Recovery Coach: POST 200, every field required, targetDate an explicit nullable. */
+    @Test
+    void documentsRecoveryCoachResponse() throws Exception {
+        String path = "/api/v1/ai/coach/recovery";
+        expectOnlySuccessStatus(mockMvc.perform(get("/v3/api-docs")), path, "post", "200");
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(problemResponse(path, "post", "400"))
+                .andExpect(problemResponse(path, "post", "401"))
+                .andExpect(problemResponse(path, "post", "409"))
+                .andExpect(problemResponse(path, "post", "429"))
+                .andExpect(problemResponse(path, "post", "502"))
+                .andExpect(problemResponse(path, "post", "503"));
+        for (String schema : List.of("RecoveryCoachResponse", "RecoveryRecommendation", "RecoveryCoachObservation",
+                "CoachFact")) {
+            assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(propertiesOf(schema));
+        }
+        List<String> types = JsonPath.read(spec, SCHEMAS + "RecoveryRecommendation.properties.targetDate.type");
+        assertThat(types).containsExactlyInAnyOrder("string", "null");
+
+        String body = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"localDate\":\"%s\",\"timezone\":\"UTC\"}".formatted(java.time.LocalDate.now(java.time.ZoneOffset.UTC))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(keysOf(body)).containsExactlyInAnyOrderElementsOf(propertiesOf("RecoveryCoachResponse"));
+    }
+
+    /** AI Planning Coach: POST 200, every field required, optional suggestion fields as explicit nullables. */
+    @Test
+    void documentsPlanningCoachResponse() throws Exception {
+        String path = "/api/v1/ai/coach/planning";
+        expectOnlySuccessStatus(mockMvc.perform(get("/v3/api-docs")), path, "post", "200");
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(problemResponse(path, "post", "400"))
+                .andExpect(problemResponse(path, "post", "401"))
+                .andExpect(problemResponse(path, "post", "404"))
+                .andExpect(problemResponse(path, "post", "409"))
+                .andExpect(problemResponse(path, "post", "429"))
+                .andExpect(problemResponse(path, "post", "502"))
+                .andExpect(problemResponse(path, "post", "503"));
+        for (String schema : List.of("PlanningCoachResponse", "PlanningDaySuggestion", "PlanningDayProposal",
+                "PlanningCoachObservation")) {
+            assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(propertiesOf(schema));
+        }
+        for (String field : List.of("targetDate", "startTime", "endTime")) {
+            List<String> types = JsonPath.read(spec, SCHEMAS + "PlanningDaySuggestion.properties." + field + ".type");
+            assertThat(types).as("PlanningDaySuggestion." + field).containsExactlyInAnyOrder("string", "null");
+        }
+        List<String> proposed = JsonPath.read(spec, SCHEMAS + "PlanningDayProposal.properties.proposedDate.type");
+        assertThat(proposed).containsExactlyInAnyOrder("string", "null");
+
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneOffset.UTC);
+        String goal = mvc.perform(post("/api/v1/goals").contentType(MediaType.APPLICATION_JSON).content("""
+                {"kind":"PERIOD","parentGoalId":null,"type":null,"title":"Contract period","why":"","startDate":"%s",
+                 "endDate":"%s","priority":1,"progressPolicy":"AUTO"}""".formatted(today, today.plusDays(14))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String goalId = JsonPath.read(goal, "$.id");
+        String body = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"goalId\":\"%s\",\"weekStart\":null,\"timezone\":\"UTC\"}".formatted(goalId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(keysOf(body)).containsExactlyInAnyOrderElementsOf(propertiesOf("PlanningCoachResponse"));
+    }
+
     /** Runtime bodies must carry exactly the documented fields, including explicit nulls. */
     @Test
     void runtimeBodiesMatchDocumentedFields() throws Exception {

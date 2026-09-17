@@ -89,6 +89,20 @@ export type ReviewDraftItem = Schemas["ReviewDraftItem"];
 export type ReviewHighlight = Schemas["ReviewHighlight"];
 export type ReviewEvidence = Schemas["ReviewEvidence"];
 
+/** AI Recovery Coach: recommendations only; applying one goes through the existing Recovery preview and apply. */
+export type CoachFact = Schemas["CoachFact"];
+export type RecoveryCoachRequest = Schemas["RecoveryCoachRequest"];
+export type RecoveryCoachResponse = Schemas["RecoveryCoachResponse"];
+export type RecoveryRecommendation = Schemas["RecoveryRecommendation"];
+export type RecoveryCoachObservation = Schemas["RecoveryCoachObservation"];
+
+/** AI Planning Coach: suggestions for one week of a Goal; each is applied separately through the existing Day APIs. */
+export type PlanningCoachRequest = Schemas["PlanningCoachRequest"];
+export type PlanningCoachResponse = Schemas["PlanningCoachResponse"];
+export type PlanningCoachObservation = Schemas["PlanningCoachObservation"];
+export type PlanningDaySuggestion = Schemas["PlanningDaySuggestion"];
+export type PlanningDayProposal = Schemas["PlanningDayProposal"];
+
 /**
  * The generated schemas list the timed and all-day fields as independent nullables. The server
  * always sends exactly one pair (requirements §8.4); these types express that correlation.

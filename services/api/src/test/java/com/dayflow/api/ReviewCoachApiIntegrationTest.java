@@ -193,7 +193,7 @@ class ReviewCoachApiIntegrationTest {
         assertThat(data.path("daysSummary").path("skipped").asInt()).isEqualTo(1);
         assertThat(label(data, "COMPLETION")).isEqualTo("계획한 Day 13개 중 7개 완료 (54%, 내려놓은 1개 제외)");
         assertThat(label(data, "CORE_COMPLETION")).isEqualTo("핵심 Day 3개 중 3개 완료");
-        assertThat(label(data, "OVERBOOKED")).isEqualTo("일정이 겹쳐 넘친 시간 3시간 (1일)");
+        assertThat(label(data, "OVERBOOKED")).isEqualTo("일정이 겹쳐 넘친 시간 3시간 (겹친 날 1일)");
         assertThat(label(data, "TIME_EVENING")).isEqualTo("저녁(18~22시)에 배치된 Day 4개 중 1개 완료");
         assertThat(label(data, "TIME_MORNING")).isEqualTo("오전(5~12시)에 배치된 Day 3개 중 2개 완료");
         assertThat(label(data, "PREVIOUS_TIME_EVENING")).isEqualTo("저녁(18~22시) 배치 Day 지난 기간 4개(완료 2) → 이번 기간 4개(완료 1)");

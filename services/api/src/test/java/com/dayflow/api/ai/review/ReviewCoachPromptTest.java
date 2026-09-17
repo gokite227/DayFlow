@@ -30,6 +30,8 @@ class ReviewCoachPromptTest {
     void forbidsGuessedCausesAndDefinesKpt() {
         assertThat(RULES).contains("의지, 동기부여, 집중력, 피곤함, 스트레스, 성격")
                 .contains("원인이 시간대인지 다른 이유인지는 기록만으로는 알기 어려워요")
+                .contains("원인을 단정하는 표현을 쓰지 않는다")
+                .contains("해요체")
                 .contains("KEEP: 기록상 실제로 잘 작동한")
                 .contains("PROBLEM: 계획과 실행 사이에서 반복된 마찰")
                 .contains("TRY: 다음 기간에 실제로 시험할 수 있는 구체적 행동")

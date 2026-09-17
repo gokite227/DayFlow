@@ -12,6 +12,7 @@ import { useDays, useUpdateDay } from "@/features/days/day-queries";
 import { doneToggleRequest } from "@/features/days/day-values";
 import { sortDays } from "@/features/days/day-filters";
 import { periodRangeLabel } from "./goal-period";
+import { PlanningCoachCard } from "./planning-coach-card";
 import { useDeletePeriodGoal } from "./period-goal-queries";
 import { PeriodGoalFormModal } from "./period-goal-form-modal";
 import {
@@ -171,6 +172,14 @@ export function PeriodGoalDetail({ goal, today, backHref }: { goal: PeriodGoalRe
             />
           )}
         </section>
+
+        {daysQuery.isSuccess && (
+          <PlanningCoachCard
+            goal={goal}
+            today={today}
+            openDayCount={linkedDays.filter((day) => day.status !== "DONE" && day.status !== "SKIPPED").length}
+          />
+        )}
       </div>
 
       {editingGoal && (

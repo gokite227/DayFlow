@@ -8,6 +8,7 @@ import { useDays, useUpdateDay } from "@/features/days/day-queries";
 import { doneToggleRequest, sortDays } from "@/features/days/day-values";
 import { periodRangeLabel } from "@/features/goals/goal-helpers";
 import { useDeletePeriodGoal } from "@/features/goals/goal-queries";
+import { PlanningCoachCard } from "@/features/goals/planning-coach-card";
 import {
   PERIOD_DELETE_BLOCKED_MESSAGE,
   PERIOD_STATUS_COLOR,
@@ -124,6 +125,10 @@ export function PeriodGoalDetail({ goal, today }: { goal: PeriodGoalResponse; to
           ))
         )}
       </Card>
+
+      {daysQuery.isSuccess ? (
+        <PlanningCoachCard goal={goal} today={today} openDayCount={linkedDays.filter((day) => day.status !== "DONE" && day.status !== "SKIPPED").length} />
+      ) : null}
     </Screen>
   );
 }

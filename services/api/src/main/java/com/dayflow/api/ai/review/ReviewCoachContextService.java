@@ -181,7 +181,7 @@ public class ReviewCoachContextService {
         }
         if (schedule.overbookedMinutes() > 0) {
             evidence.put("OVERBOOKED", "일정이 겹쳐 넘친 시간 " + duration(schedule.overbookedMinutes()) + " ("
-                    + schedule.overloadedDates() + "일)");
+                    + "겹친 날 " + schedule.overloadedDates() + "일)");
         }
         if (schedule.peakConcurrent() >= 2) {
             evidence.put("PEAK_CONCURRENT", "같은 시각 최대 " + schedule.peakConcurrent() + "개 겹침");

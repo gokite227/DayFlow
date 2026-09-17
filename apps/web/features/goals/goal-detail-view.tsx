@@ -17,6 +17,7 @@ import { GoalProgress } from "./goal-progress";
 import { useDeleteGoal, useGoals } from "./goal-queries";
 import { GOAL_TYPE_LABEL, PROGRESS_POLICY_LABEL, childTypeOf, childrenOf, goalPath, sortGoals } from "./goal-tree";
 import { WeekGoalDays, WeekLayoutSwitch } from "./goal-week-days";
+import { PlanningCoachCard } from "./planning-coach-card";
 import { backToGoalsHref, datesOfGoal, goalCalendarHref, goalDetailHref, type WeekLayout } from "./goal-views";
 
 const CHILD_SECTION_TITLE = { YEAR: "분기 목표", QUARTER: "월간 목표", MONTH: "주간 목표" } as const;
@@ -262,46 +263,53 @@ function WeekDays({ goal, goals }: { goal: GoalResponse; goals: GoalResponse[] }
   const layout: WeekLayout = searchParams.get("layout") === "list" ? "list" : "week";
   const daysQuery = useDays({ goalId: goal.id });
   const [creating, setCreating] = useState(false);
+  const weekGoals = sortGoals(goals.filter((candidate) => candidate.type === "WEEK"));
+  const openDayCount = (daysQuery.data ?? []).filter((day) => day.status !== "DONE" && day.status !== "SKIPPED").length;
 
   return (
-    <section className="card">
-      <div className="goal-header-row week-days-header">
-        <div>
-          <strong>이번 주 Days</strong>
-          <div className="mini">
-            {layout === "week"
-              ? "Day를 클릭하면 날짜와 시간을 바로 수정할 수 있습니다."
-              : "이 주간 목표에 연결된 Day를 날짜 순으로 봅니다."}
+    <>
+      <section className="card">
+        <div className="goal-header-row week-days-header">
+          <div>
+            <strong>이번 주 Days</strong>
+            <div className="mini">
+              {layout === "week"
+                ? "Day를 클릭하면 날짜와 시간을 바로 수정할 수 있습니다."
+                : "이 주간 목표에 연결된 Day를 날짜 순으로 봅니다."}
+            </div>
+          </div>
+          <div className="card-actions week-days-actions" style={{ marginTop: 0 }}>
+            <WeekLayoutSwitch layout={layout} hrefFor={(next) => `/goals/${goal.id}?layout=${next}`} />
+            <button type="button" className="btn small" onClick={() => setCreating(true)}>
+              + Day
+            </button>
           </div>
         </div>
-        <div className="card-actions week-days-actions" style={{ marginTop: 0 }}>
-          <WeekLayoutSwitch layout={layout} hrefFor={(next) => `/goals/${goal.id}?layout=${next}`} />
-          <button type="button" className="btn small" onClick={() => setCreating(true)}>
-            + Day
-          </button>
-        </div>
-      </div>
-      {daysQuery.isPending || today === null ? (
-        <LoadingState label="Day를 불러오는 중…" />
-      ) : daysQuery.isError ? (
-        <ErrorNotice error={daysQuery.error} onRetry={() => void daysQuery.refetch()} />
-      ) : (
-        <WeekGoalDays
-          layout={layout}
-          dates={datesOfGoal(goal)}
-          weekGoals={[goal]}
-          goals={goals}
-          days={daysQuery.data}
-          today={today}
-        />
+        {daysQuery.isPending || today === null ? (
+          <LoadingState label="Day를 불러오는 중…" />
+        ) : daysQuery.isError ? (
+          <ErrorNotice error={daysQuery.error} onRetry={() => void daysQuery.refetch()} />
+        ) : (
+          <WeekGoalDays
+            layout={layout}
+            dates={datesOfGoal(goal)}
+            weekGoals={[goal]}
+            goals={goals}
+            days={daysQuery.data}
+            today={today}
+          />
+        )}
+        {creating && (
+          <DayFormModal
+            target={{ mode: "create", goalId: goal.id }}
+            weekGoals={weekGoals}
+            onClose={() => setCreating(false)}
+          />
+        )}
+      </section>
+      {today !== null && daysQuery.isSuccess && (
+        <PlanningCoachCard goal={goal} today={today} openDayCount={openDayCount} weekGoals={weekGoals} />
       )}
-      {creating && (
-        <DayFormModal
-          target={{ mode: "create", goalId: goal.id }}
-          weekGoals={sortGoals(goals.filter((candidate) => candidate.type === "WEEK"))}
-          onClose={() => setCreating(false)}
-        />
-      )}
-    </section>
+    </>
   );
 }

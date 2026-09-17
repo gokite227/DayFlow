@@ -125,6 +125,36 @@ class ReviewCoachValidatorTest {
     }
 
     @Test
+    void causalWordingAndUnprovenTryEffectsAreDropped() {
+        ReviewCoachContext base = context(Set.of("TIME_EVENING"));
+        Map<String, String> evidence = new LinkedHashMap<>(base.evidence());
+        evidence.put("PREVIOUS_TRY", "지난 주간 회고의 TRY 1개");
+        evidence.put("PREVIOUS_TIME_EVENING", "저녁(18~22시) 배치 Day 지난 기간 6개(완료 2) → 이번 기간 4개(완료 1)");
+        ReviewCoachContext context = new ReviewCoachContext(base.type(), base.periodStart(), base.periodEnd(), Map.of(),
+                evidence, Set.of("TIME_EVENING", "PREVIOUS_TIME_EVENING"), Set.of(), base.refNames(), base.titles(),
+                base.factKeys());
+
+        ReviewCoachResponse response = validate("""
+                {"headline":"저녁 일정 과다로 인한 완료율 감소","summary":"","highlights":[],
+                 "keep":[],
+                 "problem":[%s,%s],
+                 "try":[%s,%s]}
+                """.formatted(
+                item("저녁에 배치한 Day가 많이 남았어요", "과다 일정 때문이에요", "TIME_EVENING"),
+                item("저녁에 배치한 Day 4개 중 1개만 끝났어요", "TIME_EVENING", "TIME_EVENING"),
+                item("저녁 일정은 하루 1개만 잡기", "지난 TRY로 과다를 방지했어요", "PREVIOUS_TRY"),
+                item("저녁 일정은 하루 2개까지만 잡기", "지난 TRY 이후 저녁 배치가 줄었어요", "PREVIOUS_TRY", "PREVIOUS_TIME_EVENING")),
+                context);
+
+        assertThat(response.headline()).isEqualTo(ReviewCoachValidator.FALLBACK_HEADLINE);
+        assertThat(response.problem()).extracting(ReviewDraftItem::text).containsExactly("저녁에 배치한 Day 4개 중 1개만 끝났어요");
+        assertThat(response.tryItems()).extracting(ReviewDraftItem::text).containsExactly("저녁 일정은 하루 2개까지만 잡기");
+        // Real smoke output: a cause stated as "주요 원인" is caught; saying the cause is unknown is allowed.
+        assertThat(com.dayflow.api.ai.CoachClaims.UNSUPPORTED_CAUSE.matcher("일정 겹침이 주요 원인으로 보입니다").find()).isTrue();
+        assertThat(com.dayflow.api.ai.CoachClaims.UNSUPPORTED_CAUSE.matcher("원인이 시간대인지는 기록만으로는 알기 어려워요").find()).isFalse();
+    }
+
+    @Test
     void timeOfDayClaimsNeedEnoughSample() {
         String draft = answer("[]",
                 "[" + item("저녁에 배치한 Day가 잘 끝나지 않았어요", "OVERBOOKED", "OVERBOOKED") + ","

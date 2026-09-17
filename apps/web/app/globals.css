@@ -3153,3 +3153,26 @@ a.kpt-goal-chip {
   border-radius: 14px;
   background: var(--lav);
 }
+
+/* Recovery AI Coach: card inside "놓친 계획 정리" and the recommendation line of a Day */
+.recovery-coach-card {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e6d8f2;
+  border-radius: 14px;
+  background: #fcfaff;
+}
+.recovery-recommendation {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 9px 10px;
+  border: 1px dashed #d9c5ea;
+  border-radius: 12px;
+  background: #fcfaff;
+}
+
+/* Planning AI Coach: card under the Days of a WEEK / PERIOD Goal */
+.planning-week-switch {
+  margin-bottom: 10px;
+}

@@ -39,6 +39,8 @@ public class FixtureAiCoachProvider implements AiCoachProvider {
         Map<String, Object> answer = switch (request.task()) {
             case "today-coach" -> todayCoach(data);
             case "review-coach" -> reviewCoach(data);
+            case "recovery-coach" -> recoveryCoach(data);
+            case "planning-coach" -> planningCoach(data);
             default -> throw new AiProviderException(AiProviderException.Kind.INVALID_OUTPUT, "No fixture for this task.");
         };
         return new AiStructuredResult(jsonMapper.valueToTree(answer), "fixture", null, null);
@@ -87,6 +89,80 @@ public class FixtureAiCoachProvider implements AiCoachProvider {
             tries.add(draft("다음 기간에도 첫날 핵심 Day를 먼저 정하기", "근거: " + keepKey, keepKey));
         }
         answer.put("try", tries);
+        return answer;
+    }
+
+    /**
+     * One recommendation per candidate, only among the options DayFlow offered: DROP where supported, else MOVE to the
+     * first offered date, else CARRY_OVER to the first offered date, else KEEP. Reasons are evidence keys, which the
+     * validator turns into labels.
+     */
+    private static Map<String, Object> recoveryCoach(JsonNode data) {
+        Map<String, Object> answer = new LinkedHashMap<>();
+        answer.put("headline", "남은 Day를 하나씩 정리해 봤어요");
+        answer.put("summary", "근거: CANDIDATES");
+        answer.put("observations", List.of(Map.of("message", "CANDIDATES", "evidenceKeys", List.of("CANDIDATES"))));
+        List<Map<String, Object>> recommendations = new ArrayList<>();
+        data.path("candidates").forEach(candidate -> {
+            String ref = candidate.path("ref").asString();
+            Set<String> allowed = new LinkedHashSet<>();
+            candidate.path("allowedActions").forEach(action -> allowed.add(action.asString()));
+            String action;
+            String date = null;
+            if (candidate.path("dropSupported").asBoolean() && allowed.contains("DROP")) {
+                action = "DROP";
+            } else if (allowed.contains("MOVE") && candidate.path("moveDates").size() > 0) {
+                action = "MOVE";
+                date = candidate.path("moveDates").path(0).asString();
+            } else if (allowed.contains("CARRY_OVER") && candidate.path("carryOverDates").size() > 0) {
+                action = "CARRY_OVER";
+                date = candidate.path("carryOverDates").path(0).asString();
+            } else {
+                action = "KEEP";
+            }
+            List<String> keys = new ArrayList<>();
+            keys.add("OVERDUE_" + ref);
+            if (date != null) {
+                keys.add("LOAD_" + date.replace("-", "_"));
+            }
+            Map<String, Object> recommendation = new LinkedHashMap<>();
+            recommendation.put("dayRef", ref);
+            recommendation.put("action", action);
+            recommendation.put("targetDate", date);
+            recommendation.put("reason", "근거: OVERDUE_" + ref);
+            recommendation.put("evidenceKeys", keys);
+            recommendations.add(recommendation);
+        });
+        answer.put("recommendations", recommendations);
+        return answer;
+    }
+
+    /**
+     * Existing-Day suggestions only (no new Day): SET_DATE for the first unscheduled open Day to the first offered
+     * date. Mirrors the Planning Coach rules without inventing anything.
+     */
+    private static Map<String, Object> planningCoach(JsonNode data) {
+        Map<String, Object> answer = new LinkedHashMap<>();
+        answer.put("headline", "다음 기간 계획을 점검해 봤어요");
+        answer.put("summary", "근거: PLANNED_DAYS");
+        answer.put("observations", List.of(Map.of("message", "PLANNED_DAYS", "evidenceKeys", List.of("PLANNED_DAYS"))));
+        List<Map<String, Object>> suggestions = new ArrayList<>();
+        for (JsonNode day : data.path("days")) {
+            if (day.path("dateOptions").size() > 0 && !day.path("finished").asBoolean()) {
+                Map<String, Object> suggestion = new LinkedHashMap<>();
+                suggestion.put("dayRef", day.path("ref").asString());
+                suggestion.put("type", "SET_DATE");
+                suggestion.put("targetDate", day.path("dateOptions").path(0).asString());
+                suggestion.put("startTime", null);
+                suggestion.put("priority", null);
+                suggestion.put("reason", "근거: PLANNED_DAYS");
+                suggestion.put("evidenceKeys", List.of("PLANNED_DAYS"));
+                suggestions.add(suggestion);
+                break;
+            }
+        }
+        answer.put("existingDaySuggestions", suggestions);
+        answer.put("newDayProposals", List.of());
         return answer;
     }
 

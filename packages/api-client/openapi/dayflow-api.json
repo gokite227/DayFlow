@@ -363,6 +363,20 @@
         "required" : [ "id", "label", "type" ],
         "type" : "object"
       },
+      "CoachFact" : {
+        "properties" : {
+          "key" : {
+            "example" : "HISTORY_D1",
+            "type" : "string"
+          },
+          "label" : {
+            "example" : "'보고서 초안' 전에 2번 다시 정리함",
+            "type" : "string"
+          }
+        },
+        "required" : [ "key", "label" ],
+        "type" : "object"
+      },
       "CoachObservation" : {
         "properties" : {
           "evidence" : {
@@ -1113,6 +1127,170 @@
         "required" : [ "avatarUrl", "displayName", "email", "id" ],
         "type" : "object"
       },
+      "PlanningCoachObservation" : {
+        "properties" : {
+          "evidence" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CoachFact"
+            },
+            "type" : "array"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "evidence", "message" ],
+        "type" : "object"
+      },
+      "PlanningCoachRequest" : {
+        "properties" : {
+          "goalId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "timezone" : {
+            "example" : "Asia/Seoul",
+            "maxLength" : 64,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "weekStart" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "goalId", "timezone" ],
+        "type" : "object"
+      },
+      "PlanningCoachResponse" : {
+        "properties" : {
+          "facts" : {
+            "description" : "Facts DayFlow computed for this period",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachFact"
+            },
+            "type" : "array"
+          },
+          "generatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "goalId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "headline" : {
+            "type" : "string"
+          },
+          "observations" : {
+            "description" : "At most 3",
+            "items" : {
+              "$ref" : "#/components/schemas/PlanningCoachObservation"
+            },
+            "type" : "array"
+          },
+          "proposals" : {
+            "description" : "At most 2; only with a concrete Review TRY behind them",
+            "items" : {
+              "$ref" : "#/components/schemas/PlanningDayProposal"
+            },
+            "type" : "array"
+          },
+          "suggestions" : {
+            "description" : "At most 5, one per Day; never applied automatically",
+            "items" : {
+              "$ref" : "#/components/schemas/PlanningDaySuggestion"
+            },
+            "type" : "array"
+          },
+          "summary" : {
+            "type" : "string"
+          },
+          "targetEnd" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "targetStart" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "facts", "generatedAt", "goalId", "headline", "observations", "proposals", "suggestions", "summary", "targetEnd", "targetStart" ],
+        "type" : "object"
+      },
+      "PlanningDayProposal" : {
+        "properties" : {
+          "evidence" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CoachFact"
+            },
+            "type" : "array"
+          },
+          "priority" : {
+            "enum" : [ "NONE", "LOW", "MEDIUM", "HIGH" ],
+            "type" : "string"
+          },
+          "proposedDate" : {
+            "description" : "A date inside the planned period, or null to leave it undecided",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "evidence", "priority", "proposedDate", "reason", "title" ],
+        "type" : "object"
+      },
+      "PlanningDaySuggestion" : {
+        "properties" : {
+          "dayId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "dayTitle" : {
+            "type" : "string"
+          },
+          "endTime" : {
+            "description" : "SET_SCHEDULE: local end time HH:mm (the Day's current duration kept)",
+            "example" : "20:00",
+            "type" : [ "string", "null" ]
+          },
+          "evidence" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CoachFact"
+            },
+            "type" : "array"
+          },
+          "priority" : {
+            "description" : "SET_PRIORITY only",
+            "enum" : [ "NONE", "LOW", "MEDIUM", "HIGH" ],
+            "type" : [ "string", "null" ]
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "startTime" : {
+            "description" : "SET_SCHEDULE: local start time HH:mm",
+            "example" : "19:00",
+            "type" : [ "string", "null" ]
+          },
+          "targetDate" : {
+            "description" : "SET_DATE / SET_SCHEDULE: the date inside the planned period",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "type" : {
+            "enum" : [ "OPEN_DAY", "SET_DATE", "SET_PRIORITY", "SET_SCHEDULE" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "dayId", "dayTitle", "endTime", "evidence", "priority", "reason", "startTime", "targetDate", "type" ],
+        "type" : "object"
+      },
       "ProblemResponse" : {
         "description" : "Error response for every API failure (RFC 9457 Problem Details)",
         "properties" : {
@@ -1164,6 +1342,81 @@
           }
         },
         "required" : [ "day", "lastAction", "reason" ],
+        "type" : "object"
+      },
+      "RecoveryCoachObservation" : {
+        "properties" : {
+          "evidence" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CoachFact"
+            },
+            "type" : "array"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "evidence", "message" ],
+        "type" : "object"
+      },
+      "RecoveryCoachRequest" : {
+        "properties" : {
+          "localDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "timezone" : {
+            "example" : "Asia/Seoul",
+            "maxLength" : 64,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "localDate", "timezone" ],
+        "type" : "object"
+      },
+      "RecoveryCoachResponse" : {
+        "properties" : {
+          "candidateCount" : {
+            "description" : "Recovery candidates of the user now",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "generatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "headline" : {
+            "type" : "string"
+          },
+          "localDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "observations" : {
+            "description" : "At most 3",
+            "items" : {
+              "$ref" : "#/components/schemas/RecoveryCoachObservation"
+            },
+            "type" : "array"
+          },
+          "recommendations" : {
+            "description" : "At most one per candidate; never applied automatically",
+            "items" : {
+              "$ref" : "#/components/schemas/RecoveryRecommendation"
+            },
+            "type" : "array"
+          },
+          "reviewedCount" : {
+            "description" : "Candidates the Coach looked at in detail",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "summary" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "candidateCount", "generatedAt", "headline", "localDate", "observations", "recommendations", "reviewedCount", "summary" ],
         "type" : "object"
       },
       "RecoveryDayResponse" : {
@@ -1316,6 +1569,37 @@
           }
         },
         "required" : [ "appliedAt", "id", "items", "localDate" ],
+        "type" : "object"
+      },
+      "RecoveryRecommendation" : {
+        "properties" : {
+          "action" : {
+            "enum" : [ "KEEP", "REDUCE", "MOVE", "CARRY_OVER", "DROP" ],
+            "type" : "string"
+          },
+          "dayId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "dayTitle" : {
+            "type" : "string"
+          },
+          "evidence" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CoachFact"
+            },
+            "type" : "array"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "targetDate" : {
+            "description" : "MOVE / CARRY_OVER only",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "action", "dayId", "dayTitle", "evidence", "reason", "targetDate" ],
         "type" : "object"
       },
       "RefreshTokenRequest" : {
@@ -2055,6 +2339,216 @@
   },
   "openapi" : "3.1.0",
   "paths" : {
+    "/api/v1/ai/coach/planning" : {
+      "post" : {
+        "operationId" : "getPlanningCoachSuggestions",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanningCoachRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningCoachResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Not a WEEK/PERIOD Goal, invalid week, ended period or timezone"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Missing, expired or invalid access token (UNAUTHORIZED)"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Goal not found (GOAL_NOT_FOUND)"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_COACH_BUSY: a Planning Coach request of this user is still running"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_RATE_LIMITED: provider rate limit; see Retry-After",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Seconds to wait, when known",
+                "schema" : {
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
+          },
+          "502" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_COACH_FAILED: provider error, timeout or unusable answer"
+          },
+          "503" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_COACH_UNAVAILABLE: no AI provider configured"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "tags" : [ "planning-coach-controller" ]
+      }
+    },
+    "/api/v1/ai/coach/recovery" : {
+      "post" : {
+        "operationId" : "getRecoveryCoachRecommendations",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RecoveryCoachRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RecoveryCoachResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid localDate or timezone"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Missing, expired or invalid access token (UNAUTHORIZED)"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_COACH_BUSY: a Recovery Coach request of this user is still running"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_RATE_LIMITED: provider rate limit; see Retry-After",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Seconds to wait, when known",
+                "schema" : {
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
+          },
+          "502" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_COACH_FAILED: provider error, timeout or unusable answer"
+          },
+          "503" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_COACH_UNAVAILABLE: no AI provider configured"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "tags" : [ "recovery-coach-controller" ]
+      }
+    },
     "/api/v1/ai/coach/review" : {
       "post" : {
         "operationId" : "getReviewCoachDraft",
