@@ -51,6 +51,24 @@ dayflow:
       same-site: ${DAYFLOW_REFRESH_COOKIE_SAME_SITE:Lax}
     # Development-only sign-in without Google (E2E). Refused in the prod profile.
     dev-login-enabled: ${DAYFLOW_DEV_LOGIN_ENABLED:false}
+  # AI Coach (optional). Without a provider or key the Coach answers AI_COACH_UNAVAILABLE and nothing else changes.
+  ai:
+    # disabled | groq | fixture (fixture: deterministic test answers, refused by the prod profile)
+    provider: ${AI_COACH_PROVIDER:disabled}
+    groq:
+      # Server secret. Never NEXT_PUBLIC_/EXPO_PUBLIC_, never committed.
+      api-key: ${GROQ_API_KEY:}
+      # Must support Structured Outputs (strict): openai/gpt-oss-20b, openai/gpt-oss-120b.
+      model: ${GROQ_MODEL:openai/gpt-oss-20b}
+      # Empty uses AiCoachProperties.Groq.DEFAULT_BASE_URL (https://api.groq.com/openai/v1).
+      base-url: ${GROQ_BASE_URL:}
+      connect-timeout: 5s
+      read-timeout: ${GROQ_READ_TIMEOUT:30s}
+      max-completion-tokens: ${GROQ_MAX_COMPLETION_TOKENS:1500}
+      # strict | best_effort | json_object (for models without strict json_schema support)
+      output-mode: ${GROQ_OUTPUT_MODE:strict}
+      # gpt-oss models only (low | medium | high); empty for models without reasoning_effort.
+      reasoning-effort: ${GROQ_REASONING_EFFORT:low}
 
 management:
   endpoints:

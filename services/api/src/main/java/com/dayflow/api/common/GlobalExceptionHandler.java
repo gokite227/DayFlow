@@ -28,7 +28,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ProblemDetail> handleApiException(ApiException ex) {
-        return problem(ex.getCode(), ex.getMessage(), ex.getFieldErrors());
+        ResponseEntity<ProblemDetail> response = problem(ex.getCode(), ex.getMessage(), ex.getFieldErrors());
+        if (ex.getRetryAfter() == null) {
+            return response;
+        }
+        return ResponseEntity.status(response.getStatusCode())
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(ex.getRetryAfter().toSeconds(), 1)))
+                .body(response.getBody());
     }
 
     /** A concurrent transaction changed the row between read and write. */

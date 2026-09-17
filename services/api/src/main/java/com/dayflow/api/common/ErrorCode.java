@@ -49,13 +49,23 @@ public enum ErrorCode {
     DAY_TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "Day Tag not found"),
     EVENT_CATEGORY_NOT_FOUND(HttpStatus.NOT_FOUND, "Event Category not found"),
 
+    /** The same user already has a Today Coach request running; the client waits for it instead of sending another. */
+    AI_COACH_BUSY(HttpStatus.CONFLICT, "AI Coach request in progress"),
+
     VERSION_CONFLICT(HttpStatus.CONFLICT, "Version conflict"),
     SCHEDULE_VERSION_CONFLICT(HttpStatus.CONFLICT, "Schedule version conflict"),
     GOAL_IN_USE(HttpStatus.CONFLICT, "Goal in use"),
     ALREADY_CARRIED_OVER(HttpStatus.CONFLICT, "Already carried over"),
     DATA_CONFLICT(HttpStatus.CONFLICT, "Data conflict"),
 
-    GOOGLE_LOGIN_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "Google login is not configured");
+    /** The AI provider rejected the request for its rate limit; Retry-After is sent when the provider gave one. */
+    AI_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "AI Coach rate limited"),
+    /** The AI provider timed out, failed or returned an unusable answer. Nothing was changed. */
+    AI_COACH_FAILED(HttpStatus.BAD_GATEWAY, "AI Coach failed"),
+
+    GOOGLE_LOGIN_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "Google login is not configured"),
+    /** No AI provider is configured (or its key is missing). The rest of DayFlow works as usual. */
+    AI_COACH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI Coach is not configured");
 
     private final HttpStatus status;
     private final String title;

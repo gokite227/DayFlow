@@ -15,8 +15,11 @@ import { doneToggleRequest } from "@/features/days/day-values";
 import { useGoals } from "@/features/goals/goal-queries";
 import { GOAL_TYPE_LABEL, goalPath, sortGoals } from "@/features/goals/goal-tree";
 import { shortDate } from "@/features/recovery/recovery-plan";
+import { TodayCoachCard } from "./today-coach-card";
 import { TodayWeekGoals } from "./today-goals";
 import { useRecoveryCandidates, useRecoveryDays } from "@/features/recovery/recovery-queries";
+import { getDayFlowApiClient } from "@/lib/api-client";
+import { expectData } from "@/lib/api-error";
 import { useToday } from "@/lib/use-today";
 
 export function TodayView() {
@@ -51,6 +54,15 @@ function TodayContent({ today }: { today: string }) {
   const days = [...(daysQuery.data ?? [])].sort((a, b) => Number(b.coreDay) - Number(a.coreDay));
   const weekGoals = sortGoals(goals.filter((goal) => goal.type === "WEEK"));
 
+  // Coach suggestions can point at earlier Days too; those are loaded on demand for the same Day editor.
+  const openDayById = async (dayId: string) => {
+    updateDay.reset();
+    const loaded =
+      days.find((day) => day.id === dayId) ??
+      (await expectData(getDayFlowApiClient().GET("/api/v1/days/{dayId}", { params: { path: { dayId } } })));
+    setEditingDay(loaded);
+  };
+
   // Paths of the WEEK Goals behind today's Days (Days without a Goal have no path, DAY-001);
   // without such Days, the WEEK Goals covering today.
   const linkedGoalIds = [...new Set(days.map((day) => day.goalId))].filter(
@@ -66,6 +78,8 @@ function TodayContent({ today }: { today: string }) {
   return (
     <div className="stack">
       <RecoveryEntry today={today} />
+
+      <TodayCoachCard today={today} onOpenDay={openDayById} />
 
       <TodayWeekGoals today={today} goalsQuery={goalsQuery} days={allDaysQuery.data} />
 

@@ -28,5 +28,7 @@ Integration tests use Testcontainers PostgreSQL (Docker required).
 - Environment variables (names only): `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`,
   `SPRING_DATASOURCE_PASSWORD`, `DAYFLOW_PUBLIC_BASE_URL`, `DAYFLOW_WEB_URL`, `DAYFLOW_ALLOWED_WEB_ORIGINS`,
   `DAYFLOW_JWT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`; optional `DAYFLOW_MOBILE_REDIRECT_URI`,
-  `DAYFLOW_REFRESH_COOKIE_SECURE`, `DAYFLOW_REFRESH_COOKIE_SAME_SITE`, `JAVA_TOOL_OPTIONS`.
+  `DAYFLOW_REFRESH_COOKIE_SECURE`, `DAYFLOW_REFRESH_COOKIE_SAME_SITE`, `JAVA_TOOL_OPTIONS`, and the AI Coach
+  `AI_COACH_PROVIDER`, `GROQ_API_KEY`, `GROQ_MODEL` (a missing key only disables the Coach; `AiProductionConfigValidator`
+  refuses `AI_COACH_PROVIDER=fixture`).
   Values and the full deploy checklist: `infra/README.md` §3.

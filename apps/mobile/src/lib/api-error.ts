@@ -59,6 +59,10 @@ const ERROR_HINTS: Partial<Record<string, string>> = {
   EVENT_NOT_FOUND: "일정을 찾을 수 없어요. 이미 삭제되었을 수 있어요.",
   DAY_NOT_FOUND: "Day를 찾을 수 없어요. 이미 삭제되었을 수 있어요.",
   GOAL_NOT_FOUND: "목표를 찾을 수 없어요. 이미 삭제되었을 수 있어요.",
+  AI_COACH_UNAVAILABLE: "AI 코치가 아직 연결되지 않았어요.",
+  AI_RATE_LIMITED: "AI 코치를 잠시 많이 사용했어요. 잠시 후 다시 시도해 주세요.",
+  AI_COACH_FAILED: "지금은 코치의 답변을 불러오지 못했어요.",
+  AI_COACH_BUSY: "이미 코치 답변을 준비하고 있어요.",
 };
 
 /** One user-facing sentence for any error a query or mutation can throw. */

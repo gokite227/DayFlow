@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/v1/ai/coach/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["getTodayCoach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/exchange": {
         parameters: {
             query?: never;
@@ -577,6 +593,44 @@ export interface components {
             targetWeekGoalId: string | null;
             /** @description Existing WEEK Goals containing the target date */
             targetWeekGoals: components["schemas"]["GoalResponse"][];
+        };
+        CoachEvidence: {
+            id: string;
+            label: string;
+            /** @enum {string} */
+            type: "DAY" | "GOAL" | "REVIEW" | "METRIC";
+        };
+        CoachObservation: {
+            evidence: components["schemas"]["CoachEvidence"][];
+            message: string;
+        };
+        CoachPriority: {
+            /** Format: uuid */
+            dayId: string;
+            dayTitle: string;
+            reason: string;
+        };
+        CoachSuggestion: {
+            /**
+             * Format: uuid
+             * @description null for ADVICE_ONLY
+             */
+            dayId: string | null;
+            /** @description null for ADVICE_ONLY */
+            dayTitle: string | null;
+            message: string;
+            /**
+             * Format: date
+             * @description RESCHEDULE_DAY only: today or later, inside the Day's Goal period
+             */
+            proposedDate: string | null;
+            /**
+             * @description SET_PRIORITY only
+             * @enum {string|null}
+             */
+            proposedPriority: "NONE" | "LOW" | "MEDIUM" | "HIGH" | null;
+            /** @enum {string} */
+            type: "ADVICE_ONLY" | "OPEN_DAY" | "RESCHEDULE_DAY" | "SET_PRIORITY";
         };
         ConvertReviewItemResponse: {
             day: components["schemas"]["DayResponse"];
@@ -1166,6 +1220,26 @@ export interface components {
             startAt: string;
             timezone: string;
         };
+        TodayCoachRequest: {
+            /** Format: date */
+            localDate: string;
+            /** @example Asia/Seoul */
+            timezone: string;
+        };
+        TodayCoachResponse: {
+            /** Format: date-time */
+            generatedAt: string;
+            headline: string;
+            /** Format: date */
+            localDate: string;
+            /** @description At most 3, each with at least one evidence */
+            observations: components["schemas"]["CoachObservation"][];
+            /** @description At most 3 of today's unfinished Days */
+            priorities: components["schemas"]["CoachPriority"][];
+            /** @description At most 3; never applied automatically */
+            suggestions: components["schemas"]["CoachSuggestion"][];
+            summary: string;
+        };
         UpdateDayRequest: {
             coreDay?: boolean;
             /** Format: int32 */
@@ -1287,6 +1361,86 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getTodayCoach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodayCoachRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodayCoachResponse"];
+                };
+            };
+            /** @description Invalid localDate or timezone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid access token (UNAUTHORIZED) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_BUSY: a Coach request of this user is still running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_RATE_LIMITED: provider rate limit; see Retry-After */
+            429: {
+                headers: {
+                    /** @description Seconds to wait, when known */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_FAILED: provider error, timeout or unusable answer */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+            /** @description AI_COACH_UNAVAILABLE: no AI provider configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemResponse"];
+                };
+            };
+        };
+    };
     exchangeLoginCode: {
         parameters: {
             query?: never;

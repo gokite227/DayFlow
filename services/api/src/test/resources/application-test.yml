@@ -23,3 +23,6 @@ dayflow:
       secure: false
     # AuthFlowIntegrationTest drives the real callback → exchange flow through it (hidden from OpenAPI).
     dev-login-enabled: true
+  ai:
+    # Tests never call Groq: the fixture provider answers deterministically from the context.
+    provider: fixture

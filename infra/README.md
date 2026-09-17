@@ -132,6 +132,7 @@ reference variables to the PostgreSQL service named `Postgres`; they use the pri
 Leave unset (defaults are the production values): `DAYFLOW_MOBILE_REDIRECT_URI` (`dayflow://auth/callback`),
 `DAYFLOW_REFRESH_COOKIE_SECURE` (`true`), `DAYFLOW_REFRESH_COOKIE_SAME_SITE` (`Lax`),
 `DAYFLOW_DEV_LOGIN_ENABLED` (`false`; the prod profile refuses `true`).
+Optional AI Coach variables (`AI_COACH_PROVIDER`, `GROQ_API_KEY`, `GROQ_MODEL`, …): §4.
 
 Generate the JWT secret without printing it (copies to the clipboard):
 
@@ -197,3 +198,66 @@ Mobile against production: set `EXPO_PUBLIC_DAYFLOW_API_BASE_URL=https://<api-ho
 - The Docker build context is `services/api` only; `.dockerignore` excludes `target`, `src/test` and any
   `.env*`/key files. No secret is committed: `.env` files are git-ignored and `.env.example` files hold
   placeholders only.
+## 4. AI Coach (Groq, optional)
+
+The Today Coach (`POST /api/v1/ai/coach/today`, Web/Mobile Today → "오늘의 코치") calls an LLM **from the API
+only**. It is off by default: without the variables below the API starts normally and the Coach answers
+`503 AI_COACH_UNAVAILABLE` ("AI 코치가 아직 연결되지 않았어요."). Nothing else depends on it.
+
+### 4.1 Variables (API only — Railway or `infra/.env`)
+
+| Variable | Value |
+| --- | --- |
+| `AI_COACH_PROVIDER` | `groq` to enable; `disabled` (default). `fixture` gives fixed test answers and is refused by `prod`. |
+| `GROQ_API_KEY` | secret from console.groq.com → API Keys. Railway variable only. |
+| `GROQ_MODEL` | default `openai/gpt-oss-20b`. Must support Structured Outputs with `strict: true` (e.g. `openai/gpt-oss-120b`). |
+| `GROQ_OUTPUT_MODE` | `strict` (default). `best_effort` / `json_object` only for a model without strict support. |
+| `GROQ_REASONING_EFFORT` | `low` (default, gpt-oss). Set it empty for a model without `reasoning_effort`. |
+| `GROQ_READ_TIMEOUT` | default `30s` |
+| `GROQ_MAX_COMPLETION_TOKENS` | default `1500` |
+| `GROQ_BASE_URL` | leave unset (`https://api.groq.com/openai/v1`); tests point it at a mock server. |
+
+Never put the key into Vercel, `NEXT_PUBLIC_*`, `EXPO_PUBLIC_*`, `.env.example` files or the repository.
+`AI_COACH_PROVIDER=groq` with a missing key logs a warning (without the key) and keeps the Coach disabled.
+To change the model, set `GROQ_MODEL` and redeploy; no code change. Check the model's Structured Outputs
+support in Groq's docs first; with `strict` an unsupported model fails every Coach request with `502`.
+
+### 4.2 Rate limits and cost
+
+Groq limits requests and tokens per organization and model (see console.groq.com → Settings → Limits). The API
+never retries: a Groq `429` becomes `429 AI_RATE_LIMITED` with `Retry-After`, and the apps show "AI 코치를 잠시
+많이 사용했어요. 잠시 후 다시 시도해 주세요." The Coach runs only when a user taps the button (never on screen
+open), one request per user at a time (`409 AI_COACH_BUSY`). One request sends a few thousand tokens at most
+(context lists are capped in `TodayCoachContextService`).
+
+### 4.3 Data sent to Groq and Data Controls
+
+Sent: today's date/time, titles/status/priority/dates of today's Days (≤ 12) and recent unfinished Days (≤ 8,
+14 days), titles and date ranges of active Goals (≤ 8) with done/total counts, 3-day and 7-day counts, and up to
+6 lines of the latest daily/weekly KPT review, plus numbers the API computes itself (scheduled minutes from Day
+time placements, overlapping "busy windows", unfinished-Day summary) so the model never does time math. Not sent: email, name, Google identity, user id, tokens, Day/Goal
+UUIDs (replaced by `D1`/`G1` refs), Event texts, Focus data. User text is sent as a JSON data message, separate
+from DayFlow's instructions, and the model is told to treat it as data only.
+
+The API logs only request id, provider, model, HTTP status, latency, outcome and token counts — never the
+prompt, titles, review text, the raw answer or the key. No AI answer is stored in the database, and the Web
+service worker does not cache `/api/*`.
+
+Groq's retention of API inputs/outputs is controlled by the **organization's Data Controls** in the Groq
+console (Settings → Data Controls; Zero Data Retention where available). DayFlow's code does not and cannot
+switch this on: an organization admin must set it and re-check it after plan or policy changes. Until that is
+confirmed, treat Coach inputs as retained under Groq's default policy.
+
+### 4.4 Manual smoke test against real Groq (not in CI)
+
+Tests never call Groq. To check a real key locally:
+
+1. In `infra/.env` (git-ignored) set `AI_COACH_PROVIDER=groq` and `GROQ_API_KEY=<your key>`; start the API
+   (`cd services/api && ./mvnw spring-boot:run`) and the Web app.
+2. Sign in, create one or two Days for today and one unfinished Day for yesterday.
+3. Today → "오늘 코치 받기": a result with headline, 먼저 할 일, 코치 메모 and 추천 appears; API log shows one
+   `ai.coach ... outcome=ok` line with token counts and nothing else about the content.
+4. Press [적용] on a suggestion → confirm → the Day moves/changes; cancel → nothing changes.
+5. Remove `GROQ_API_KEY` and restart → the card shows "AI 코치가 아직 연결되지 않았어요." and the rest works.
+
+For local UI work without a key use `AI_COACH_PROVIDER=fixture` (never on a server).

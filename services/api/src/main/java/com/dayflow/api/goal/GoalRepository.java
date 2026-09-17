@@ -1,6 +1,7 @@
 package com.dayflow.api.goal;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,4 +31,11 @@ public interface GoalRepository extends JpaRepository<Goal, UUID>, JpaSpecificat
     /** Existing WEEK Goals containing a date. */
     List<Goal> findByUserIdAndTypeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByCreatedAt(
             UUID userId, GoalType type, LocalDate date, LocalDate sameDate);
+
+    /** AI Coach context: Goals of both kinds whose period contains a date. */
+    List<Goal> findByUserIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByStartDateAscCreatedAtAsc(
+            UUID userId, LocalDate date, LocalDate sameDate);
+
+    /** AI Coach context: Goals of listed Days (scoped to the owner). */
+    List<Goal> findByUserIdAndIdIn(UUID userId, Collection<UUID> ids);
 }

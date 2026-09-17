@@ -7,6 +7,7 @@ import { dayGoalLine, doneToggleRequest } from "@/features/days/day-values";
 import { formatRate, goalPeriodLabel, summarizeGoal } from "@/features/goals/goal-helpers";
 import { useGoals, usePeriodGoals } from "@/features/goals/goal-queries";
 import { useRecoveryCandidates, useRecoveryDays } from "@/features/recovery/recovery-queries";
+import { TodayCoachCard } from "@/features/today/today-coach-card";
 import { currentWeekGoals, dayGoalPath, todayDays, todayProgress } from "@/features/today/today-helpers";
 import { formatKoreanDate, koreanShortDate } from "@/lib/dates";
 import { useOpenScreen } from "@/features/navigation/use-open-screen";
@@ -83,6 +84,9 @@ export default function TodayScreen() {
           ))
         )}
       </Card>
+
+      {/* After today's Days so a long Coach answer never pushes the main list down. */}
+      <TodayCoachCard today={today} />
 
       <Card>
         <SectionHeader title="이번 주 목표 진행률" subtitle="오늘이 포함된 주간 목표" />

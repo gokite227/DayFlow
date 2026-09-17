@@ -301,6 +301,32 @@ class OpenApiContractTest {
                 .andExpect(jsonPath(schema + ".properties.expectedVersion.format").value("int64"));
     }
 
+    /** AI Coach: POST 200, every response field required, suggestion action fields as explicit nullables. */
+    @Test
+    void documentsTodayCoachResponse() throws Exception {
+        expectOnlySuccessStatus(mockMvc.perform(get("/v3/api-docs")), "/api/v1/ai/coach/today", "post", "200");
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(problemResponse("/api/v1/ai/coach/today", "post", "401"))
+                .andExpect(problemResponse("/api/v1/ai/coach/today", "post", "409"))
+                .andExpect(problemResponse("/api/v1/ai/coach/today", "post", "429"))
+                .andExpect(problemResponse("/api/v1/ai/coach/today", "post", "502"))
+                .andExpect(problemResponse("/api/v1/ai/coach/today", "post", "503"));
+        for (String schema : List.of("TodayCoachResponse", "CoachPriority", "CoachObservation", "CoachEvidence",
+                "CoachSuggestion")) {
+            assertThat(requiredOf(schema)).as(schema + " required").containsExactlyInAnyOrderElementsOf(propertiesOf(schema));
+        }
+        for (String field : List.of("dayId", "dayTitle", "proposedDate", "proposedPriority")) {
+            List<String> types = JsonPath.read(spec, SCHEMAS + "CoachSuggestion.properties." + field + ".type");
+            assertThat(types).as("CoachSuggestion." + field).containsExactlyInAnyOrder("string", "null");
+        }
+
+        String coach = mvc.perform(post("/api/v1/ai/coach/today").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"localDate\":\"%s\",\"timezone\":\"UTC\"}".formatted(java.time.LocalDate.now(java.time.ZoneOffset.UTC))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(keysOf(coach)).containsExactlyInAnyOrderElementsOf(propertiesOf("TodayCoachResponse"));
+    }
+
     /** Runtime bodies must carry exactly the documented fields, including explicit nulls. */
     @Test
     void runtimeBodiesMatchDocumentedFields() throws Exception {

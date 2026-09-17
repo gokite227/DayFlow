@@ -74,6 +74,14 @@ export type CreateEventCategoryRequest = Schemas["CreateEventCategoryRequest"];
 export type UpdateEventCategoryRequest = Schemas["UpdateEventCategoryRequest"];
 export type EventRecurrence = EventResponse["recurrence"];
 
+/** AI Today Coach. Suggestions are proposals only; applying one is a normal Day PATCH after user confirmation. */
+export type TodayCoachRequest = Schemas["TodayCoachRequest"];
+export type TodayCoachResponse = Schemas["TodayCoachResponse"];
+export type CoachPriority = Schemas["CoachPriority"];
+export type CoachObservation = Schemas["CoachObservation"];
+export type CoachEvidence = Schemas["CoachEvidence"];
+export type CoachSuggestion = Schemas["CoachSuggestion"];
+
 /**
  * The generated schemas list the timed and all-day fields as independent nullables. The server
  * always sends exactly one pair (requirements §8.4); these types express that correlation.

@@ -11,4 +11,8 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
     Optional<Review> findByUserIdAndTypeAndPeriodStart(UUID userId, ReviewType type, LocalDate periodStart);
 
     Optional<Review> findByUserIdAndItems_Id(UUID userId, UUID itemId);
+
+    /** AI Coach context: the most recent review of a type starting on or before a date. */
+    Optional<Review> findFirstByUserIdAndTypeAndPeriodStartLessThanEqualOrderByPeriodStartDesc(UUID userId,
+            ReviewType type, LocalDate date);
 }

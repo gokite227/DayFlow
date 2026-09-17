@@ -347,6 +347,85 @@
         "required" : [ "days", "levels", "mode", "ready", "sourceDay", "sourceGoalPath", "targetDate", "targetWeekGoalId", "targetWeekGoals" ],
         "type" : "object"
       },
+      "CoachEvidence" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "DAY", "GOAL", "REVIEW", "METRIC" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "label", "type" ],
+        "type" : "object"
+      },
+      "CoachObservation" : {
+        "properties" : {
+          "evidence" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CoachEvidence"
+            },
+            "type" : "array"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "evidence", "message" ],
+        "type" : "object"
+      },
+      "CoachPriority" : {
+        "properties" : {
+          "dayId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "dayTitle" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "dayId", "dayTitle", "reason" ],
+        "type" : "object"
+      },
+      "CoachSuggestion" : {
+        "properties" : {
+          "dayId" : {
+            "description" : "null for ADVICE_ONLY",
+            "format" : "uuid",
+            "type" : [ "string", "null" ]
+          },
+          "dayTitle" : {
+            "description" : "null for ADVICE_ONLY",
+            "type" : [ "string", "null" ]
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "proposedDate" : {
+            "description" : "RESCHEDULE_DAY only: today or later, inside the Day's Goal period",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "proposedPriority" : {
+            "description" : "SET_PRIORITY only",
+            "enum" : [ "NONE", "LOW", "MEDIUM", "HIGH" ],
+            "type" : [ "string", "null" ]
+          },
+          "type" : {
+            "enum" : [ "ADVICE_ONLY", "OPEN_DAY", "RESCHEDULE_DAY", "SET_PRIORITY" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "dayId", "dayTitle", "message", "proposedDate", "proposedPriority", "type" ],
+        "type" : "object"
+      },
       "ConvertReviewItemResponse" : {
         "properties" : {
           "day" : {
@@ -1523,6 +1602,63 @@
         "required" : [ "endAt", "expectedVersion", "startAt", "timezone" ],
         "type" : "object"
       },
+      "TodayCoachRequest" : {
+        "properties" : {
+          "localDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "timezone" : {
+            "example" : "Asia/Seoul",
+            "maxLength" : 64,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "localDate", "timezone" ],
+        "type" : "object"
+      },
+      "TodayCoachResponse" : {
+        "properties" : {
+          "generatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "headline" : {
+            "type" : "string"
+          },
+          "localDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "observations" : {
+            "description" : "At most 3, each with at least one evidence",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachObservation"
+            },
+            "type" : "array"
+          },
+          "priorities" : {
+            "description" : "At most 3 of today's unfinished Days",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachPriority"
+            },
+            "type" : "array"
+          },
+          "suggestions" : {
+            "description" : "At most 3; never applied automatically",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachSuggestion"
+            },
+            "type" : "array"
+          },
+          "summary" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "generatedAt", "headline", "localDate", "observations", "priorities", "suggestions", "summary" ],
+        "type" : "object"
+      },
       "UpdateDayRequest" : {
         "properties" : {
           "coreDay" : {
@@ -1789,6 +1925,106 @@
   },
   "openapi" : "3.1.0",
   "paths" : {
+    "/api/v1/ai/coach/today" : {
+      "post" : {
+        "operationId" : "getTodayCoach",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TodayCoachRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TodayCoachResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Invalid localDate or timezone"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "Missing, expired or invalid access token (UNAUTHORIZED)"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_COACH_BUSY: a Coach request of this user is still running"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_RATE_LIMITED: provider rate limit; see Retry-After",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Seconds to wait, when known",
+                "schema" : {
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
+          },
+          "502" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_COACH_FAILED: provider error, timeout or unusable answer"
+          },
+          "503" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description" : "AI_COACH_UNAVAILABLE: no AI provider configured"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "tags" : [ "today-coach-controller" ]
+      }
+    },
     "/api/v1/auth/exchange" : {
       "post" : {
         "operationId" : "exchangeLoginCode",

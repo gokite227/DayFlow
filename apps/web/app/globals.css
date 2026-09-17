@@ -2944,3 +2944,155 @@ a.kpt-goal-chip {
   background: var(--accent-soft);
   font-size: 14px;
 }
+
+/* Today AI Coach card */
+.coach-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.coach-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.coach-intro p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  min-width: 0;
+}
+.coach-loading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.coach-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  animation: coach-spin 0.9s linear infinite;
+}
+@keyframes coach-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach-spinner {
+    animation: none;
+  }
+}
+.coach-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.coach-result {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.coach-headline {
+  display: block;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.coach-summary {
+  margin: 5px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.coach-priorities,
+.coach-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.coach-priorities {
+  counter-reset: coach;
+}
+.coach-priorities li,
+.coach-list li {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.coach-priorities li {
+  counter-increment: coach;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 9px;
+}
+.coach-priorities li::before {
+  content: counter(coach);
+  grid-row: span 2;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+.coach-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-weight: 760;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.coach-link:hover {
+  text-decoration: underline;
+}
+.coach-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.coach-chip {
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--lav);
+  color: #5f4a73;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.coach-applied {
+  padding: 5px 9px;
+}
+.coach-trust {
+  margin: 14px 0 0;
+}

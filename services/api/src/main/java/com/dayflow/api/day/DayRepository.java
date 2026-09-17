@@ -32,6 +32,9 @@ public interface DayRepository extends JpaRepository<Day, UUID>, JpaSpecificatio
 
     List<Day> findByGoalIdOrderByPlannedDateAscCreatedAtAsc(UUID goalId);
 
+    /** AI Coach context: the user's Days planned in an inclusive date range. */
+    List<Day> findByUserIdAndPlannedDateBetween(UUID userId, LocalDate from, LocalDate to);
+
     /** REC-003: whether a later Day already continues this Day. */
     boolean existsByCarriedFromDayId(UUID carriedFromDayId);
 }
