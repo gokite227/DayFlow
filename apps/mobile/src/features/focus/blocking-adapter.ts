@@ -89,6 +89,11 @@ export interface FocusBlockingAdapter {
   getPermission(): BlockingPermission;
   openPermissionSettings(): Promise<void>;
   getSelectableApps(): Promise<SelectableApp[]>;
+  /**
+   * "system-picker" only (iOS): shows the OS picker and returns the new selection as opaque refs, or null when
+   * cancelled. The picked tokens stay native.
+   */
+  presentSystemPicker?(): Promise<BlockedAppRef[] | null>;
   /** Stores the block list and starts blocking until `endsAt`; returns the native state. */
   startBlocking(request: StartBlockingRequest): BlockingSnapshot;
   /** Throws for a STRICT session before its end. */

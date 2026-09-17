@@ -50,6 +50,8 @@ export function selectionCounts(apps: readonly BlockedAppRef[]): { categories: n
 /** "차단 앱 없음" / "소셜 미디어 · 3개 앱" / "소셜 미디어 외 2개 카테고리 · 12개 앱" */
 export function selectionSummary(apps: readonly BlockedAppRef[]): string {
   if (apps.length === 0) return "차단 앱 없음";
+  // iOS: one opaque Screen Time selection, already labelled like "앱 2개 · 카테고리 1개" (no names, no DayFlow category).
+  if (apps.length === 1 && apps[0]!.category === undefined && apps[0]!.id.startsWith("ios:")) return apps[0]!.label;
   const order = new Map(APP_CATEGORIES.map((category, index) => [category.id as string, index]));
   const categories = [...new Set(apps.map((app) => app.category ?? "OTHER"))].sort((a, b) => (order.get(a) ?? 99) - (order.get(b) ?? 99));
   const first = appCategoryLabel(categories[0]);

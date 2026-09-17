@@ -1,17 +1,51 @@
 import { screenTimeModule } from "../../../modules/dayflow-screen-time";
-import { unsupportedBlockingAdapter, type FocusBlockingAdapter } from "./blocking-adapter";
+import { NO_BLOCKING, unsupportedBlockingAdapter, unsupportedScheduler, type FocusBlockingAdapter } from "./blocking-adapter";
+import { screenTimePermission, screenTimeSelectionLabel, screenTimeSelectionRefs, screenTimeSnapshot } from "./ios-screen-time";
 
 /**
- * iOS: Screen Time (FamilyControls / ManagedSettings / DeviceActivity) is only a native skeleton today and
- * reports `implemented: false`, so Focus is a timer on iOS. When it is implemented, this adapter uses
- * selectionMode "system-picker": the app ids are opaque selection tokens, never bundle ids. Day schedule automation
- * maps to its `scheduler`: DeviceActivitySchedule per FocusScheduleEntry (intervalDidStart applies the shield for
- * AUTO, a local notification for NOTIFY_ONLY / ASK), and STRICT to not offering "end" before intervalDidEnd.
+ * iOS: Screen Time (FamilyControls authorization, FamilyActivityPicker, ManagedSettings shield, DeviceActivity auto
+ * end) through modules/dayflow-screen-time — a POC being verified on a real iPhone. selectionMode "system-picker": the
+ * app ids are opaque tokens, never bundle ids. Day schedule automation (the scheduler) is not implemented on iOS yet.
+ * Without the native module (Expo Go, simulator builds without it) Focus stays a timer.
  */
-export const iosBlockingAdapter: FocusBlockingAdapter = screenTimeModule?.getStatus().implemented
-  ? {
-      ...unsupportedBlockingAdapter,
+const native = screenTimeModule;
+
+export const iosBlockingAdapter: FocusBlockingAdapter = !native
+  ? unsupportedBlockingAdapter
+  : {
       platform: "ios",
-      // TODO(Screen Time): wire requestAuthorization / presentAppPicker / startBlocking / stopBlocking.
-    }
-  : unsupportedBlockingAdapter;
+      available: true,
+      selectionMode: "system-picker",
+      getPermission: () => screenTimePermission(native.getStatus().authorization),
+      // iOS shows its own Screen Time dialog; there is no settings page to open for this.
+      openPermissionSettings: async () => {
+        await native.requestAuthorization();
+      },
+      getSelectableApps: async () => [],
+      presentSystemPicker: async () => {
+        const counts = await native.presentActivityPicker();
+        return counts ? screenTimeSelectionRefs(counts) : null;
+      },
+      startBlocking: (request) =>
+        screenTimeSnapshot(
+          native.startBlocking({
+            sessionId: request.sessionId,
+            endsAt: request.endsAt,
+            lockMode: request.lockMode,
+            dayId: request.dayId,
+            dayTitle: request.dayTitle,
+            origin: request.origin,
+            shield: request.apps.length > 0,
+            selectionLabel: screenTimeSelectionLabel(native.getSelection()),
+          }),
+        ),
+      stopBlocking: () => screenTimeSnapshot(native.stopBlocking()),
+      getStatus: () => {
+        try {
+          return screenTimeSnapshot(native.getStatus());
+        } catch {
+          return NO_BLOCKING;
+        }
+      },
+      scheduler: unsupportedScheduler,
+    };

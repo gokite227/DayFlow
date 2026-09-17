@@ -96,11 +96,13 @@ export default function SettingsScreen() {
             <Text style={text.muted}>›</Text>
           </ListRow>
         ) : null}
-        {__DEV__ && Platform.OS === "android" ? (
+        {__DEV__ && (Platform.OS === "android" || Platform.OS === "ios") ? (
           <ListRow onPress={() => router.push("/dev/focus")} accessibilityLabel="Focus native 디버그">
             <View style={layout.flex}>
-              <Text style={text.body}>Focus native 디버그 (개발 빌드)</Text>
-              <Text style={text.muted}>접근성 서비스 · native 차단 상태 · 마지막 감지 앱</Text>
+              <Text style={text.body}>{Platform.OS === "ios" ? "iOS Screen Time POC (개발 빌드)" : "Focus native 디버그 (개발 빌드)"}</Text>
+              <Text style={text.muted}>
+                {Platform.OS === "ios" ? "권한 · 앱 선택 · 5분 잠금 · 해제 · native 상태" : "접근성 서비스 · native 차단 상태 · 마지막 감지 앱"}
+              </Text>
             </View>
             <Text style={text.muted}>›</Text>
           </ListRow>

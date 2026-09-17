@@ -16,8 +16,20 @@
       "ios": { "simulator": true }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "APP_VARIANT": "preview",
+        "EXPO_PUBLIC_DAYFLOW_API_BASE_URL": "https://dayflow-production-2ef3.up.railway.app"
+      }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "APP_VARIANT": "production",
+        "EXPO_PUBLIC_DAYFLOW_API_BASE_URL": "https://dayflow-production-2ef3.up.railway.app"
+      }
+    }
   }
 }

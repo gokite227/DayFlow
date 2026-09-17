@@ -15,6 +15,7 @@ import {
   type FocusStatus,
   type NativeScheduleState,
 } from "../../modules/dayflow-focus";
+import { IosScreenTimeDebugScreen } from "@/features/focus/ios-screen-time-debug";
 import { parsePackageInput } from "@/features/focus/package-input";
 import { Button, Card, EmptyState, Notice, Screen, TextField, useTextStyles } from "@/ui/components";
 
@@ -25,7 +26,12 @@ const DEBUG_DURATION_MINUTES = 5;
  * sessions. The product screen is src/screens/focus-screen.tsx. A Focus started here shows up in the product
  * as a recovered session (no Day); stopping here cancels a running product Focus on its next reconcile.
  */
+/** Android: dayflow-focus (AccessibilityService). iOS: the Screen Time POC (dayflow-screen-time). */
 export default function FocusNativeDebugScreen() {
+  return Platform.OS === "ios" ? <IosScreenTimeDebugScreen /> : <AndroidFocusDebugScreen />;
+}
+
+function AndroidFocusDebugScreen() {
   const text = useTextStyles();
   const [permission, setPermission] = useState<FocusPermissionStatus | null>(null);
   const [status, setStatus] = useState<FocusStatus | null>(null);

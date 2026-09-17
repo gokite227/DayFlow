@@ -74,7 +74,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
 function AuthSplash() {
   return (
-    <div className="auth-page" role="status" aria-live="polite">
+    <div className="auth-page auth-splash" role="status" aria-live="polite">
+      <div className="app-mark" aria-hidden="true">
+        D
+      </div>
       <div className="auth-brand">
         Day<span>Flow</span>
       </div>

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { useAuthSession, useAuthState } from "@/features/auth/auth-provider";
+import { AppInstallSection } from "./app-install-section";
 
 /** AUTH-005: who is signed in, and logging out of this browser. */
 export function SettingsView() {
@@ -44,6 +45,7 @@ export function SettingsView() {
         </button>
       </section>
       <p className="mini settings-note">로그아웃하면 이 브라우저에서만 DayFlow 세션이 끝나요. Google 계정은 로그아웃되지 않아요.</p>
+      <AppInstallSection />
     </>
   );
 }

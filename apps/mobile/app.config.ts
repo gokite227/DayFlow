@@ -19,6 +19,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     bundleIdentifier: "app.dayflow.mobile",
     supportsTablet: false,
+    // Needed to sign the Screen Time extension target (targets/). Set locally, e.g. APPLE_TEAM_ID=ABCDE12345.
+    ...(process.env.APPLE_TEAM_ID ? { appleTeamId: process.env.APPLE_TEAM_ID } : {}),
   },
   android: {
     package: "app.dayflow.mobile",
@@ -38,5 +40,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // AUTH-004: refresh token in the Keychain / Keystore; Google login in the system browser.
     "expo-secure-store",
     "expo-web-browser",
+    // iOS Focus (Screen Time POC): Family Controls entitlement for the app, and the DeviceActivityMonitor extension
+    // generated from targets/ on every prebuild.
+    "./modules/dayflow-screen-time/app.plugin.js",
+    "@bacons/apple-targets",
   ],
 });

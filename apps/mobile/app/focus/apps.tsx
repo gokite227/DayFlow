@@ -53,6 +53,37 @@ export default function FocusAppsScreen() {
     setAttempt((count) => count + 1);
   };
 
+  // iOS: Apple's own picker; the chosen apps stay opaque Screen Time tokens on the device.
+  if (adapter.selectionMode === "system-picker" && adapter.presentSystemPicker) {
+    const pick = adapter.presentSystemPicker;
+    const current = dayPreference?.apps ?? selection.apps;
+    return (
+      <Screen>
+        <Card>
+          <Text style={text.title}>차단 앱 선택</Text>
+          <Text style={text.strong}>{current.length > 0 ? current.map((app) => app.label).join(", ") : "차단 앱 없음"}</Text>
+          <Text style={text.muted}>iPhone의 Screen Time 화면에서 앱과 카테고리를 골라요. 고른 앱의 이름은 DayFlow에 저장되지 않아요.</Text>
+        </Card>
+        {strictRunning ? <Notice tone="warning">강제 집중 중에는 차단 앱을 바꿀 수 없어요. 집중이 끝난 뒤 다시 시도해주세요.</Notice> : null}
+        {error ? <ErrorState error={error} /> : null}
+        <Button
+          label="Screen Time에서 앱 선택"
+          disabled={strictRunning}
+          onPress={() =>
+            void pick()
+              .then((refs) => {
+                if (refs === null) return;
+                if (dayId) saveDayPreference(dayId, { triggerMode: dayPreference?.triggerMode ?? "DEFAULT", lockMode: dayPreference?.lockMode ?? "DEFAULT", apps: refs });
+                else saveSelection(refs);
+                router.back();
+              })
+              .catch(setError)
+          }
+        />
+        <Button label="취소" variant="ghost" onPress={() => router.back()} />
+      </Screen>
+    );
+  }
   if (adapter.selectionMode !== "list") {
     return (
       <Screen>

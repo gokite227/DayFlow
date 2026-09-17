@@ -1,8 +1,8 @@
 Pod::Spec.new do |s|
   s.name           = 'DayflowScreenTime'
   s.version        = '0.1.0'
-  s.summary        = 'DayFlow Focus app blocking on iOS (Screen Time) — skeleton'
-  s.description    = 'Placeholder for FamilyControls / ManagedSettings / DeviceActivity. Blocks nothing yet.'
+  s.summary        = 'DayFlow Focus app blocking on iOS (Screen Time) — POC'
+  s.description    = 'FamilyControls authorization and picker, ManagedSettings shield, DeviceActivity auto end.'
   s.license        = 'UNLICENSED'
   s.author         = 'DayFlow'
   s.homepage       = 'https://github.com/gokite227/DayFlow'
@@ -12,6 +12,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
+  s.frameworks = 'FamilyControls', 'ManagedSettings', 'DeviceActivity', 'SwiftUI'
 
   s.source_files = "**/*.{h,m,swift}"
   s.pod_target_xcconfig = {

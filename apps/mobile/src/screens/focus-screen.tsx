@@ -118,7 +118,11 @@ function FocusSetup({ requestedDayId }: { requestedDayId: string | null }) {
         setMessage(result.message);
         break;
       case "permission-required":
-        setMessage("앱 차단을 사용하려면 Android 접근성 권한이 필요해요. 권한을 켜거나 차단할 앱 선택을 비워주세요.");
+        setMessage(
+          adapter.platform === "ios"
+            ? "앱 차단을 사용하려면 Screen Time 권한이 필요해요. 권한을 허용하거나 차단할 앱 선택을 비워주세요."
+            : "앱 차단을 사용하려면 Android 접근성 권한이 필요해요. 권한을 켜거나 차단할 앱 선택을 비워주세요.",
+        );
         break;
     }
   };
@@ -173,18 +177,22 @@ function FocusSetup({ requestedDayId }: { requestedDayId: string | null }) {
             </View>
             {permission.state === "granted" ? null : (
               <>
-                <Text style={text.body}>앱 차단을 사용하려면 Android 접근성 권한이 필요해요.</Text>
-                <Text style={text.muted}>집중 시간 동안 선택한 앱이 열렸는지만 확인해 차단 화면을 표시합니다. 화면 내용은 읽지 않아요.</Text>
+                <Text style={text.body}>{adapter.platform === "ios" ? "앱 차단을 사용하려면 Screen Time 권한이 필요해요." : "앱 차단을 사용하려면 Android 접근성 권한이 필요해요."}</Text>
+                <Text style={text.muted}>
+                  {adapter.platform === "ios"
+                    ? "집중 시간 동안 iPhone의 Screen Time이 선택한 앱을 가려요. DayFlow는 고른 앱의 이름을 알 수 없어요."
+                    : "집중 시간 동안 선택한 앱이 열렸는지만 확인해 차단 화면을 표시합니다. 화면 내용은 읽지 않아요."}
+                </Text>
                 <Text style={text.muted}>접근성 설정에서 &apos;DayFlow 집중 모드&apos; 스위치만 켜면 돼요. 바로가기(접근성 버튼)는 켜지 않아도 돼요.</Text>
                 <View style={layout.rowWrap}>
-                  <Button label="접근성 설정 열기" small variant="secondary" onPress={() => void adapter.openPermissionSettings().then(refresh)} />
+                  <Button label={adapter.platform === "ios" ? "Screen Time 권한 요청" : "접근성 설정 열기"} small variant="secondary" onPress={() => void adapter.openPermissionSettings().then(refresh)} />
                   <Button label="다시 확인" small variant="ghost" onPress={refresh} />
                 </View>
               </>
             )}
           </>
         ) : adapter.available ? (
-          <Text style={text.muted}>차단 앱 없이 타이머만 사용해요. 접근성 권한은 필요 없어요.</Text>
+          <Text style={text.muted}>차단 앱 없이 타이머만 사용해요. {adapter.platform === "ios" ? "Screen Time" : "접근성"} 권한은 필요 없어요.</Text>
         ) : null}
       </Card>
 

@@ -43,10 +43,15 @@
   },
   "expo": {
     "install": {
-      "exclude": ["expo", "expo-notifications", "typescript"]
+      "exclude": [
+        "expo",
+        "expo-notifications",
+        "typescript"
+      ]
     }
   },
   "devDependencies": {
+    "@bacons/apple-targets": "5.0.0",
     "@react-native/metro-config": "0.86.3",
     "@types/react": "19.2.18",
     "eslint": "9.39.5",
