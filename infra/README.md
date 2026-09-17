@@ -169,7 +169,18 @@ Never put `GOOGLE_CLIENT_SECRET`, `DAYFLOW_JWT_SECRET` or database values into V
 5. Check in the browser: Web login, reload keeps the session, data isolation between two accounts.
 
 Expected database state: after the first Google sign-in `users=1`, `user_identities=1`, `event_categories=6`
-and no goals/days/tags/events/reviews; after a second account `2 / 2 / 12`.
+and no goals/days/tags/events/reviews; after a second account `2 / 2 / 12`. Check it in Railway →
+Postgres → Data (or Query):
+
+```sql
+select (select count(*) from users) users, (select count(*) from user_identities) identities,
+       (select count(*) from event_categories) categories, (select max(version) from flyway_schema_history) flyway;
+```
+
+Mobile against production: set `EXPO_PUBLIC_DAYFLOW_API_BASE_URL=https://<api-host>` in `apps/mobile/.env`
+(or the EAS build profile) and restart Metro with `--clear`; Google login returns to `dayflow://auth/callback`
+(the API default). Local development is unchanged: without these variables the `local` profile, `infra/.env`,
+`http://localhost:8080` and `http://localhost:3000` are used.
 
 ### 3.4 Operational notes
 

@@ -49,6 +49,17 @@ const VERIFIER_KEY = "dayflow.auth.pkceVerifier";
 const RETURN_TO_KEY = "dayflow.auth.returnTo";
 export const DEFAULT_ROUTE = "/today";
 
+/**
+ * The route to come back to after signing in: the path *and* its query (e.g. /review?mode=archive&q=운동),
+ * so a filtered screen or deep link survives the login. /login itself means "no route"; anything that is not
+ * a safe in-app route falls back to the path alone, then to nothing (open redirects stay impossible).
+ */
+export function loginReturnTo(pathname: string, search: string): string | null {
+  if (pathname === "/login") return null;
+  const query = search === "" || search === "?" ? "" : search.startsWith("?") ? search : `?${search}`;
+  return safeReturnTo(`${pathname}${query}`) ?? safeReturnTo(pathname);
+}
+
 export type WebAuthSession = ReturnType<typeof createWebAuthSession>;
 
 export function createWebAuthSession(options: WebAuthSessionOptions) {

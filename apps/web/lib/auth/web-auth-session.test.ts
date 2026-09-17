@@ -1,6 +1,6 @@
 import { codeChallengeOf, type MeResponse } from "@dayflow/api-client";
 import { describe, expect, it, vi } from "vitest";
-import { createWebAuthSession, LoginCallbackError, type KeyValueStorage } from "./web-auth-session";
+import { createWebAuthSession, LoginCallbackError, loginReturnTo, type KeyValueStorage } from "./web-auth-session";
 
 const API = "http://api.test";
 /** The Web origin: the refresh-cookie endpoints are called here and proxied to the API (next.config.ts). */
@@ -163,6 +163,32 @@ describe("Web auth session", () => {
     expect(JSON.parse(exchanges[0]!.body)).toEqual({ code: CODE, codeVerifier: "v".repeat(43), platform: "WEB" });
     expect(exchanges[0]!.credentials).toBe("include");
     expect(storage.values.size).toBe(0);
+  });
+
+  it("keeps the whole route, query included, as the login returnTo and rejects other origins", () => {
+    const korean = new URLSearchParams({ mode: "archive", type: "WEEK", q: "중간고사" }).toString();
+    expect(loginReturnTo("/goals", "")).toBe("/goals");
+    expect(loginReturnTo("/review", "?mode=archive")).toBe("/review?mode=archive");
+    expect(loginReturnTo("/calendar", "?view=month&date=2026-09-17&content=events")).toBe(
+      "/calendar?view=month&date=2026-09-17&content=events",
+    );
+    expect(loginReturnTo("/review", `?${korean}`)).toBe(`/review?${korean}`);
+    expect(loginReturnTo("/login", "?next=/today")).toBeNull();
+    // Not an in-app route: never redirect there.
+    expect(loginReturnTo("//evil.example", "")).toBeNull();
+    expect(loginReturnTo("/\\evil.example", "?a=1")).toBeNull();
+    // A query that would break the route falls back to the path.
+    expect(loginReturnTo("/review", "?q=has space")).toBe("/review");
+  });
+
+  it("returns to the saved route with its query after the callback", async () => {
+    const { session, storage, navigate } = setup();
+    const route = `/review?${new URLSearchParams({ mode: "archive", type: "WEEK", q: "운동" }).toString()}`;
+    await session.startDevLogin("user-a", "user-a@dayflow.dev", route);
+    expect(storage.values.get("dayflow.auth.returnTo")).toBe(route);
+    expect(new URL(navigate.mock.calls[0]![0] as string).pathname).toBe("/api/v1/auth/dev/login");
+
+    await expect(session.completeLogin(`http://web.test/auth/callback?code=${CODE}`)).resolves.toBe(route);
   });
 
   it("rejects callbacks without a verifier or with an error", async () => {

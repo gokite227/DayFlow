@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useLayoutEffect, useSyncExternalStore, type ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { getWebAuthSession, setUserChangedListener } from "@/lib/auth/session";
-import type { WebAuthSession, WebAuthState } from "@/lib/auth/web-auth-session";
+import { loginReturnTo, type WebAuthSession, type WebAuthState } from "@/lib/auth/web-auth-session";
 import { LoginView } from "./login-view";
 
 const LOADING: WebAuthState = { status: "loading" };
@@ -63,7 +63,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   } else if (!session || state.status === "loading" || (state.status === "signedIn" && pathname === "/login")) {
     content = <AuthSplash />;
   } else if (state.status === "signedOut") {
-    content = <LoginView returnTo={pathname === "/login" ? null : pathname} message={state.message} />;
+    // The session only exists in the browser, so window.location is available here. The query is part of the
+    // route (filters, search, deep links); usePathname alone would drop it.
+    content = <LoginView returnTo={loginReturnTo(pathname, window.location.search)} message={state.message} />;
   } else {
     content = <AppShell>{children}</AppShell>;
   }
